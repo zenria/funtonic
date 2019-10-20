@@ -24,6 +24,8 @@ package helloworld;
 service Greeter {
   // Sends a greeting
   rpc SayHello (HelloRequest) returns (HelloReply) {}
+
+  rpc StreamMeMaybe(StreamMeMaybeRequest) returns (stream StreamMeMaybeReply) {}
 }
 
 // The request message containing the user's name.
@@ -34,4 +36,13 @@ message HelloRequest {
 // The response message containing the greetings
 message HelloReply {
   string message = 1;
+}
+
+message StreamMeMaybeRequest {
+  string clientId = 1;
+}
+
+message StreamMeMaybeReply {
+  string taskId = 1;
+  string taskPayload = 2;
 }

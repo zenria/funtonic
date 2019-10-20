@@ -12,9 +12,12 @@ tonic={git="https://github.com/hyperium/tonic.git", features=["rustls", "codegen
 bytes = "0.4"
 prost = "0.5"
 
+rand = "0.7.2"
+
 tokio = "=0.2.0-alpha.6"
-#futures-preview = { version = "=0.3.0-alpha.19", default-features = false, features = ["alloc"]}
-#async-stream = "0.1.2"
+futures-core-preview = "=0.3.0-alpha.19"
+futures-util-preview = "=0.3.0-alpha.19"
+async-stream = "0.1.2"
 #http = "0.1"
 #tower = "=0.3.0-alpha.2"
 
