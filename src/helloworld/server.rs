@@ -56,13 +56,13 @@ impl Greeter for MyGreeter {
             //pin_mut!(request);
             let mut i: u64 = 1 ;
             loop {
+                let delay = tokio::timer::delay_for(Duration::from_secs(i));
+                delay.await;
                 println!(
                     "Client {}-{:x} - new task",
                     request.client_id,session
                 );
                 let task_id = format!("{}-{:x}-{}", request.client_id,session, i);
-                let delay = tokio::timer::delay_for(Duration::from_secs(i));
-                delay.await;
                 yield StreamMeMaybeReply {
                     task_id: task_id.into(),
                     task_payload: "foo_bar".into()
