@@ -53,7 +53,6 @@ impl Greeter for MyGreeter {
         );
 
         let stream = try_stream! {
-            //pin_mut!(request);
             let mut i: u64 = 1 ;
             loop {
                 let delay = tokio::timer::delay_for(Duration::from_secs(i));
@@ -71,7 +70,6 @@ impl Greeter for MyGreeter {
             }
         };
         Ok(Response::new(Box::pin(stream) as Self::StreamMeMaybeStream))
-        //Err(tonic::Status::unimplemented("Not yet implemented: coucou"))
     }
 }
 
