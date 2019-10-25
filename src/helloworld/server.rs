@@ -1,7 +1,7 @@
 use async_stream::try_stream;
-use tonic::{transport::Server, Request, Response, Status};
 use futures_util::pin_mut;
 use rand::prelude::*;
+use tonic::{transport::Server, Request, Response, Status};
 
 pub mod hello_world {
     tonic::include_proto!("helloworld");
@@ -49,7 +49,7 @@ impl Greeter for MyGreeter {
         let session: u128 = rand::thread_rng().gen();
         println!(
             "Client {} opening session: {:x}",
-            request.client_id,session
+            request.client_id, session
         );
 
         let stream = try_stream! {

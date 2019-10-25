@@ -3,6 +3,5 @@
 #[macro_use]
 extern crate async_stream;
 
-fn main() {
-    println!("Hello, world!");
-}
+pub mod generated;
+pub mod task_server;

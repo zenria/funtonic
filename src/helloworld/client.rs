@@ -4,7 +4,6 @@ pub mod hello_world {
 
 use hello_world::{client::GreeterClient, HelloRequest};
 
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = GreeterClient::connect("http://[::1]:50051")?;

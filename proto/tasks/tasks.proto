@@ -1,0 +1,102 @@
+// Copyright 2015 gRPC authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "fr.gassmann.funtonic";
+option java_outer_classname = "TasksProto";
+
+package tasks;
+
+service TasksManager {
+  // Sends a greeting
+  rpc RegisterClient (RegisterClientRequest) returns (RegisterClientReply) {}
+
+  rpc GetTasks(GetTasksRequest) returns (stream GetTaskStreamReply) {}
+
+  rpc TaskExecution(stream TaskExecutionStream) returns (TaskExecutionReply){}
+
+  rpc LaunchTask(LaunchTaskRequest) returns (stream TaskExecutionStream) {}
+}
+
+// The request message containing the user's name.
+message RegisterClientRequest {
+  string clientId = 1;
+  oneof clientType {
+    CommandClientType commandClientType=2;
+    ExecutorClientType executorClientType=3;
+  }
+  // TODO client tags
+}
+
+// The response message containing the greetings
+message RegisterClientReply {
+  oneof register_result {
+    string errorMessage = 2;
+    bool accepted = 1;
+  }
+}
+
+
+// launch tasks
+message CommandClientType {}
+// execute tasks
+message ExecutorClientType {}
+
+
+message GetTasksRequest {
+  string clientId = 1;
+}
+
+message GetTaskStreamReply {
+  string taskId = 1;
+  TaskPayload taskPayload = 2;
+}
+
+message LaunchTaskRequest {
+  TaskPayload taskPayload=1;
+  string predicate=2;
+}
+
+message TaskPayload {
+  string payload=1;
+}
+
+message TaskCompleted {
+  int32 returnCode=1;
+}
+
+message TaskOutput {
+  oneof output {
+    string stdout=1;
+    string stderr=2;
+  }
+}
+
+message TaskExecutionStream {
+  string taskId = 1;
+  string clientId = 2;
+  oneof execution_result {
+    TaskCompleted taskCompleted=3;
+    TaskOutput taskOutput=4;
+    TaskAlive ping=5;
+  }
+}
+message TaskExecutionReply {
+  // empty
+}
+message TaskAlive {
+  // empty ping message
+}
