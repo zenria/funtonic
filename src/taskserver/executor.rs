@@ -14,6 +14,7 @@ use std::time::Duration;
 use tonic::metadata::AsciiMetadataValue;
 use tonic::Request;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
+use tonic::transport::{ClientTlsConfig, Certificate, Channel, Identity};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -25,6 +26,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     )
     .expect("setting tracing default failed");
     tracing_log::LogTracer::init().unwrap();
+
 
     let max_reconnect_time = Duration::from_secs(10);
     let mut reconnect_time = Duration::from_secs(1);
@@ -43,7 +45,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn executor_main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut client = TasksManagerClient::connect("http://[::1]:50051")?;
+
+    let ca = tokio::fs::read("tls/funtonic-ca.pem").await?;
+    let ca = Certificate::from_pem(ca);
+
+    let cert = tokio::fs::read("tls/commander.pem").await?;
+    let key = tokio::fs::read("tls/commander-key.pem").await?;
+    let identity = Identity::from_pem(cert, key);
+
+    let tls = ClientTlsConfig::with_rustls()
+        .ca_certificate(ca)
+        .identity(identity)
+        .domain_name("server.example.funtonic")
+        .clone();
+
+    let channel = Channel::from_static("http://[::1]:50051")
+        .tls_config(&tls)
+        .channel();
+
+
+    let mut client = TasksManagerClient::new(channel);
 
     let client_id = std::env::args().nth(1).unwrap();
 

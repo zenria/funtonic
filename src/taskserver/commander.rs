@@ -8,6 +8,7 @@ use funtonic::generated::tasks::task_execution_result::ExecutionResult;
 use funtonic::generated::tasks::task_output::Output;
 use funtonic::generated::tasks::{LaunchTaskRequest, TaskPayload};
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
+use tonic::transport::{Certificate, ClientTlsConfig, Channel, Identity};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -20,7 +21,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .expect("setting tracing default failed");
     tracing_log::LogTracer::init().unwrap();
 
-    let mut client = TasksManagerClient::connect("http://[::1]:50051")?;
+    let pem = tokio::fs::read("tls/funtonic-ca.pem").await?;
+    let ca = Certificate::from_pem(pem);
+
+    let cert = tokio::fs::read("tls/commander.pem").await?;
+    let key = tokio::fs::read("tls/commander-key.pem").await?;
+    let identity = Identity::from_pem(cert, key);
+
+
+    let tls = ClientTlsConfig::with_rustls()
+        .ca_certificate(ca)
+        .identity(identity)
+        .domain_name("server.example.funtonic")
+        .clone();
+
+    let channel = Channel::from_static("http://[::1]:50051")
+        .tls_config(&tls)
+        .channel();
+
+
+    let mut client = TasksManagerClient::new(channel);
 
     let command = std::env::args().skip(1).join(" ");
 

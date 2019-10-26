@@ -3,3 +3,7 @@
 *.iml
 .idea
 ./generated/*.rs
+tls/*.pem
+tls/*.csr
+tls/*.json
+
