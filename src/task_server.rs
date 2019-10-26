@@ -1,5 +1,5 @@
 use crate::generated::tasks::server::*;
-use crate::generated::tasks::task_execution_stream::ExecutionResult;
+use crate::generated::tasks::task_execution_result::ExecutionResult;
 use crate::generated::tasks::*;
 use futures_channel::mpsc;
 use futures_sink::Sink;
@@ -17,12 +17,12 @@ pub struct TaskServer {
     executors: Mutex<
         HashMap<
             String,
-            mpsc::UnboundedSender<(TaskPayload, mpsc::UnboundedSender<TaskExecutionStream>)>,
+            mpsc::UnboundedSender<(TaskPayload, mpsc::UnboundedSender<TaskExecutionResult>)>,
         >,
     >,
 
     /// by task id, sinks where executors reports task execution
-    tasks_sinks: Arc<Mutex<HashMap<String, mpsc::UnboundedSender<TaskExecutionStream>>>>,
+    tasks_sinks: Arc<Mutex<HashMap<String, mpsc::UnboundedSender<TaskExecutionResult>>>>,
 }
 
 impl TaskServer {
@@ -35,8 +35,8 @@ impl TaskServer {
 }
 
 fn register_new_task(
-    tasks_sinks: &Mutex<HashMap<String, mpsc::UnboundedSender<TaskExecutionStream>>>,
-    sender_to_commander: mpsc::UnboundedSender<TaskExecutionStream>,
+    tasks_sinks: &Mutex<HashMap<String, mpsc::UnboundedSender<TaskExecutionResult>>>,
+    sender_to_commander: mpsc::UnboundedSender<TaskExecutionResult>,
 ) -> String {
     let task_id = random_task_id();
     tasks_sinks
@@ -47,9 +47,9 @@ fn register_new_task(
 }
 
 fn get_task_sink(
-    tasks_sinks: &Mutex<HashMap<String, mpsc::UnboundedSender<TaskExecutionStream>>>,
+    tasks_sinks: &Mutex<HashMap<String, mpsc::UnboundedSender<TaskExecutionResult>>>,
     task_id: &str,
-) -> Option<mpsc::UnboundedSender<TaskExecutionStream>> {
+) -> Option<mpsc::UnboundedSender<TaskExecutionResult>> {
     tasks_sinks.lock().unwrap().remove(task_id)
 }
 
@@ -57,7 +57,7 @@ impl TaskServer {
     fn get_channels_to_matching_executors(
         &self,
         _query: &str,
-    ) -> Vec<mpsc::UnboundedSender<(TaskPayload, mpsc::UnboundedSender<TaskExecutionStream>)>> {
+    ) -> Vec<mpsc::UnboundedSender<(TaskPayload, mpsc::UnboundedSender<TaskExecutionResult>)>> {
         // this code needs to be done in a separate block because aht executors variable is not Send,
         // thus, if it resides in the stack it will fail the whole Future stuff
         //
@@ -74,7 +74,7 @@ impl TaskServer {
         client_id: &str,
         sender_to_get_task_response: mpsc::UnboundedSender<(
             TaskPayload,
-            mpsc::UnboundedSender<TaskExecutionStream>,
+            mpsc::UnboundedSender<TaskExecutionResult>,
         )>,
     ) {
         self.executors
@@ -128,7 +128,7 @@ impl TasksManager for TaskServer {
     }
     async fn task_execution(
         &self,
-        request: tonic::Request<tonic::Streaming<TaskExecutionStream>>,
+        request: tonic::Request<tonic::Streaming<TaskExecutionResult>>,
     ) -> Result<tonic::Response<TaskExecutionReply>, tonic::Status> {
         let task_id =
             String::from_utf8_lossy(request.metadata().get("task_id").unwrap().as_bytes())
@@ -150,7 +150,7 @@ impl TasksManager for TaskServer {
             Err(tonic::Status::new(Code::NotFound, "task_id not found"))
         }
     }
-    type LaunchTaskStream = Stream<TaskExecutionStream>;
+    type LaunchTaskStream = Stream<TaskExecutionResult>;
 
     async fn launch_task(
         &self,

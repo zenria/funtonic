@@ -24,11 +24,11 @@ service TasksManager {
   // Sends a greeting
   rpc RegisterClient (RegisterClientRequest) returns (RegisterClientReply) {}
 
-  rpc GetTasks(GetTasksRequest) returns (stream GetTaskStreamReply) {}
+  rpc GetTasks (GetTasksRequest) returns (stream GetTaskStreamReply) {}
 
-  rpc TaskExecution(stream TaskExecutionStream) returns (TaskExecutionReply){}
+  rpc TaskExecution (stream TaskExecutionResult) returns (TaskExecutionReply) {}
 
-  rpc LaunchTask(LaunchTaskRequest) returns (stream TaskExecutionStream) {}
+  rpc LaunchTask (LaunchTaskRequest) returns (stream TaskExecutionResult) {}
 }
 
 // The request message containing the user's name.
@@ -85,7 +85,7 @@ message TaskOutput {
   }
 }
 
-message TaskExecutionStream {
+message TaskExecutionResult {
   string taskId = 1;
   string clientId = 2;
   oneof execution_result {

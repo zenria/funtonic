@@ -1,16 +1,19 @@
+use funtonic::exec::Type::Out;
+use funtonic::exec::*;
 use funtonic::generated::tasks::client::TasksManagerClient;
 use funtonic::generated::tasks::server::TasksManager;
-use funtonic::generated::tasks::task_execution_stream::ExecutionResult;
-use funtonic::exec::*;
+use funtonic::generated::tasks::task_execution_result::ExecutionResult;
 use funtonic::generated::tasks::task_output::Output;
-use funtonic::generated::tasks::{GetTasksRequest, LaunchTaskRequest, TaskCompleted, TaskExecutionStream, TaskOutput, TaskPayload, TaskAlive};
+use funtonic::generated::tasks::{
+    GetTasksRequest, LaunchTaskRequest, TaskAlive, TaskCompleted, TaskExecutionResult, TaskOutput,
+    TaskPayload,
+};
 use futures_util::{FutureExt, SinkExt, StreamExt};
 use rand::Rng;
 use std::sync::Arc;
 use std::time::Duration;
 use tonic::metadata::AsciiMetadataValue;
 use tonic::Request;
-use funtonic::exec::Type::Out;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -52,27 +55,32 @@ async fn executor_main() -> Result<(), Box<dyn std::error::Error>> {
         let (mut sender, receiver) = tokio_sync::mpsc::unbounded_channel();
         tokio_executor::blocking::run(move || {
             // unconditionnaly ping so the task will be "consumed" on the server
-            sender.try_send(ExecutionResult::Ping(TaskAlive{}));
+            if let Err(_) = sender.try_send(ExecutionResult::Ping(TaskAlive {})) {
+                return;
+            }
             // TODO handle error (this should also be an event)
             let receiver = exec_command(&task_payload.payload).unwrap();
             for exec_event in receiver {
                 let execution_result = match exec_event {
-                    ExecEvent::Started => {ExecutionResult::Ping(TaskAlive{})},
-                    ExecEvent::Finished(return_code) => ExecutionResult::TaskCompleted(TaskCompleted{return_code}),
-                    ExecEvent::LineEmitted(line) => ExecutionResult::TaskOutput(TaskOutput{
-                        output: Some(match &line.line_type{
-                            Out => Output::Stdout(String::from_utf8_lossy( &line.line).into()),
-                            Type::Err => Output::Stderr(String::from_utf8_lossy( &line.line).into()),
-                        })
+                    ExecEvent::Started => ExecutionResult::Ping(TaskAlive {}),
+                    ExecEvent::Finished(return_code) => {
+                        ExecutionResult::TaskCompleted(TaskCompleted { return_code })
+                    }
+                    ExecEvent::LineEmitted(line) => ExecutionResult::TaskOutput(TaskOutput {
+                        output: Some(match &line.line_type {
+                            Out => Output::Stdout(String::from_utf8_lossy(&line.line).into()),
+                            Type::Err => Output::Stderr(String::from_utf8_lossy(&line.line).into()),
+                        }),
                     }),
                 };
-                sender.try_send(execution_result);
+                // ignore send errors, continue to consume the execution results
+                let _ = sender.try_send(execution_result);
             }
         });
 
         let cloned_task_id = task_id.clone();
         let cloned_client_id = client_id.clone();
-        let stream = receiver.map(move |execution_result| TaskExecutionStream {
+        let stream = receiver.map(move |execution_result| TaskExecutionResult {
             task_id: task_id.clone(),
             client_id: cloned_client_id.clone(),
             execution_result: Some(execution_result),
