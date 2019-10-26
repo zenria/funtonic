@@ -57,7 +57,10 @@ impl TaskServer {
     fn get_channels_to_matching_executors(
         &self,
         _query: &str,
-    ) -> Vec<mpsc::UnboundedSender<(TaskPayload, mpsc::UnboundedSender<TaskExecutionResult>)>> {
+    ) -> Vec<(
+        String,
+        mpsc::UnboundedSender<(TaskPayload, mpsc::UnboundedSender<TaskExecutionResult>)>,
+    )> {
         // this code needs to be done in a separate block because aht executors variable is not Send,
         // thus, if it resides in the stack it will fail the whole Future stuff
         //
@@ -65,7 +68,7 @@ impl TaskServer {
         // find matching senders, clone them
         executor_senders
             .iter_mut()
-            .map(|(_client_id, executor_sender)| executor_sender.clone())
+            .map(|(client_id, executor_sender)| (client_id.clone(), executor_sender.clone()))
             .collect()
     }
 
@@ -112,7 +115,7 @@ impl TasksManager for TaskServer {
         let response_stream = receiver.map(move |(task_payload, sender_to_commander)| {
             // for each new task, register the task and forward it to the executor stream
             let task_id = register_new_task(&tasks_sinks, sender_to_commander);
-            println!(
+            info!(
                 "Sending task {} - {} to {}",
                 task_id, task_payload.payload, request.client_id
             );
@@ -138,18 +141,21 @@ impl TasksManager for TaskServer {
             let mut sender = sender;
             while let Some(task_execution_stream) = request_stream.next().await {
                 let task_execution_stream = task_execution_stream?;
-                println!(
+                info!(
                     "Received task_execution_report {} - {}",
                     task_execution_stream.client_id, task_id
                 );
                 if let Err(_e) = sender.send(task_execution_stream).await {
-                    eprintln!("Commander disconnected for task {}", task_id);
+                    warn!(
+                        "Commander disconnected for task {}, task will be killed by executor.",
+                        task_id
+                    );
                     break;
                 }
             }
             Ok(Response::new(TaskExecutionReply {}))
         } else {
-            eprintln!("Task id not found {}", task_id);
+            error!("Task id not found {}", task_id);
             Err(tonic::Status::new(Code::NotFound, "task_id not found"))
         }
     }
@@ -169,12 +175,12 @@ impl TasksManager for TaskServer {
 
         let mut senders = self.get_channels_to_matching_executors(&query);
 
-        for executor_sender in senders.iter_mut() {
+        for (client_id, executor_sender) in senders.iter_mut() {
             if let Err(_) = executor_sender
                 .send((payload.clone(), sender.clone()))
                 .await
             {
-                eprintln!("Executor disconnected!");
+                error!("Executor {} disconnected!", client_id);
             }
         }
         let response_stream = receiver.map(|task_execution| Ok(task_execution));

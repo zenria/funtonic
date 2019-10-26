@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate log;
+
 use itertools::Itertools;
 
 use funtonic::generated::tasks::client::TasksManagerClient;
@@ -53,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             ExecutionResult::Ping(_) => {
-                println!("Pinged!");
+                debug!("Pinged!");
             }
         }
     }

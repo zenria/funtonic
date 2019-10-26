@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate log;
+
 use funtonic::exec::Type::Out;
 use funtonic::exec::*;
 use funtonic::generated::tasks::client::TasksManagerClient;
@@ -26,15 +29,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let max_reconnect_time = Duration::from_secs(10);
     let mut reconnect_time = Duration::from_secs(1);
     while let Err(e) = executor_main().await {
-        eprintln!("Error {}", e);
-        eprintln!("Reconnecting in {}s", reconnect_time.as_secs());
+        error!("Error {}", e);
+        info!("Reconnecting in {}s", reconnect_time.as_secs());
         tokio::timer::delay_for(reconnect_time).await;
         // increase reconnect time
         reconnect_time = reconnect_time + Duration::from_secs(1);
         if reconnect_time > max_reconnect_time {
             reconnect_time = max_reconnect_time;
         }
-        eprintln!("Reconnecting...")
+        info!("Reconnecting...")
     }
     Ok(())
 }
@@ -44,7 +47,7 @@ async fn executor_main() -> Result<(), Box<dyn std::error::Error>> {
 
     let client_id = std::env::args().nth(1).unwrap();
 
-    println!("Connected");
+    info!("Connected");
 
     let request = tonic::Request::new(GetTasksRequest {
         client_id: client_id.to_string(),
@@ -56,7 +59,7 @@ async fn executor_main() -> Result<(), Box<dyn std::error::Error>> {
         // by convention this field is always here, so we can "safely" unwrap
         let task_id = task.task_id;
         let task_payload = task.task_payload.unwrap();
-        println!("Recieved task {} - {}", task_id, task_payload.payload);
+        info!("Received task {} - {}", task_id, task_payload.payload);
 
         let (mut sender, receiver) = tokio_sync::mpsc::unbounded_channel();
         // unconditionnaly ping so the task will be "consumed" on the server
@@ -98,7 +101,7 @@ async fn executor_main() -> Result<(), Box<dyn std::error::Error>> {
         client.task_execution(request).await?;
         // do not leave process behind
         let _ = kill_sender.try_send(());
-        println!("Waiting for next task")
+        info!("Waiting for next task")
     }
 
     Ok(())

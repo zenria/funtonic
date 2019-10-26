@@ -115,7 +115,7 @@ pub fn extexec(
             Err(_) => break,
         }
         if let Ok(_kill) = kill_receiver.try_recv() {
-            println!("kill task");
+            warn!("killed task!");
             let _ = child.kill();
             break;
         }
