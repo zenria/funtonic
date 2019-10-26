@@ -1,12 +1,22 @@
+use itertools::Itertools;
+
 use funtonic::generated::tasks::client::TasksManagerClient;
-use funtonic::generated::tasks::server::TasksManager;
 use funtonic::generated::tasks::task_execution_result::ExecutionResult;
 use funtonic::generated::tasks::task_output::Output;
 use funtonic::generated::tasks::{LaunchTaskRequest, TaskPayload};
-use itertools::Itertools;
+use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    tracing::subscriber::set_global_default(
+        FmtSubscriber::builder()
+            .with_env_filter(EnvFilter::from_default_env())
+            .without_time()
+            .finish(),
+    )
+    .expect("setting tracing default failed");
+    tracing_log::LogTracer::init().unwrap();
+
     let mut client = TasksManagerClient::connect("http://[::1]:50051")?;
 
     let command = std::env::args().skip(1).join(" ");

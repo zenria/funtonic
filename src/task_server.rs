@@ -65,7 +65,7 @@ impl TaskServer {
         // find matching senders, clone them
         executor_senders
             .iter_mut()
-            .map(|(client_id, executor_sender)| executor_sender.clone())
+            .map(|(_client_id, executor_sender)| executor_sender.clone())
             .collect()
     }
 
@@ -91,7 +91,7 @@ type Stream<T> =
 impl TasksManager for TaskServer {
     async fn register_client(
         &self,
-        request: tonic::Request<RegisterClientRequest>,
+        _request: tonic::Request<RegisterClientRequest>,
     ) -> Result<tonic::Response<RegisterClientReply>, tonic::Status> {
         Err(tonic::Status::unimplemented("Not yet implemented"))
     }
@@ -104,7 +104,7 @@ impl TasksManager for TaskServer {
 
         // register the client and wait for new tasks to come, forward them
         // to the response
-        let (sender, mut receiver) = mpsc::unbounded();
+        let (sender, receiver) = mpsc::unbounded();
         self.register_executor(&request.client_id, sender);
 
         let tasks_sinks = self.tasks_sinks.clone();
@@ -142,7 +142,10 @@ impl TasksManager for TaskServer {
                     "Received task_execution_report {} - {}",
                     task_execution_stream.client_id, task_id
                 );
-                sender.send(task_execution_stream).await;
+                if let Err(_e) = sender.send(task_execution_stream).await {
+                    eprintln!("Commander disconnected for task {}", task_id);
+                    break;
+                }
             }
             Ok(Response::new(TaskExecutionReply {}))
         } else {
@@ -167,9 +170,12 @@ impl TasksManager for TaskServer {
         let mut senders = self.get_channels_to_matching_executors(&query);
 
         for executor_sender in senders.iter_mut() {
-            executor_sender
+            if let Err(_) = executor_sender
                 .send((payload.clone(), sender.clone()))
-                .await;
+                .await
+            {
+                eprintln!("Executor disconnected!");
+            }
         }
         let response_stream = receiver.map(|task_execution| Ok(task_execution));
         Ok(Response::new(

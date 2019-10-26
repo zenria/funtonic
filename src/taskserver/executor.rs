@@ -1,22 +1,28 @@
 use funtonic::exec::Type::Out;
 use funtonic::exec::*;
 use funtonic::generated::tasks::client::TasksManagerClient;
-use funtonic::generated::tasks::server::TasksManager;
 use funtonic::generated::tasks::task_execution_result::ExecutionResult;
 use funtonic::generated::tasks::task_output::Output;
 use funtonic::generated::tasks::{
-    GetTasksRequest, LaunchTaskRequest, TaskAlive, TaskCompleted, TaskExecutionResult, TaskOutput,
-    TaskPayload,
+    GetTasksRequest, TaskAlive, TaskCompleted, TaskExecutionResult, TaskOutput,
 };
-use futures_util::{FutureExt, SinkExt, StreamExt};
-use rand::Rng;
-use std::sync::Arc;
+use futures_util::StreamExt;
 use std::time::Duration;
 use tonic::metadata::AsciiMetadataValue;
 use tonic::Request;
+use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    tracing::subscriber::set_global_default(
+        FmtSubscriber::builder()
+            .with_env_filter(EnvFilter::from_default_env())
+            .without_time()
+            .finish(),
+    )
+    .expect("setting tracing default failed");
+    tracing_log::LogTracer::init().unwrap();
+
     let max_reconnect_time = Duration::from_secs(10);
     let mut reconnect_time = Duration::from_secs(1);
     while let Err(e) = executor_main().await {
