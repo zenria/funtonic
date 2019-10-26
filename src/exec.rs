@@ -2,6 +2,7 @@ use std::fmt::{Debug, Formatter};
 use std::io;
 use std::io::{Error, Read, Write};
 use std::process::{Command, ExitStatus, Stdio};
+use std::time::Duration;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum Type {
@@ -75,8 +76,16 @@ fn capture_lines<R: Read + Send + 'static>(
 
 pub fn extexec(
     mut command: Command,
-) -> Result<crossbeam::channel::Receiver<ExecEvent>, Box<dyn std::error::Error>> {
+) -> Result<
+    (
+        crossbeam::channel::Receiver<ExecEvent>,
+        crossbeam::channel::Sender<()>,
+    ),
+    Box<dyn std::error::Error>,
+> {
     let (events_sender, event_receiver) = crossbeam::channel::unbounded();
+
+    let (kill_sender, kill_receiver) = crossbeam::channel::bounded(1);
 
     let mut child = command
         .stdout(Stdio::piped())
@@ -95,16 +104,35 @@ pub fn extexec(
         events_sender.clone(),
         Type::Err,
     );
-    std::thread::spawn(move || {
-        let exit_status = child.wait().unwrap();
-        let _ = events_sender.send(ExecEvent::Finished(exit_status.code().unwrap()));
+    std::thread::spawn(move || loop {
+        match child.try_wait() {
+            Ok(exit_status) => {
+                if let Some(exit_status) = exit_status {
+                    let _ = events_sender.send(ExecEvent::Finished(exit_status.code().unwrap()));
+                    break;
+                }
+            }
+            Err(_) => break,
+        }
+        if let Ok(_kill) = kill_receiver.try_recv() {
+            println!("kill task");
+            let _ = child.kill();
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(100));
     });
-    Ok(event_receiver)
+    Ok((event_receiver, kill_sender))
 }
 
 pub fn exec_command(
     command: &str,
-) -> Result<crossbeam::channel::Receiver<ExecEvent>, Box<dyn std::error::Error>> {
+) -> Result<
+    (
+        crossbeam::channel::Receiver<ExecEvent>,
+        crossbeam::channel::Sender<()>,
+    ),
+    Box<dyn std::error::Error>,
+> {
     if cfg!(target_os = "windows") {
         let mut cmd = std::process::Command::new("cmd");
 
@@ -143,7 +171,7 @@ mod tests {
         let mut cmd = Command::new("bash");
         cmd.arg("-c").arg("echo coucou");
 
-        let output: Vec<ExecEvent> = extexec(cmd).unwrap().iter().collect();
+        let output: Vec<ExecEvent> = extexec(cmd).unwrap().0.iter().collect();
         assert_eq!(
             vec![
                 ExecEvent::Started,
@@ -157,7 +185,7 @@ mod tests {
     fn stderr() {
         let mut cmd = Command::new("bash");
         cmd.arg("-c").arg(">&2 echo coucou");
-        let output: Vec<ExecEvent> = extexec(cmd).unwrap().iter().collect();
+        let output: Vec<ExecEvent> = extexec(cmd).unwrap().0.iter().collect();
         assert_eq!(
             vec![
                 ExecEvent::Started,
@@ -173,7 +201,7 @@ mod tests {
         let mut cmd = Command::new("bash");
         cmd.arg("-c")
             .arg("echo foo\n>&2 echo coucou\nsleep 1;echo bar");
-        let output: Vec<ExecEvent> = extexec(cmd).unwrap().iter().collect();
+        let output: Vec<ExecEvent> = extexec(cmd).unwrap().0.iter().collect();
         assert_eq!(
             vec![
                 ExecEvent::Started,
@@ -188,7 +216,7 @@ mod tests {
         let mut cmd = Command::new("bash");
         cmd.arg("-c")
             .arg("echo foo\n>&2 echo coucou\nsleep 1;echo bar");
-        let output: Vec<ExecEvent> = extexec(cmd).unwrap().iter().collect();
+        let output: Vec<ExecEvent> = extexec(cmd).unwrap().0.iter().collect();
         assert_eq!(
             vec![
                 ExecEvent::Started,

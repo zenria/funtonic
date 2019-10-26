@@ -59,14 +59,12 @@ async fn executor_main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Recieved task {} - {}", task_id, task_payload.payload);
 
         let (mut sender, receiver) = tokio_sync::mpsc::unbounded_channel();
+        // unconditionnaly ping so the task will be "consumed" on the server
+        if let Err(_) = sender.try_send(ExecutionResult::Ping(TaskAlive {})) {}
+        // TODO handle error (this should also be an event)
+        let (exec_receiver, kill_sender) = exec_command(&task_payload.payload).unwrap();
         tokio_executor::blocking::run(move || {
-            // unconditionnaly ping so the task will be "consumed" on the server
-            if let Err(_) = sender.try_send(ExecutionResult::Ping(TaskAlive {})) {
-                return;
-            }
-            // TODO handle error (this should also be an event)
-            let receiver = exec_command(&task_payload.payload).unwrap();
-            for exec_event in receiver {
+            for exec_event in exec_receiver {
                 let execution_result = match exec_event {
                     ExecEvent::Started => ExecutionResult::Ping(TaskAlive {}),
                     ExecEvent::Finished(return_code) => {
@@ -98,6 +96,8 @@ async fn executor_main() -> Result<(), Box<dyn std::error::Error>> {
             AsciiMetadataValue::from_str(&cloned_task_id).unwrap(),
         );
         client.task_execution(request).await?;
+        // do not leave process behind
+        let _ = kill_sender.try_send(());
         println!("Waiting for next task")
     }
 
