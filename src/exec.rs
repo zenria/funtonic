@@ -1,0 +1,203 @@
+use std::fmt::{Debug, Formatter};
+use std::io;
+use std::io::{Error, Read, Write};
+use std::process::{Command, ExitStatus, Stdio};
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum Type {
+    Out,
+    Err,
+}
+
+#[derive(Eq, PartialEq)]
+pub struct Line {
+    pub line_type: Type,
+    pub line: Vec<u8>,
+}
+#[derive(Eq, PartialEq, Debug)]
+pub enum ExecEvent {
+    Started,
+    Finished(i32),
+    LineEmitted(Line),
+}
+
+impl Debug for Line {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        write!(
+            f,
+            "{:?}({})",
+            self.line_type,
+            String::from_utf8_lossy(&self.line)
+        )
+    }
+}
+
+pub struct Output {
+    pub exit_status: ExitStatus,
+    pub output_lines: Vec<Line>,
+}
+
+fn capture_lines<R: Read + Send + 'static>(
+    reader: R,
+    events_sender: crossbeam::Sender<ExecEvent>,
+    line_type: Type,
+) {
+    std::thread::spawn(move || {
+        let mut line_buffer = Vec::new();
+        for byte in reader.bytes() {
+            match byte {
+                Ok(byte) => {
+                    line_buffer.push(byte);
+                    if byte == '\n' as u8 {
+                        // new line, sent it to the line channel
+                        let mut line = Vec::with_capacity(line_buffer.len());
+                        line.append(&mut line_buffer);
+                        if let Err(_) =
+                            events_sender.send(ExecEvent::LineEmitted(Line { line, line_type }))
+                        {
+                            // channel dropped somehow
+                            return;
+                        }
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+        // if there are some remaining bytes, try to send them
+        if line_buffer.len() > 0 {
+            let _ = events_sender.send(ExecEvent::LineEmitted(Line {
+                line: line_buffer,
+                line_type,
+            }));
+        }
+    });
+}
+
+pub fn extexec(
+    mut command: Command,
+) -> Result<crossbeam::channel::Receiver<ExecEvent>, Box<dyn std::error::Error>> {
+    let (events_sender, event_receiver) = crossbeam::channel::unbounded();
+
+    let mut child = command
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+
+    events_sender.send(ExecEvent::Started).unwrap();
+
+    capture_lines(
+        child.stdout.take().unwrap(),
+        events_sender.clone(),
+        Type::Out,
+    );
+    capture_lines(
+        child.stderr.take().unwrap(),
+        events_sender.clone(),
+        Type::Err,
+    );
+    std::thread::spawn(move || {
+        let exit_status = child.wait().unwrap();
+        let _ = events_sender.send(ExecEvent::Finished(exit_status.code().unwrap()));
+    });
+    Ok(event_receiver)
+}
+
+pub fn exec_command(
+    command: &str,
+) -> Result<crossbeam::channel::Receiver<ExecEvent>, Box<dyn std::error::Error>> {
+    if cfg!(target_os = "windows") {
+        let mut cmd = std::process::Command::new("cmd");
+
+        cmd.args(&["/C", &command]);
+        extexec(cmd)
+    } else {
+        let mut cmd = std::process::Command::new("sh");
+        cmd.arg("-c").arg(&command);
+        extexec(cmd)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Type::Out;
+    use super::*;
+    use std::process::Command;
+
+    impl ExecEvent {
+        fn line(s: &str, line_type: Type) -> ExecEvent {
+            ExecEvent::LineEmitted(Line {
+                line_type,
+                line: s.as_bytes().to_vec(),
+            })
+        }
+        fn out(s: &str) -> ExecEvent {
+            Self::line(s, Type::Out)
+        }
+        fn err(s: &str) -> ExecEvent {
+            Self::line(s, Type::Err)
+        }
+    }
+
+    #[test]
+    fn stdout() {
+        let mut cmd = Command::new("bash");
+        cmd.arg("-c").arg("echo coucou");
+
+        let output: Vec<ExecEvent> = extexec(cmd).unwrap().iter().collect();
+        assert_eq!(
+            vec![
+                ExecEvent::Started,
+                ExecEvent::out("coucou\n"),
+                ExecEvent::Finished(0)
+            ],
+            output
+        );
+    }
+    #[test]
+    fn stderr() {
+        let mut cmd = Command::new("bash");
+        cmd.arg("-c").arg(">&2 echo coucou");
+        let output: Vec<ExecEvent> = extexec(cmd).unwrap().iter().collect();
+        assert_eq!(
+            vec![
+                ExecEvent::Started,
+                ExecEvent::err("coucou\n"),
+                ExecEvent::Finished(0)
+            ],
+            output
+        );
+    }
+
+    #[test]
+    fn stderrnout() {
+        let mut cmd = Command::new("bash");
+        cmd.arg("-c")
+            .arg("echo foo\n>&2 echo coucou\nsleep 1;echo bar");
+        let output: Vec<ExecEvent> = extexec(cmd).unwrap().iter().collect();
+        assert_eq!(
+            vec![
+                ExecEvent::Started,
+                ExecEvent::out("foo\n"),
+                ExecEvent::err("coucou\n"),
+                ExecEvent::out("bar\n"),
+                ExecEvent::Finished(0)
+            ],
+            output
+        );
+        // same without tee output
+        let mut cmd = Command::new("bash");
+        cmd.arg("-c")
+            .arg("echo foo\n>&2 echo coucou\nsleep 1;echo bar");
+        let output: Vec<ExecEvent> = extexec(cmd).unwrap().iter().collect();
+        assert_eq!(
+            vec![
+                ExecEvent::Started,
+                ExecEvent::out("foo\n"),
+                ExecEvent::err("coucou\n"),
+                ExecEvent::out("bar\n"),
+                ExecEvent::Finished(0)
+            ],
+            output
+        );
+    }
+}

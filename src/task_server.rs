@@ -9,7 +9,7 @@ use rand::Rng;
 use std::collections::HashMap;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
-use tonic::{Request, Response, Status, Streaming};
+use tonic::{Code, Request, Response, Status, Streaming};
 
 pub struct TaskServer {
     /// executors by id: when a task must be submited to an executor,
@@ -50,18 +50,7 @@ fn get_task_sink(
     tasks_sinks: &Mutex<HashMap<String, mpsc::UnboundedSender<TaskExecutionStream>>>,
     task_id: &str,
 ) -> Option<mpsc::UnboundedSender<TaskExecutionStream>> {
-    tasks_sinks
-        .lock()
-        .unwrap()
-        .get(task_id)
-        .map(|sender| sender.clone())
-}
-
-fn task_completed(
-    tasks_sinks: &Mutex<HashMap<String, mpsc::UnboundedSender<TaskExecutionStream>>>,
-    task_id: &str,
-) {
-    tasks_sinks.lock().unwrap().remove(task_id);
+    tasks_sinks.lock().unwrap().remove(task_id)
 }
 
 impl TaskServer {
@@ -141,32 +130,25 @@ impl TasksManager for TaskServer {
         &self,
         request: tonic::Request<tonic::Streaming<TaskExecutionStream>>,
     ) -> Result<tonic::Response<TaskExecutionReply>, tonic::Status> {
+        let task_id =
+            String::from_utf8_lossy(request.metadata().get("task_id").unwrap().as_bytes())
+                .into_owned();
         let mut request_stream = request.into_inner();
-
-        let tasks_sinks = self.tasks_sinks.clone();
-        while let Some(task_execution_stream) = request_stream.next().await {
-            let task_execution_stream = task_execution_stream?;
-            println!(
-                "Received task_execution_report {} - {}",
-                task_execution_stream.client_id, task_execution_stream.task_id
-            );
-            let is_task_completed = match task_execution_stream.execution_result.as_ref().unwrap() {
-                ExecutionResult::TaskCompleted(_) => true,
-                _ => false,
-            };
-            if let Some(sender) = get_task_sink(&tasks_sinks, &task_execution_stream.task_id) {
-                let mut sender = sender;
-                if is_task_completed {
-                    // unregister the sink
-                    task_completed(&tasks_sinks, &task_execution_stream.task_id);
-                }
+        if let Some(sender) = get_task_sink(&self.tasks_sinks, &task_id) {
+            let mut sender = sender;
+            while let Some(task_execution_stream) = request_stream.next().await {
+                let task_execution_stream = task_execution_stream?;
+                println!(
+                    "Received task_execution_report {} - {}",
+                    task_execution_stream.client_id, task_id
+                );
                 sender.send(task_execution_stream).await;
-            } else {
-                eprintln!("Task id not found {}", task_execution_stream.task_id);
             }
+            Ok(Response::new(TaskExecutionReply {}))
+        } else {
+            eprintln!("Task id not found {}", task_id);
+            Err(tonic::Status::new(Code::NotFound, "task_id not found"))
         }
-
-        Ok(Response::new(TaskExecutionReply {}))
     }
     type LaunchTaskStream = Stream<TaskExecutionStream>;
 

@@ -15,26 +15,18 @@ prost = "0.5"
 rand = "0.7.2"
 
 tokio = "=0.2.0-alpha.6"
+tokio-executor = "0.2.0-alpha.6"
+tokio-sync = "0.2.0-alpha.6"
 futures-core-preview = "=0.3.0-alpha.19"
 futures-util-preview = "=0.3.0-alpha.19"
 futures-sink-preview = "=0.3.0-alpha.19"
 futures-channel-preview = {version="=0.3.0-alpha.19", features=["sink"]}
 async-stream = "0.1.2"
-#http = "0.1"
-#tower = "=0.3.0-alpha.2"
-
-
+crossbeam="0.7.2"
+itertools = "0.8.0"
 
 [build-dependencies]
 tonic-build = { git="https://github.com/hyperium/tonic.git" }
-
-[[bin]]
-name = "helloworld-server"
-path = "src/helloworld/server.rs"
-
-[[bin]]
-name = "helloworld-client"
-path = "src/helloworld/client.rs"
 
 [[bin]]
 name = "taskserver"

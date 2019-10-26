@@ -3,14 +3,22 @@ use funtonic::generated::tasks::server::TasksManager;
 use funtonic::generated::tasks::task_execution_stream::ExecutionResult;
 use funtonic::generated::tasks::task_output::Output;
 use funtonic::generated::tasks::{LaunchTaskRequest, TaskPayload};
+use itertools::Itertools;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = TasksManagerClient::connect("http://[::1]:50051")?;
 
+    let command = std::env::args().skip(1).join(" ");
+
+    if command.len() == 0 {
+        eprintln!("Please specify a command to run");
+        std::process::exit(1);
+    }
+
     let request = tonic::Request::new(LaunchTaskRequest {
         task_payload: Some(TaskPayload {
-            payload: "ls / && df -h".to_string(),
+            payload: command,
         }),
         predicate: "*".to_string(),
     });
