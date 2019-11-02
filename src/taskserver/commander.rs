@@ -2,7 +2,6 @@
 extern crate log;
 
 use funtonic::config::{Config, Role};
-use funtonic::file_utils::read;
 use funtonic::generated::tasks::client::TasksManagerClient;
 use funtonic::generated::tasks::task_execution_result::ExecutionResult;
 use funtonic::generated::tasks::task_output::Output;
@@ -12,7 +11,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use structopt::StructOpt;
 use thiserror::Error;
-use tonic::transport::{Certificate, Channel, ClientTlsConfig, Identity};
+use tonic::transport::Channel;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 #[derive(StructOpt, Debug)]

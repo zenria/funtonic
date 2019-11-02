@@ -29,8 +29,6 @@ pub struct TlsConfig {
 
 impl TlsConfig {
     pub fn get_client_config(&self) -> Result<ClientTlsConfig, anyhow::Error> {
-        let ca = read(&self.ca_cert)?;
-        let ca = Certificate::from_pem(ca);
         let mut client_tls_config = ClientTlsConfig::with_rustls();
         client_tls_config
             .identity(self.get_identify()?)

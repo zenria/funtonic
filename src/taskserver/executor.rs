@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate log;
 
+use funtonic::config::{Config, Role};
 use funtonic::exec::Type::Out;
 use funtonic::exec::*;
 use funtonic::generated::tasks::client::TasksManagerClient;
@@ -10,18 +11,16 @@ use funtonic::generated::tasks::{
     GetTasksRequest, TaskAlive, TaskCompleted, TaskExecutionResult, TaskOutput,
 };
 use futures_util::StreamExt;
-use std::time::Duration;
-use tonic::metadata::AsciiMetadataValue;
-use tonic::transport::{Certificate, Channel, ClientTlsConfig, Identity, Endpoint};
-use tonic::Request;
-use tracing_subscriber::{EnvFilter, FmtSubscriber};
 use http::Uri;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::time::Duration;
 use structopt::StructOpt;
 use thiserror::Error;
-use funtonic::config::{Config, Role};
-use funtonic::file_utils::read;
+use tonic::metadata::AsciiMetadataValue;
+use tonic::transport::{Channel, Endpoint};
+use tonic::Request;
+use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "basic")]
@@ -68,12 +67,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             info!("Reconnecting...")
         }
         Ok(())
-    }else{
+    } else {
         Err(InvalidConfig)?
     }
 }
 
-async fn executor_main(endpoint: &Endpoint, client_id: String) -> Result<(), Box<dyn std::error::Error>> {
+async fn executor_main(
+    endpoint: &Endpoint,
+    client_id: String,
+) -> Result<(), Box<dyn std::error::Error>> {
     let channel = endpoint.channel();
 
     let mut client = TasksManagerClient::new(channel);

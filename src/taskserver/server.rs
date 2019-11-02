@@ -2,13 +2,12 @@
 extern crate log;
 
 use funtonic::config::{Config, Role};
-use funtonic::file_utils::read;
 use funtonic::generated::tasks::server::TasksManagerServer;
 use funtonic::task_server::TaskServer;
 use std::path::PathBuf;
 use structopt::StructOpt;
 use thiserror::Error;
-use tonic::transport::{Certificate, Identity, Server, ServerTlsConfig};
+use tonic::transport::Server;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 #[derive(StructOpt, Debug)]
@@ -39,16 +38,7 @@ async fn main() -> Result<(), anyhow::Error> {
     if let Role::Server(server_config) = &config.role {
         let mut server = Server::builder();
         if let Some(tls_config) = &config.tls {
-            let cert = read(&tls_config.cert)?;
-            let key = read(&tls_config.key)?;
-            let identity = Identity::from_pem(cert, key);
-            let ca = read(&tls_config.ca_cert)?;
-            let ca = Certificate::from_pem(ca);
-            server.tls_config(
-                ServerTlsConfig::with_rustls()
-                    .identity(identity)
-                    .client_ca_root(ca),
-            );
+            server.tls_config(&tls_config.get_server_config()?);
         }
 
         let addr = server_config.bind_address.parse().unwrap();
