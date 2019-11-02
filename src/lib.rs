@@ -11,3 +11,5 @@ pub mod exec;
 pub mod file_utils;
 pub mod generated;
 pub mod task_server;
+
+pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");

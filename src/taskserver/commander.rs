@@ -80,6 +80,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ExecutionResult::Ping(_) => {
                     debug!("Pinged!");
                 }
+                ExecutionResult::Disconnected(_) => {
+                    error!("{} disconnected!", client_id);
+                    eprintln!("{} disconnected!", client_id);
+                }
             }
         }
 

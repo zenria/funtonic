@@ -21,8 +21,6 @@ option java_outer_classname = "TasksProto";
 package tasks;
 
 service TasksManager {
-  // Sends a greeting
-  rpc RegisterClient (RegisterClientRequest) returns (RegisterClientReply) {}
 
   rpc GetTasks (GetTasksRequest) returns (stream GetTaskStreamReply) {}
 
@@ -30,31 +28,6 @@ service TasksManager {
 
   rpc LaunchTask (LaunchTaskRequest) returns (stream TaskExecutionResult) {}
 }
-
-// The request message containing the user's name.
-message RegisterClientRequest {
-  string clientId = 1;
-  oneof clientType {
-    CommandClientType commandClientType=2;
-    ExecutorClientType executorClientType=3;
-  }
-  // TODO client tags
-}
-
-// The response message containing the greetings
-message RegisterClientReply {
-  oneof register_result {
-    string errorMessage = 2;
-    bool accepted = 1;
-  }
-}
-
-
-// launch tasks
-message CommandClientType {}
-// execute tasks
-message ExecutorClientType {}
-
 
 message GetTasksRequest {
   string clientId = 1;
@@ -92,6 +65,7 @@ message TaskExecutionResult {
     TaskCompleted taskCompleted=3;
     TaskOutput taskOutput=4;
     TaskAlive ping=5;
+    ExecutorDisconnected disconnected=6;
   }
 }
 message TaskExecutionReply {
@@ -99,4 +73,8 @@ message TaskExecutionReply {
 }
 message TaskAlive {
   // empty ping message
+}
+
+message ExecutorDisconnected {
+  // empty message
 }

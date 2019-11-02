@@ -92,12 +92,6 @@ type Stream<T> =
 
 #[tonic::async_trait]
 impl TasksManager for TaskServer {
-    async fn register_client(
-        &self,
-        _request: tonic::Request<RegisterClientRequest>,
-    ) -> Result<tonic::Response<RegisterClientReply>, tonic::Status> {
-        Err(tonic::Status::unimplemented("Not yet implemented"))
-    }
     type GetTasksStream = Stream<GetTaskStreamReply>;
     async fn get_tasks(
         &self,
@@ -171,7 +165,7 @@ impl TasksManager for TaskServer {
 
         // this channel will be sent to the matching executors. the executors will then register it so
         // further task progression reporting could be sent o
-        let (sender, receiver) = mpsc::unbounded();
+        let (mut sender, receiver) = mpsc::unbounded();
 
         let mut senders = self.get_channels_to_matching_executors(&query);
 
@@ -181,6 +175,13 @@ impl TasksManager for TaskServer {
                 .await
             {
                 error!("Executor {} disconnected!", client_id);
+                if let Err(_) = sender.send(TaskExecutionResult{
+                    task_id: random_task_id(),
+                    client_id: client_id.clone(),
+                    execution_result: Some(ExecutionResult::Disconnected(ExecutorDisconnected{}))
+                }).await{
+                    error!("Commander also disconnected!");
+                }
             }
         }
         let response_stream = receiver.map(|task_execution| Ok(task_execution));
