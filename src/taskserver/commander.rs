@@ -1,14 +1,31 @@
 #[macro_use]
 extern crate log;
 
-use itertools::Itertools;
-
+use funtonic::config::{Config, Role};
+use funtonic::file_utils::read;
 use funtonic::generated::tasks::client::TasksManagerClient;
 use funtonic::generated::tasks::task_execution_result::ExecutionResult;
 use funtonic::generated::tasks::task_output::Output;
 use funtonic::generated::tasks::{LaunchTaskRequest, TaskPayload};
+use http::Uri;
+use std::path::PathBuf;
+use std::str::FromStr;
+use structopt::StructOpt;
+use thiserror::Error;
+use tonic::transport::{Certificate, Channel, ClientTlsConfig, Identity};
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
-use tonic::transport::{Certificate, ClientTlsConfig, Channel, Identity};
+
+#[derive(StructOpt, Debug)]
+#[structopt(name = "basic")]
+struct Opt {
+    #[structopt(short, long, parse(from_os_str))]
+    config: Option<PathBuf>,
+    command: Vec<String>,
+}
+
+#[derive(Error, Debug)]
+#[error("Missing field for server config!")]
+struct InvalidConfig;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -21,65 +38,54 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .expect("setting tracing default failed");
     tracing_log::LogTracer::init().unwrap();
 
-    let pem = tokio::fs::read("tls/funtonic-ca.pem").await?;
-    let ca = Certificate::from_pem(pem);
+    let opt = Opt::from_args();
+    let config = Config::parse(&opt.config, "commander.yml")?;
+    debug!("Commander starting with config {:#?}", config);
+    if let Role::Commander(commander_config) = &config.role {
+        let mut channel = Channel::builder(Uri::from_str(&commander_config.server_url)?);
+        if let Some(tls_config) = &config.tls {
+            channel.tls_config(&tls_config.get_client_config()?);
+        }
+        let channel = channel.channel();
 
-    let cert = tokio::fs::read("tls/commander.pem").await?;
-    let key = tokio::fs::read("tls/commander-key.pem").await?;
-    let identity = Identity::from_pem(cert, key);
+        let mut client = TasksManagerClient::new(channel);
 
+        let command = opt.command.join(" ");
 
-    let tls = ClientTlsConfig::with_rustls()
-        .ca_certificate(ca)
-        .identity(identity)
-        .domain_name("server.example.funtonic")
-        .clone();
+        let request = tonic::Request::new(LaunchTaskRequest {
+            task_payload: Some(TaskPayload { payload: command }),
+            predicate: "*".to_string(),
+        });
 
-    let channel = Channel::from_static("http://[::1]:50051")
-        .tls_config(&tls)
-        .channel();
+        let mut response = client.launch_task(request).await?.into_inner();
 
-
-    let mut client = TasksManagerClient::new(channel);
-
-    let command = std::env::args().skip(1).join(" ");
-
-    if command.len() == 0 {
-        eprintln!("Please specify a command to run");
-        std::process::exit(1);
-    }
-
-    let request = tonic::Request::new(LaunchTaskRequest {
-        task_payload: Some(TaskPayload { payload: command }),
-        predicate: "*".to_string(),
-    });
-
-    let mut response = client.launch_task(request).await?.into_inner();
-
-    while let Some(task_execution_result) = response.message().await? {
-        // by convention this field is always here, so we can "safely" unwrap
-        let execution_result = task_execution_result.execution_result.as_ref().unwrap();
-        let client_id = &task_execution_result.client_id;
-        match execution_result {
-            ExecutionResult::TaskCompleted(completion) => {
-                println!(
-                    "Tasks completed on {} with exit code: {}",
-                    client_id, completion.return_code
-                );
-            }
-            ExecutionResult::TaskOutput(output) => {
-                if let Some(output) = output.output.as_ref() {
-                    match output {
-                        Output::Stdout(o) => print!("{}: {}", client_id, o),
-                        Output::Stderr(e) => eprint!("{}: {}", client_id, e),
+        while let Some(task_execution_result) = response.message().await? {
+            // by convention this field is always here, so we can "safely" unwrap
+            let execution_result = task_execution_result.execution_result.as_ref().unwrap();
+            let client_id = &task_execution_result.client_id;
+            match execution_result {
+                ExecutionResult::TaskCompleted(completion) => {
+                    println!(
+                        "Tasks completed on {} with exit code: {}",
+                        client_id, completion.return_code
+                    );
+                }
+                ExecutionResult::TaskOutput(output) => {
+                    if let Some(output) = output.output.as_ref() {
+                        match output {
+                            Output::Stdout(o) => print!("{}: {}", client_id, o),
+                            Output::Stderr(e) => eprint!("{}: {}", client_id, e),
+                        }
                     }
                 }
-            }
-            ExecutionResult::Ping(_) => {
-                debug!("Pinged!");
+                ExecutionResult::Ping(_) => {
+                    debug!("Pinged!");
+                }
             }
         }
-    }
 
-    Ok(())
+        Ok(())
+    } else {
+        Err(InvalidConfig)?
+    }
 }

@@ -12,9 +12,28 @@ use funtonic::generated::tasks::{
 use futures_util::StreamExt;
 use std::time::Duration;
 use tonic::metadata::AsciiMetadataValue;
+use tonic::transport::{Certificate, Channel, ClientTlsConfig, Identity, Endpoint};
 use tonic::Request;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
-use tonic::transport::{ClientTlsConfig, Certificate, Channel, Identity};
+use http::Uri;
+use std::path::PathBuf;
+use std::str::FromStr;
+use structopt::StructOpt;
+use thiserror::Error;
+use funtonic::config::{Config, Role};
+use funtonic::file_utils::read;
+
+#[derive(StructOpt, Debug)]
+#[structopt(name = "basic")]
+struct Opt {
+    #[structopt(short, long, parse(from_os_str))]
+    config: Option<PathBuf>,
+    command: Vec<String>,
+}
+
+#[derive(Error, Debug)]
+#[error("Missing field for server config!")]
+struct InvalidConfig;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -26,47 +45,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     )
     .expect("setting tracing default failed");
     tracing_log::LogTracer::init().unwrap();
-
-
-    let max_reconnect_time = Duration::from_secs(10);
-    let mut reconnect_time = Duration::from_secs(1);
-    while let Err(e) = executor_main().await {
-        error!("Error {}", e);
-        info!("Reconnecting in {}s", reconnect_time.as_secs());
-        tokio::timer::delay_for(reconnect_time).await;
-        // increase reconnect time
-        reconnect_time = reconnect_time + Duration::from_secs(1);
-        if reconnect_time > max_reconnect_time {
-            reconnect_time = max_reconnect_time;
+    let opt = Opt::from_args();
+    let config = Config::parse(&opt.config, "executor.yml")?;
+    info!("Executor starting with config {:#?}", config);
+    if let Role::Executor(executor_config) = &config.role {
+        let mut endpoint = Channel::builder(Uri::from_str(&executor_config.server_url)?);
+        if let Some(tls_config) = &config.tls {
+            endpoint.tls_config(&tls_config.get_client_config()?);
         }
-        info!("Reconnecting...")
+
+        let max_reconnect_time = Duration::from_secs(10);
+        let mut reconnect_time = Duration::from_secs(1);
+        while let Err(e) = executor_main(&endpoint, executor_config.client_id.to_string()).await {
+            error!("Error {}", e);
+            info!("Reconnecting in {}s", reconnect_time.as_secs());
+            tokio::timer::delay_for(reconnect_time).await;
+            // increase reconnect time
+            reconnect_time = reconnect_time + Duration::from_secs(1);
+            if reconnect_time > max_reconnect_time {
+                reconnect_time = max_reconnect_time;
+            }
+            info!("Reconnecting...")
+        }
+        Ok(())
+    }else{
+        Err(InvalidConfig)?
     }
-    Ok(())
 }
 
-async fn executor_main() -> Result<(), Box<dyn std::error::Error>> {
-
-    let ca = tokio::fs::read("tls/funtonic-ca.pem").await?;
-    let ca = Certificate::from_pem(ca);
-
-    let cert = tokio::fs::read("tls/commander.pem").await?;
-    let key = tokio::fs::read("tls/commander-key.pem").await?;
-    let identity = Identity::from_pem(cert, key);
-
-    let tls = ClientTlsConfig::with_rustls()
-        .ca_certificate(ca)
-        .identity(identity)
-        .domain_name("server.example.funtonic")
-        .clone();
-
-    let channel = Channel::from_static("http://[::1]:50051")
-        .tls_config(&tls)
-        .channel();
-
+async fn executor_main(endpoint: &Endpoint, client_id: String) -> Result<(), Box<dyn std::error::Error>> {
+    let channel = endpoint.channel();
 
     let mut client = TasksManagerClient::new(channel);
-
-    let client_id = std::env::args().nth(1).unwrap();
 
     info!("Connected");
 
