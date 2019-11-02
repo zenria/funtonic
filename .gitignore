@@ -2,7 +2,7 @@
 **/*.rs.bk
 *.iml
 .idea
-./generated/*.rs
+/src/generated/tasks.rs
 tls/*.pem
 tls/*.csr
 tls/*.json
