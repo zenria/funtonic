@@ -19,6 +19,7 @@ use tracing_subscriber::{EnvFilter, FmtSubscriber};
 struct Opt {
     #[structopt(short, long, parse(from_os_str))]
     config: Option<PathBuf>,
+    query: String,
     command: Vec<String>,
 }
 
@@ -53,7 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let request = tonic::Request::new(LaunchTaskRequest {
             task_payload: Some(TaskPayload { payload: command }),
-            predicate: "*".to_string(),
+            predicate: opt.query,
         });
 
         let mut response = client.launch_task(request).await?.into_inner();

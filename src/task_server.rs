@@ -4,19 +4,19 @@ use crate::generated::tasks::task_execution_result::ExecutionResult;
 use crate::generated::tasks::*;
 use futures_channel::mpsc;
 use futures_sink::Sink;
-use futures_util::{pin_mut};
+use futures_util::pin_mut;
 use futures_util::{FutureExt, SinkExt, StreamExt};
 use rand::Rng;
 use rustbreak::deser::Yaml;
 use rustbreak::{Database, FileDatabase};
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::Write;
 use std::path::Path;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
 use tonic::{Code, Request, Response, Status, Streaming};
-use std::fs::File;
-use std::io::Write;
 
 #[derive(Debug, Error)]
 #[error("Rustbreak database error {0}")]
@@ -78,20 +78,40 @@ fn get_task_sink(
 impl TaskServer {
     fn get_channels_to_matching_executors(
         &self,
-        _query: &str,
-    ) -> Vec<(
-        String,
-        mpsc::UnboundedSender<(TaskPayload, mpsc::UnboundedSender<TaskExecutionResult>)>,
-    )> {
+        query: &str,
+    ) -> Result<
+        Vec<(
+            String,
+            Option<
+                mpsc::UnboundedSender<(TaskPayload, mpsc::UnboundedSender<TaskExecutionResult>)>,
+            >,
+        )>,
+        RustBreakWrappedError,
+    > {
+        let client_ids: Vec<String> = self
+            .executor_meta_database
+            .read(|executors| {
+                executors
+                    .iter()
+                    .filter(|(client_id, meta)| meta.matches(query))
+                    .map(|(client_id, _meta)| client_id.clone())
+                    .collect()
+            })
+            .map_err(|e| RustBreakWrappedError(e))?;
         // this code needs to be done in a separate block because aht executors variable is not Send,
         // thus, if it resides in the stack it will fail the whole Future stuff
         //
         let mut executor_senders = self.executors.lock().unwrap();
         // find matching senders, clone them
-        executor_senders
-            .iter_mut()
-            .map(|(client_id, executor_sender)| (client_id.clone(), executor_sender.clone()))
-            .collect()
+        Ok(client_ids
+            .into_iter()
+            .map(|client_id| {
+                let executor_sender = executor_senders
+                    .get(&client_id)
+                    .map(|executor_sender| executor_sender.clone());
+                (client_id, executor_sender)
+            })
+            .collect())
     }
 
     fn register_executor(
@@ -101,16 +121,20 @@ impl TaskServer {
             TaskPayload,
             mpsc::UnboundedSender<TaskExecutionResult>,
         )>,
-    )->Result<(), RustBreakWrappedError> {
-        self.executors
-            .lock()
-            .unwrap()
-            .insert(executor_meta.client_id().to_string(), sender_to_get_task_response);
+    ) -> Result<(), RustBreakWrappedError> {
+        self.executors.lock().unwrap().insert(
+            executor_meta.client_id().to_string(),
+            sender_to_get_task_response,
+        );
 
-        self.executor_meta_database.write(move |executors| {
-            executors.insert(executor_meta.client_id().to_string(), executor_meta);
-        }).map_err(|e|RustBreakWrappedError(e))?;
-        self.executor_meta_database.save().map_err(|e|RustBreakWrappedError(e))
+        self.executor_meta_database
+            .write(move |executors| {
+                executors.insert(executor_meta.client_id().to_string(), executor_meta);
+            })
+            .map_err(|e| RustBreakWrappedError(e))?;
+        self.executor_meta_database
+            .save()
+            .map_err(|e| RustBreakWrappedError(e))
     }
 }
 
@@ -194,14 +218,31 @@ impl TasksManager for TaskServer {
         // further task progression reporting could be sent o
         let (mut sender, receiver) = mpsc::unbounded();
 
-        let mut senders = self.get_channels_to_matching_executors(&query);
+        let mut senders = self
+            .get_channels_to_matching_executors(&query)
+            .map_err(|e| tonic::Status::new(Code::Internal, format!("Unexpected Error {}", e)))?;
 
         for (client_id, executor_sender) in senders.iter_mut() {
-            if let Err(_) = executor_sender
-                .send((payload.clone(), sender.clone()))
-                .await
-            {
-                error!("Executor {} disconnected!", client_id);
+            if let Some(executor_sender) = executor_sender {
+                if let Err(_) = executor_sender
+                    .send((payload.clone(), sender.clone()))
+                    .await
+                {
+                    error!("Executor {} disconnected!", client_id);
+                    if let Err(_) = sender
+                        .send(TaskExecutionResult {
+                            task_id: random_task_id(),
+                            client_id: client_id.clone(),
+                            execution_result: Some(ExecutionResult::Disconnected(
+                                ExecutorDisconnected {},
+                            )),
+                        })
+                        .await
+                    {
+                        error!("Commander also disconnected!");
+                    }
+                }
+            } else {
                 if let Err(_) = sender
                     .send(TaskExecutionResult {
                         task_id: random_task_id(),
