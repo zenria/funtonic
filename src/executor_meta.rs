@@ -1,4 +1,6 @@
+use crate::config::ExecutorConfig;
 use crate::executor_meta::ColonSplitMatch::Colon;
+use crate::VERSION;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -15,6 +17,16 @@ pub struct ExecutorMeta {
     client_id: String,
     version: String,
     tags: HashMap<String, Tag>,
+}
+
+impl From<&ExecutorConfig> for ExecutorMeta {
+    fn from(config: &ExecutorConfig) -> Self {
+        Self {
+            client_id: config.client_id.clone(),
+            version: VERSION.into(),
+            tags: config.tags.clone(),
+        }
+    }
 }
 
 impl Tag {

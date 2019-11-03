@@ -57,7 +57,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let max_reconnect_time = Duration::from_secs(10);
         let mut reconnect_time = Duration::from_secs(1);
-        while let Err(e) = executor_main(&endpoint, &executor_config.executor_metas).await {
+
+        let executor_meta = ExecutorMeta::from(executor_config);
+
+        while let Err(e) = executor_main(&endpoint, &executor_meta).await {
             error!("Error {}", e);
             info!("Reconnecting in {}s", reconnect_time.as_secs());
             tokio::timer::delay_for(reconnect_time).await;
