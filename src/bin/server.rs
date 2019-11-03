@@ -2,9 +2,10 @@
 extern crate log;
 
 use funtonic::config::{Config, Role};
+use funtonic::file_utils::{mkdirs, path_concat2};
 use funtonic::generated::tasks::server::TasksManagerServer;
 use funtonic::task_server::TaskServer;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 use thiserror::Error;
 use tonic::transport::Server;
@@ -42,7 +43,9 @@ async fn main() -> Result<(), anyhow::Error> {
         }
 
         let addr = server_config.bind_address.parse().unwrap();
-        let task_server = TaskServer::new();
+        let database_directory = mkdirs(&server_config.data_directory)?;
+        let database_path = path_concat2(database_directory, "known_executors.yml");
+        let task_server = TaskServer::new(Path::new(&database_path))?;
 
         server
             .serve(addr, TasksManagerServer::new(task_server))

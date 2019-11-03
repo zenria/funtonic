@@ -1,5 +1,6 @@
 use crate::config::ExecutorConfig;
 use crate::executor_meta::ColonSplitMatch::Colon;
+use crate::generated::tasks::{GetTasksRequest, ValueList, ValueMap};
 use crate::VERSION;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -25,6 +26,67 @@ impl From<&ExecutorConfig> for ExecutorMeta {
             client_id: config.client_id.clone(),
             version: VERSION.into(),
             tags: config.tags.clone(),
+        }
+    }
+}
+
+impl From<&ExecutorMeta> for GetTasksRequest {
+    fn from(m: &ExecutorMeta) -> Self {
+        Self {
+            client_id: m.client_id.clone(),
+            client_version: m.version.clone(),
+            tags: m
+                .tags
+                .iter()
+                .map(|(tag_name, tag_value)| {
+                    (
+                        tag_name.clone(),
+                        crate::generated::tasks::Tag::from(tag_value),
+                    )
+                })
+                .collect(),
+        }
+    }
+}
+
+impl From<GetTasksRequest> for ExecutorMeta {
+    fn from(r: GetTasksRequest) -> Self {
+        Self {
+            client_id: r.client_id,
+            version: r.client_version,
+            tags: r
+                .tags
+                .into_iter()
+                .map(|(tag_name, tag_value)| {
+                    (
+                        tag_name,
+                        match tag_value.tag.unwrap() {
+                            crate::generated::tasks::tag::Tag::Value(v) => Tag::Value(v),
+                            crate::generated::tasks::tag::Tag::ValueMap(vm) => Tag::Map(vm.values),
+                            crate::generated::tasks::tag::Tag::ValueList(vl) => {
+                                Tag::List(vl.values)
+                            }
+                        },
+                    )
+                })
+                .collect(),
+        }
+    }
+}
+
+// protobuf types are really painful
+impl From<&Tag> for crate::generated::tasks::Tag {
+    fn from(t: &Tag) -> Self {
+        Self {
+            tag: Some(match t {
+                Tag::Map(m) => {
+                    crate::generated::tasks::tag::Tag::ValueMap(ValueMap { values: m.clone() })
+                }
+                Tag::List(l) => {
+                    crate::generated::tasks::tag::Tag::ValueList(ValueList { values: l.clone() })
+                }
+                Tag::Value(v) => crate::generated::tasks::tag::Tag::Value(v.clone()),
+            }),
         }
     }
 }
@@ -140,8 +202,8 @@ mod test {
         )
         .unwrap();
 
-        serde_yaml::from_str::<HashMap<String, Tag>>("env: prod\nroles:\n  - foo\n  - bar\nos:\n  type: Linux\n  sub_type: Ubuntu\n  version: \"18.04\"")
-            .unwrap();
+        serde_yaml::from_str::< HashMap < String, Tag > > ("env: prod\nroles:\n  - foo\n  - bar\nos:\n  type: Linux\n  sub_type: Ubuntu\n  version: \"18.04\"")
+.unwrap();
     }
 
     #[test]

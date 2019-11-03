@@ -4,6 +4,7 @@ extern crate log;
 use funtonic::config::{Config, Role};
 use funtonic::exec::Type::Out;
 use funtonic::exec::*;
+use funtonic::executor_meta::ExecutorMeta;
 use funtonic::generated::tasks::client::TasksManagerClient;
 use funtonic::generated::tasks::task_execution_result::ExecutionResult;
 use funtonic::generated::tasks::task_output::Output;
@@ -21,8 +22,6 @@ use tonic::metadata::AsciiMetadataValue;
 use tonic::transport::{Channel, Endpoint};
 use tonic::Request;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
-use funtonic::VERSION;
-use funtonic::executor_meta::ExecutorMeta;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "basic")]
@@ -89,11 +88,7 @@ async fn executor_main(
 
     let client_id = executor_metas.client_id().to_string();
 
-    let request = tonic::Request::new(GetTasksRequest {
-        client_id: client_id.clone(),
-        client_version: VERSION.into(),
-        tags: Default::default()
-    });
+    let request = tonic::Request::new(executor_metas.into());
 
     let mut response = client.get_tasks(request).await?.into_inner();
 

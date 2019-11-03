@@ -48,3 +48,31 @@ pub fn read<P: AsRef<Path>>(path: P) -> Result<Vec<u8>, FileError> {
         }),
     }
 }
+#[derive(Error, Debug)]
+pub enum DirCreationError {
+    #[error("IO Error occured")]
+    Io {
+        #[from]
+        source: std::io::Error,
+    },
+    #[error("{0} path is not a directory")]
+    PathIsNotADirectory(String),
+}
+
+pub fn mkdirs<P: AsRef<Path>>(dir: P) -> Result<String, DirCreationError> {
+    let dir: String = shellexpand::tilde(&dir.as_ref().to_string_lossy().into_owned()).into_owned();
+    if let Err(e) = std::fs::create_dir_all(&dir) {
+        match e.kind() {
+            ErrorKind::AlreadyExists => {
+                // dir or file exists
+                // let check the path is really a directory
+                let meta = std::fs::metadata(&dir)?;
+                if !meta.is_dir() {
+                    Err(DirCreationError::PathIsNotADirectory(dir.clone()))?;
+                }
+            }
+            _ => Err(e)?,
+        }
+    }
+    Ok(dir)
+}
