@@ -35,16 +35,18 @@ shellexpand = "1.0.0"
 thiserror = "1.0"
 anyhow = "1.0"
 http="0.1"
+os_info = "1.1"
+rustbreak = "2.0.0-rc3"
 
 [build-dependencies]
 tonic-build = { git="https://github.com/hyperium/tonic.git" }
 
 [[bin]]
 name = "taskserver"
-path = "src/taskserver/server.rs"
+path = "src/bin/server.rs"
 [[bin]]
 name = "executor"
-path = "src/taskserver/executor.rs"
+path = "src/bin/executor.rs"
 [[bin]]
 name = "commander"
-path = "src/taskserver/commander.rs"
+path = "src/bin/commander.rs"

@@ -13,25 +13,25 @@ use tonic::transport::{Certificate, ClientTlsConfig, Identity, ServerTlsConfig};
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TlsConfig {
     /// CA PEM encoded certificate file path
-    pub ca_cert: String,
+    ca_cert: String,
     /// PEM encoded private key file path
-    pub key: String,
+    key: String,
     /// PEM encoded certificate file path
-    pub cert: String,
+    cert: String,
     /// Expected domain name of the server certificate.
     ///
     /// When configuring a client, the domain name of the server certificate is validated against
     /// the server url.
     ///
     /// Specifying the server_domain overrides the server url domain.
-    pub server_domain: Option<String>,
+    server_domain: Option<String>,
 }
 
 impl TlsConfig {
     pub fn get_client_config(&self) -> Result<ClientTlsConfig, anyhow::Error> {
         let mut client_tls_config = ClientTlsConfig::with_rustls();
         client_tls_config
-            .identity(self.get_identify()?)
+            .identity(self.get_identity()?)
             .ca_certificate(self.get_ca_certificate()?);
         if let Some(domain) = &self.server_domain {
             client_tls_config.domain_name(domain);
@@ -42,12 +42,12 @@ impl TlsConfig {
     pub fn get_server_config(&self) -> Result<ServerTlsConfig, anyhow::Error> {
         let mut server_tls_config = ServerTlsConfig::with_rustls();
         server_tls_config
-            .identity(self.get_identify()?)
+            .identity(self.get_identity()?)
             .client_ca_root(self.get_ca_certificate()?);
         Ok(server_tls_config)
     }
 
-    fn get_identify(&self) -> Result<Identity, anyhow::Error> {
+    fn get_identity(&self) -> Result<Identity, anyhow::Error> {
         let cert = read(&self.cert)?;
         let key = read(&self.key)?;
         Ok(Identity::from_pem(cert, key))
@@ -62,6 +62,8 @@ impl TlsConfig {
 pub struct ServerConfig {
     /// bind address
     pub bind_address: String,
+    /// Where the server stores its data
+    pub data_directory: String,
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CommanderConfig {
