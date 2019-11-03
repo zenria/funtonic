@@ -21,6 +21,8 @@ use tonic::metadata::AsciiMetadataValue;
 use tonic::transport::{Channel, Endpoint};
 use tonic::Request;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
+use funtonic::VERSION;
+use funtonic::executor_meta::ExecutorMeta;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "basic")]
@@ -55,7 +57,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let max_reconnect_time = Duration::from_secs(10);
         let mut reconnect_time = Duration::from_secs(1);
-        while let Err(e) = executor_main(&endpoint, executor_config.client_id.to_string()).await {
+        while let Err(e) = executor_main(&endpoint, &executor_config.executor_metas).await {
             error!("Error {}", e);
             info!("Reconnecting in {}s", reconnect_time.as_secs());
             tokio::timer::delay_for(reconnect_time).await;
@@ -74,7 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 async fn executor_main(
     endpoint: &Endpoint,
-    client_id: String,
+    executor_metas: &ExecutorMeta,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let channel = endpoint.channel();
 
@@ -82,8 +84,12 @@ async fn executor_main(
 
     info!("Connected");
 
+    let client_id = executor_metas.client_id().to_string();
+
     let request = tonic::Request::new(GetTasksRequest {
-        client_id: client_id.to_string(),
+        client_id: client_id.clone(),
+        client_version: VERSION.into(),
+        tags: Default::default()
     });
 
     let mut response = client.get_tasks(request).await?.into_inner();

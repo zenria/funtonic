@@ -1,3 +1,4 @@
+use crate::executor_meta::ExecutorMeta;
 use crate::file_utils::{parse_yaml_from_file, path_concat2, read};
 use anyhow::Error;
 use serde::de::DeserializeOwned;
@@ -72,7 +73,7 @@ pub struct CommanderConfig {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ExecutorConfig {
     pub tags: HashMap<String, String>,
-    pub client_id: String,
+    pub executor_metas: ExecutorMeta,
     pub server_url: String,
 }
 

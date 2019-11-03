@@ -31,6 +31,24 @@ service TasksManager {
 
 message GetTasksRequest {
   string clientId = 1;
+  string clientVersion = 2;
+  map<string, Tag> tags = 3;
+}
+
+message Tag {
+  oneof tag {
+    string value = 1;
+    ValueMap value_map = 2;
+    ValueList value_list = 3;
+  }
+}
+
+message ValueMap {
+  map<string, string> values = 1;
+}
+
+message ValueList {
+  repeated string values= 1;
 }
 
 message GetTaskStreamReply {
