@@ -135,6 +135,10 @@ impl ExecutorMeta {
     pub fn tags(&self) -> &HashMap<String, Tag> {
         &self.tags
     }
+
+    pub fn tags_mut(&mut self) -> &mut HashMap<String, Tag> {
+        &mut self.tags
+    }
 }
 
 enum ColonSplitMatch<'a, 'p, T> {

@@ -4,13 +4,11 @@ extern crate log;
 use funtonic::config::{Config, Role};
 use funtonic::exec::Type::Out;
 use funtonic::exec::*;
-use funtonic::executor_meta::ExecutorMeta;
+use funtonic::executor_meta::{ExecutorMeta, Tag};
 use funtonic::generated::tasks::client::TasksManagerClient;
 use funtonic::generated::tasks::task_execution_result::ExecutionResult;
 use funtonic::generated::tasks::task_output::Output;
-use funtonic::generated::tasks::{
-    GetTasksRequest, TaskAlive, TaskCompleted, TaskExecutionResult, TaskOutput,
-};
+use funtonic::generated::tasks::{GetTasksRequest, TaskAlive, TaskCompleted, TaskExecutionResult, TaskOutput};
 use futures_util::StreamExt;
 use http::Uri;
 use std::path::PathBuf;
@@ -22,6 +20,7 @@ use tonic::metadata::AsciiMetadataValue;
 use tonic::transport::{Channel, Endpoint};
 use tonic::Request;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
+use std::collections::HashMap;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "basic")]
@@ -57,7 +56,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let max_reconnect_time = Duration::from_secs(10);
         let mut reconnect_time = Duration::from_secs(1);
 
-        let executor_meta = ExecutorMeta::from(executor_config);
+        let mut executor_meta = ExecutorMeta::from(executor_config);
+        // add some generic meta about system
+        let info = os_info::get();
+        let mut os: HashMap<String,String> = HashMap::new();
+        os.insert("type".into(), format!("{:?}", info.os_type()).to_lowercase());
+        os.insert("version".into(), format!("{}", info.version()));
+        executor_meta.tags_mut().insert("os".into(), Tag::Map(os));
+        info!("Metas: {:#?}", executor_meta);
 
         while let Err(e) = executor_main(&endpoint, &executor_meta).await {
             error!("Error {}", e);
