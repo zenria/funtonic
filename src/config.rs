@@ -4,7 +4,7 @@ use anyhow::Error;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::fs::File;
 use std::path::Path;
 use std::path::PathBuf;
@@ -65,10 +65,13 @@ pub struct ServerConfig {
     pub bind_address: String,
     /// Where the server stores its data
     pub data_directory: String,
+    /// Authorized tokens
+    pub authorized_client_tokens: BTreeSet<String>,
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CommanderConfig {
     pub server_url: String,
+    pub client_token: String,
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ExecutorConfig {

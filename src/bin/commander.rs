@@ -6,11 +6,13 @@ use funtonic::generated::tasks::client::TasksManagerClient;
 use funtonic::generated::tasks::task_execution_result::ExecutionResult;
 use funtonic::generated::tasks::task_output::Output;
 use funtonic::generated::tasks::{LaunchTaskRequest, TaskPayload};
+use funtonic::CLIENT_TOKEN_HEADER;
 use http::Uri;
 use std::path::PathBuf;
 use std::str::FromStr;
 use structopt::StructOpt;
 use thiserror::Error;
+use tonic::metadata::MetadataValue;
 use tonic::transport::Channel;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
@@ -52,10 +54,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let command = opt.command.join(" ");
 
-        let request = tonic::Request::new(LaunchTaskRequest {
+        let mut request = tonic::Request::new(LaunchTaskRequest {
             task_payload: Some(TaskPayload { payload: command }),
             predicate: opt.query,
         });
+        request.metadata_mut().append(
+            CLIENT_TOKEN_HEADER,
+            MetadataValue::from_str(&commander_config.client_token).unwrap(),
+        );
 
         let mut response = client.launch_task(request).await?.into_inner();
 

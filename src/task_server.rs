@@ -2,6 +2,7 @@ use crate::executor_meta::ExecutorMeta;
 use crate::generated::tasks::server::*;
 use crate::generated::tasks::task_execution_result::ExecutionResult;
 use crate::generated::tasks::*;
+use crate::CLIENT_TOKEN_HEADER;
 use futures_channel::mpsc;
 use futures_sink::Sink;
 use futures_util::pin_mut;
@@ -9,7 +10,7 @@ use futures_util::{FutureExt, SinkExt, StreamExt};
 use rand::Rng;
 use rustbreak::deser::Yaml;
 use rustbreak::{Database, FileDatabase};
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
@@ -36,10 +37,15 @@ pub struct TaskServer {
     tasks_sinks: Arc<Mutex<HashMap<String, mpsc::UnboundedSender<TaskExecutionResult>>>>,
 
     executor_meta_database: Arc<FileDatabase<HashMap<String, ExecutorMeta>, Yaml>>,
+
+    authorized_client_tokens: BTreeSet<String>,
 }
 
 impl TaskServer {
-    pub fn new(database_path: &Path) -> Result<Self, anyhow::Error> {
+    pub fn new(
+        database_path: &Path,
+        authorized_client_tokens: BTreeSet<String>,
+    ) -> Result<Self, anyhow::Error> {
         if !database_path.exists() {
             let mut empty = File::create(database_path)?;
             empty.write("---\n{}".as_bytes())?;
@@ -52,6 +58,7 @@ impl TaskServer {
             executors: Mutex::new(HashMap::new()),
             tasks_sinks: Arc::new(Mutex::new(HashMap::new())),
             executor_meta_database: Arc::new(db),
+            authorized_client_tokens,
         })
     }
 }
@@ -129,7 +136,10 @@ impl TaskServer {
 
         self.executor_meta_database
             .write(move |executors| {
-                info!("Registered {}", serde_yaml::to_string(&executor_meta).unwrap_or("???".to_string()));
+                info!(
+                    "Registered {}",
+                    serde_yaml::to_string(&executor_meta).unwrap_or("???".to_string())
+                );
                 executors.insert(executor_meta.client_id().to_string(), executor_meta);
             })
             .map_err(|e| RustBreakWrappedError(e))?;
@@ -150,9 +160,10 @@ impl TasksManager for TaskServer {
         &self,
         request: tonic::Request<GetTasksRequest>,
     ) -> Result<tonic::Response<Self::GetTasksStream>, tonic::Status> {
-        let request = request.into_inner();
+        let metadata = request.metadata();
+        let request = request.get_ref();
         let client_id = request.client_id.clone();
-        info!("{} connected", client_id);
+        info!("{} connected with meta {:?}", client_id, metadata);
         // register the client and wait for new tasks to come, forward them
         // to the response
         let (sender, receiver) = mpsc::unbounded();
@@ -164,8 +175,8 @@ impl TasksManager for TaskServer {
             // for each new task, register the task and forward it to the executor stream
             let task_id = register_new_task(&tasks_sinks, sender_to_commander);
             info!(
-                "Sending task {} - {} to {}",
-                task_id, task_payload.payload, client_id
+                "Sending task {} - {:?} to {}",
+                task_id, task_payload, client_id
             );
             Ok(GetTaskStreamReply {
                 task_id,
@@ -189,10 +200,18 @@ impl TasksManager for TaskServer {
             let mut sender = sender;
             while let Some(task_execution_stream) = request_stream.next().await {
                 let task_execution_stream = task_execution_stream?;
-                info!(
+                debug!(
                     "Received task_execution_report {} - {}",
                     task_execution_stream.client_id, task_id
                 );
+                if let Some(execution_result) = &task_execution_stream.execution_result {
+                    if let ExecutionResult::TaskCompleted(completed) = execution_result {
+                        info!(
+                            "Task {} completed with code {} on {}",
+                            task_id, task_execution_stream.client_id, completed.return_code
+                        );
+                    }
+                }
                 if let Err(_e) = sender.send(task_execution_stream).await {
                     warn!(
                         "Commander disconnected for task {}, task will be killed by executor.",
@@ -213,13 +232,28 @@ impl TasksManager for TaskServer {
         &self,
         request: tonic::Request<LaunchTaskRequest>,
     ) -> Result<tonic::Response<Self::LaunchTaskStream>, tonic::Status> {
-        let request = request.into_inner();
-        let query = request.predicate;
-        let payload = request.task_payload.unwrap();
+        let metadata = request.metadata();
+        let token = metadata.get(CLIENT_TOKEN_HEADER);
+        if token.is_none() {
+            return Err(Status::new(Code::PermissionDenied, "no client token"));
+        }
+        let token = token.unwrap().to_str().unwrap();
+        if !self.authorized_client_tokens.contains(token) {
+            return Err(Status::new(Code::PermissionDenied, "invalid client token"));
+        }
+
+        let request = request.get_ref();
+        let query = &request.predicate;
+        let payload = request.task_payload.as_ref().unwrap();
 
         // this channel will be sent to the matching executors. the executors will then register it so
         // further task progression reporting could be sent o
         let (mut sender, receiver) = mpsc::unbounded();
+
+        info!(
+            "Command received {:?} for {} with token {}",
+            payload, query, token
+        );
 
         let mut senders = self
             .get_channels_to_matching_executors(&query)
@@ -227,23 +261,26 @@ impl TasksManager for TaskServer {
 
         for (client_id, executor_sender) in senders.iter_mut() {
             if let Some(executor_sender) = executor_sender {
-                if let Err(_) = executor_sender
+                match executor_sender
                     .send((payload.clone(), sender.clone()))
                     .await
                 {
-                    error!("Executor {} disconnected!", client_id);
-                    if let Err(_) = sender
-                        .send(TaskExecutionResult {
-                            task_id: random_task_id(),
-                            client_id: client_id.clone(),
-                            execution_result: Some(ExecutionResult::Disconnected(
-                                ExecutorDisconnected {},
-                            )),
-                        })
-                        .await
-                    {
-                        error!("Commander also disconnected!");
+                    Err(_) => {
+                        error!("Executor {} disconnected!", client_id);
+                        if let Err(_) = sender
+                            .send(TaskExecutionResult {
+                                task_id: random_task_id(),
+                                client_id: client_id.clone(),
+                                execution_result: Some(ExecutionResult::Disconnected(
+                                    ExecutorDisconnected {},
+                                )),
+                            })
+                            .await
+                        {
+                            error!("Commander also disconnected!");
+                        }
                     }
+                    Ok(..) => info!("Command {:?} sent to {}", payload, client_id),
                 }
             } else {
                 if let Err(_) = sender

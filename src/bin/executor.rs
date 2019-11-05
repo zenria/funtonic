@@ -19,7 +19,7 @@ use std::str::FromStr;
 use std::time::Duration;
 use structopt::StructOpt;
 use thiserror::Error;
-use tonic::metadata::AsciiMetadataValue;
+use tonic::metadata::{AsciiMetadataValue, MetadataValue};
 use tonic::transport::{Channel, Endpoint};
 use tonic::Request;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};

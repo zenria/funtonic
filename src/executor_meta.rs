@@ -49,22 +49,24 @@ impl From<&ExecutorMeta> for GetTasksRequest {
     }
 }
 
-impl From<GetTasksRequest> for ExecutorMeta {
-    fn from(r: GetTasksRequest) -> Self {
+impl From<&GetTasksRequest> for ExecutorMeta {
+    fn from(r: &GetTasksRequest) -> Self {
         Self {
-            client_id: r.client_id,
-            version: r.client_version,
+            client_id: r.client_id.clone(),
+            version: r.client_version.clone(),
             tags: r
                 .tags
-                .into_iter()
+                .iter()
                 .map(|(tag_name, tag_value)| {
                     (
-                        tag_name,
-                        match tag_value.tag.unwrap() {
-                            crate::generated::tasks::tag::Tag::Value(v) => Tag::Value(v),
-                            crate::generated::tasks::tag::Tag::ValueMap(vm) => Tag::Map(vm.values),
+                        tag_name.clone(),
+                        match tag_value.tag.as_ref().unwrap() {
+                            crate::generated::tasks::tag::Tag::Value(v) => Tag::Value(v.clone()),
+                            crate::generated::tasks::tag::Tag::ValueMap(vm) => {
+                                Tag::Map(vm.values.clone())
+                            }
                             crate::generated::tasks::tag::Tag::ValueList(vl) => {
-                                Tag::List(vl.values)
+                                Tag::List(vl.values.clone())
                             }
                         },
                     )

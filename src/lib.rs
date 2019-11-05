@@ -14,3 +14,5 @@ pub mod generated;
 pub mod task_server;
 
 pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+
+pub const CLIENT_TOKEN_HEADER: &'static str = "client_token";

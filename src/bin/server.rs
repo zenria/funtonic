@@ -45,7 +45,10 @@ async fn main() -> Result<(), anyhow::Error> {
         let addr = server_config.bind_address.parse().unwrap();
         let database_directory = mkdirs(&server_config.data_directory)?;
         let database_path = path_concat2(database_directory, "known_executors.yml");
-        let task_server = TaskServer::new(Path::new(&database_path))?;
+        let task_server = TaskServer::new(
+            Path::new(&database_path),
+            server_config.authorized_client_tokens.clone(),
+        )?;
 
         server
             .add_service(TasksManagerServer::new(task_server))
