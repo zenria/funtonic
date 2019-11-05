@@ -11,7 +11,7 @@ use funtonic::generated::tasks::task_output::Output;
 use funtonic::generated::tasks::{
     GetTasksRequest, TaskAlive, TaskCompleted, TaskExecutionResult, TaskOutput,
 };
-use futures_util::StreamExt;
+use futures_util::{SinkExt, StreamExt};
 use http::Uri;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -19,6 +19,7 @@ use std::str::FromStr;
 use std::time::Duration;
 use structopt::StructOpt;
 use thiserror::Error;
+use tokio_sync::watch::Sender;
 use tonic::metadata::{AsciiMetadataValue, MetadataValue};
 use tonic::transport::{Channel, Endpoint};
 use tonic::Request;
@@ -36,6 +37,12 @@ struct Opt {
 #[error("Missing field for server config!")]
 struct InvalidConfig;
 
+#[derive(Debug)]
+enum LastConnectionStatus {
+    Connecting,
+    Connected,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::subscriber::set_global_default(
@@ -49,6 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let opt = Opt::from_args();
     let config = Config::parse(&opt.config, "executor.yml")?;
     info!("Executor starting with config {:#?}", config);
+
     if let Role::Executor(executor_config) = &config.role {
         let mut endpoint = Channel::builder(Uri::from_str(&executor_config.server_url)?);
         if let Some(tls_config) = &config.tls {
@@ -56,7 +64,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         let max_reconnect_time = Duration::from_secs(10);
-        let mut reconnect_time = Duration::from_secs(1);
+        let mut reconnect_time = Duration::from_millis(100);
 
         let mut executor_meta = ExecutorMeta::from(executor_config);
         // add some generic meta about system
@@ -70,16 +78,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         executor_meta.tags_mut().insert("os".into(), Tag::Map(os));
         info!("Metas: {:#?}", executor_meta);
 
-        while let Err(e) = executor_main(&endpoint, &executor_meta).await {
+        let (mut connection_status_sender, connection_status_receiver) =
+            tokio_sync::watch::channel(LastConnectionStatus::Connecting);
+
+        while let Err(e) =
+            executor_main(&endpoint, &executor_meta, &mut connection_status_sender).await
+        {
             error!("Error {}", e);
+            // increase reconnect time if connecting, reset if connected
+            match *connection_status_receiver.get_ref() {
+                LastConnectionStatus::Connecting => {
+                    reconnect_time = reconnect_time + Duration::from_secs(1);
+                    if reconnect_time > max_reconnect_time {
+                        reconnect_time = max_reconnect_time;
+                    }
+                }
+                LastConnectionStatus::Connected => reconnect_time = Duration::from_secs(1),
+            }
             info!("Reconnecting in {}s", reconnect_time.as_secs());
             tokio::timer::delay_for(reconnect_time).await;
-            // increase reconnect time
-            reconnect_time = reconnect_time + Duration::from_secs(1);
-            if reconnect_time > max_reconnect_time {
-                reconnect_time = max_reconnect_time;
-            }
-            info!("Reconnecting...")
         }
         Ok(())
     } else {
@@ -90,8 +107,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 async fn executor_main(
     endpoint: &Endpoint,
     executor_metas: &ExecutorMeta,
+    last_connection_status_sender: &mut Sender<LastConnectionStatus>,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    last_connection_status_sender
+        .send(LastConnectionStatus::Connecting)
+        .await?;
     let channel = endpoint.connect().await?;
+    last_connection_status_sender
+        .send(LastConnectionStatus::Connected)
+        .await?;
 
     let mut client = TasksManagerClient::new(channel);
 
