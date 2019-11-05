@@ -46,7 +46,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         if let Some(tls_config) = &config.tls {
             channel.tls_config(&tls_config.get_client_config()?);
         }
-        let channel = channel.channel();
+        let channel = channel.connect().await?;
 
         let mut client = TasksManagerClient::new(channel);
 

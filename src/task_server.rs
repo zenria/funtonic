@@ -138,8 +138,9 @@ impl TaskServer {
     }
 }
 
-type Stream<T> =
-    Pin<Box<dyn futures_core::Stream<Item = std::result::Result<T, Status>> + Send + 'static>>;
+type Stream<T> = Pin<
+    Box<dyn futures_core::Stream<Item = std::result::Result<T, Status>> + Send + Sync + 'static>,
+>;
 
 #[tonic::async_trait]
 impl TasksManager for TaskServer {

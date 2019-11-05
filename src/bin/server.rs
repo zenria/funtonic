@@ -48,7 +48,8 @@ async fn main() -> Result<(), anyhow::Error> {
         let task_server = TaskServer::new(Path::new(&database_path))?;
 
         server
-            .serve(addr, TasksManagerServer::new(task_server))
+            .add_service(TasksManagerServer::new(task_server))
+            .serve(addr)
             .await?;
 
         Ok(())

@@ -19,7 +19,7 @@ echo '{
 cfssl print-defaults csr | cfssl gencert -initca - | cfssljson -bare funtonic-ca
 
 echo '{"key":{"algo":"rsa","size":2048}}' | cfssl gencert -ca=funtonic-ca.pem -ca-key=funtonic-ca-key.pem -config=cfssl.json \
-    -hostname="server.example.funtonic,localhost,127.0.0.1" - | cfssljson -bare server
+    -hostname="funtonic.scoopit.io" - | cfssljson -bare server
 
 echo '{"key":{"algo":"rsa","size":2048}}' | cfssl gencert -ca=funtonic-ca.pem -ca-key=funtonic-ca-key.pem -config=cfssl.json \
      - | cfssljson -bare executor

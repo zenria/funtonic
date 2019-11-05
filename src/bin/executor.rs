@@ -8,9 +8,12 @@ use funtonic::executor_meta::{ExecutorMeta, Tag};
 use funtonic::generated::tasks::client::TasksManagerClient;
 use funtonic::generated::tasks::task_execution_result::ExecutionResult;
 use funtonic::generated::tasks::task_output::Output;
-use funtonic::generated::tasks::{GetTasksRequest, TaskAlive, TaskCompleted, TaskExecutionResult, TaskOutput};
+use funtonic::generated::tasks::{
+    GetTasksRequest, TaskAlive, TaskCompleted, TaskExecutionResult, TaskOutput,
+};
 use futures_util::StreamExt;
 use http::Uri;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Duration;
@@ -20,7 +23,6 @@ use tonic::metadata::AsciiMetadataValue;
 use tonic::transport::{Channel, Endpoint};
 use tonic::Request;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
-use std::collections::HashMap;
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "basic")]
@@ -59,8 +61,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut executor_meta = ExecutorMeta::from(executor_config);
         // add some generic meta about system
         let info = os_info::get();
-        let mut os: HashMap<String,String> = HashMap::new();
-        os.insert("type".into(), format!("{:?}", info.os_type()).to_lowercase());
+        let mut os: HashMap<String, String> = HashMap::new();
+        os.insert(
+            "type".into(),
+            format!("{:?}", info.os_type()).to_lowercase(),
+        );
         os.insert("version".into(), format!("{}", info.version()));
         executor_meta.tags_mut().insert("os".into(), Tag::Map(os));
         info!("Metas: {:#?}", executor_meta);
@@ -86,7 +91,7 @@ async fn executor_main(
     endpoint: &Endpoint,
     executor_metas: &ExecutorMeta,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let channel = endpoint.channel();
+    let channel = endpoint.connect().await?;
 
     let mut client = TasksManagerClient::new(channel);
 
