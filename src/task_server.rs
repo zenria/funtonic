@@ -129,6 +129,7 @@ impl TaskServer {
 
         self.executor_meta_database
             .write(move |executors| {
+                info!("Registered {}", serde_yaml::to_string(&executor_meta).unwrap_or("???".to_string()));
                 executors.insert(executor_meta.client_id().to_string(), executor_meta);
             })
             .map_err(|e| RustBreakWrappedError(e))?;
@@ -151,6 +152,7 @@ impl TasksManager for TaskServer {
     ) -> Result<tonic::Response<Self::GetTasksStream>, tonic::Status> {
         let request = request.into_inner();
         let client_id = request.client_id.clone();
+        info!("{} connected", client_id);
         // register the client and wait for new tasks to come, forward them
         // to the response
         let (sender, receiver) = mpsc::unbounded();
