@@ -7,6 +7,7 @@ stages:
 build:
   stage: build
   script:
+    - rustup component add rustfmt
     - cargo build --all --all-targets --color=always
     - RUST_BACKTRACE=1 cargo test
 
@@ -15,5 +16,6 @@ release:
   only:
     - tags
   script:
+    - rustup component add rustfmt
     - cargo build --release --all --all-targets --color=always
     - binrep push funtonic $CI_COMMIT_TAG target/release/executor target/release/taskserver target/release/commander

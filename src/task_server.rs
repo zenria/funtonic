@@ -261,6 +261,7 @@ impl TasksManager for TaskServer {
             return Err(Status::new(Code::InvalidArgument, format!("invalid query: {}", e)));
         }
         let query = query.unwrap();
+        debug!("Parsed query: {:#?}", query);
 
         let mut senders = self
             .get_channels_to_matching_executors(&query)
