@@ -7,8 +7,7 @@ stages:
 build:
   stage: build
   script:
-    - rustup toolchain install beta
-    - rustup component add rustfmt --toolchain beta-x86_64-unknown-linux-gnu
+    - rustup update
     - cargo build --all --all-targets --color=always
     - RUST_BACKTRACE=1 cargo test
 
@@ -17,7 +16,6 @@ release:
   only:
     - tags
   script:
-    - rustup toolchain install beta
-    - rustup component add rustfmt --toolchain beta-x86_64-unknown-linux-gnu
+    - rustup update
     - cargo build --release --all --all-targets --color=always
     - binrep push funtonic $CI_COMMIT_TAG target/release/executor target/release/taskserver target/release/commander
