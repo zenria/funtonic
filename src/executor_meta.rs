@@ -1,5 +1,4 @@
 use crate::config::ExecutorConfig;
-use crate::executor_meta::ColonSplitMatch::Colon;
 use crate::generated::tasks::{GetTasksRequest, ValueList, ValueMap};
 use crate::query_parser::{Query, QueryMatcher};
 use crate::VERSION;
@@ -9,8 +8,8 @@ use std::collections::HashMap;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum Tag {
-    Map(HashMap<String, String>),
-    List(Vec<String>),
+    Map(HashMap<String, Tag>),
+    List(Vec<Tag>),
     Value(String),
 }
 
@@ -58,20 +57,7 @@ impl From<&GetTasksRequest> for ExecutorMeta {
             tags: r
                 .tags
                 .iter()
-                .map(|(tag_name, tag_value)| {
-                    (
-                        tag_name.clone(),
-                        match tag_value.tag.as_ref().unwrap() {
-                            crate::generated::tasks::tag::Tag::Value(v) => Tag::Value(v.clone()),
-                            crate::generated::tasks::tag::Tag::ValueMap(vm) => {
-                                Tag::Map(vm.values.clone())
-                            }
-                            crate::generated::tasks::tag::Tag::ValueList(vl) => {
-                                Tag::List(vl.values.clone())
-                            }
-                        },
-                    )
-                })
+                .map(|(tag_name, tag_value)| (tag_name.clone(), tag_value.into()))
                 .collect(),
         }
     }
@@ -82,15 +68,43 @@ impl From<&Tag> for crate::generated::tasks::Tag {
     fn from(t: &Tag) -> Self {
         Self {
             tag: Some(match t {
-                Tag::Map(m) => {
-                    crate::generated::tasks::tag::Tag::ValueMap(ValueMap { values: m.clone() })
-                }
-                Tag::List(l) => {
-                    crate::generated::tasks::tag::Tag::ValueList(ValueList { values: l.clone() })
-                }
+                Tag::Map(m) => crate::generated::tasks::tag::Tag::ValueMap(ValueMap {
+                    values: m.iter().map(|(k, tag)| (k.clone(), tag.into())).collect(),
+                }),
+                Tag::List(l) => crate::generated::tasks::tag::Tag::ValueList(ValueList {
+                    values: l.iter().map(|v| v.into()).collect(),
+                }),
                 Tag::Value(v) => crate::generated::tasks::tag::Tag::Value(v.clone()),
             }),
         }
+    }
+}
+// protobuf types are really painful
+impl From<&crate::generated::tasks::Tag> for Tag {
+    fn from(t: &crate::generated::tasks::Tag) -> Self {
+        match t.tag.as_ref().unwrap() {
+            crate::generated::tasks::tag::Tag::Value(v) => Tag::Value(v.clone()),
+            crate::generated::tasks::tag::Tag::ValueMap(m) => Tag::Map(
+                m.values
+                    .iter()
+                    .map(|(k, tag)| (k.clone(), tag.into()))
+                    .collect(),
+            ),
+            crate::generated::tasks::tag::Tag::ValueList(l) => {
+                Tag::List(l.values.iter().map(|v| v.into()).collect())
+            }
+        }
+    }
+}
+
+impl From<String> for Tag {
+    fn from(v: String) -> Self {
+        Tag::Value(v)
+    }
+}
+impl From<&str> for Tag {
+    fn from(v: &str) -> Self {
+        Tag::Value(v.into())
     }
 }
 
@@ -128,24 +142,6 @@ impl ExecutorMeta {
     }
 }
 
-enum ColonSplitMatch<'a, 'p, T> {
-    NoColon,
-    Colon(&'p str, Option<&'a T>),
-}
-
-fn colon_split<'a, 'p, T>(
-    pattern: &'p str,
-    map: &'a HashMap<String, T>,
-) -> ColonSplitMatch<'a, 'p, T> {
-    if pattern.contains(":") {
-        let split: Vec<&str> = pattern.splitn(2, ":").collect();
-        let key = split[0];
-        ColonSplitMatch::Colon(split[1], map.get(key))
-    } else {
-        ColonSplitMatch::NoColon
-    }
-}
-
 #[cfg(test)]
 mod test {
     use crate::executor_meta::{ExecutorMeta, Tag};
@@ -174,15 +170,14 @@ mod test {
         assert!(foo_bar.matches("bar"));
         assert!(!foo_bar.matches("fooo"));
 
-        let mut maap = HashMap::new();
-        maap.insert(String::from("key1"), String::from("value1"));
-        maap.insert(String::from("key2"), String::from("value2"));
+        let mut maap: HashMap<String, Tag> = HashMap::new();
+        maap.insert(String::from("key1"), "value1".into());
+        maap.insert(String::from("key2"), "value2".into());
         let maap = Tag::Map(maap);
         assert!(maap.matches("*"));
-        assert!(maap.matches("value1"));
-        assert!(maap.matches("value2"));
-        assert!(!maap.matches("value3"));
         assert!(maap.matches("key1:value1"));
+        assert!(maap.matches("key2:value2"));
+        assert!(!maap.matches("value3"));
         assert!(!maap.matches("key1:value2"));
         assert!(maap.matches("key1:*"));
     }
@@ -239,7 +234,6 @@ mod test {
         assert!(!meta.matches("non_existing:*"));
 
         assert!(meta.matches("os:*"));
-        assert!(meta.matches("os:Linux"));
         assert!(meta.matches("os:type:Linux"));
         assert!(meta.matches("os:type:*"));
         assert!(meta.matches("os:version:18.04"));

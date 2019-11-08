@@ -14,7 +14,7 @@ use std::hash::Hash;
 use thiserror::Error;
 
 const SPACES: &'static str = " \t\r\n";
-const SPECIAL_AUTHORIZED_CHARS: &'static str = "-_@#";
+const SPECIAL_AUTHORIZED_CHARS: &'static str = "-_@#.";
 
 fn sp<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, &'a str, E> {
     take_while1(move |c| SPACES.contains(c))(i)

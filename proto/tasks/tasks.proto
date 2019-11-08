@@ -44,11 +44,11 @@ message Tag {
 }
 
 message ValueMap {
-  map<string, string> values = 1;
+  map<string, Tag> values = 1;
 }
 
 message ValueList {
-  repeated string values= 1;
+  repeated Tag values= 1;
 }
 
 message GetTaskStreamReply {

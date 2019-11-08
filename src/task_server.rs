@@ -258,7 +258,7 @@ impl TasksManager for TaskServer {
 
         let query = parse(query);
         if let Err(e) = query {
-            return Err(Status::new(Code::InvalidArgument, "invalid query"));
+            return Err(Status::new(Code::InvalidArgument, format!("invalid query: {}", e)));
         }
         let query = query.unwrap();
 

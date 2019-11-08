@@ -9,7 +9,7 @@ use funtonic::generated::tasks::client::TasksManagerClient;
 use funtonic::generated::tasks::task_execution_result::ExecutionResult;
 use funtonic::generated::tasks::task_output::Output;
 use funtonic::generated::tasks::{
-    GetTasksRequest, TaskAlive, TaskCompleted, TaskExecutionResult, TaskOutput,
+     TaskAlive, TaskCompleted, TaskExecutionResult, TaskOutput,
 };
 use futures_util::{SinkExt, StreamExt};
 use http::Uri;
@@ -20,7 +20,7 @@ use std::time::Duration;
 use structopt::StructOpt;
 use thiserror::Error;
 use tokio_sync::watch::Sender;
-use tonic::metadata::{AsciiMetadataValue, MetadataValue};
+use tonic::metadata::{AsciiMetadataValue};
 use tonic::transport::{Channel, Endpoint};
 use tonic::Request;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
@@ -69,12 +69,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut executor_meta = ExecutorMeta::from(executor_config);
         // add some generic meta about system
         let info = os_info::get();
-        let mut os: HashMap<String, String> = HashMap::new();
+        let mut os: HashMap<String, Tag> = HashMap::new();
         os.insert(
             "type".into(),
-            format!("{:?}", info.os_type()).to_lowercase(),
+            format!("{:?}", info.os_type()).into(),
         );
-        os.insert("version".into(), format!("{}", info.version()));
+        os.insert("version".into(), format!("{}", info.version()).into());
         executor_meta.tags_mut().insert("os".into(), Tag::Map(os));
         info!("Metas: {:#?}", executor_meta);
 
