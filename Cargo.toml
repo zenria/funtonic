@@ -1,6 +1,6 @@
 [package]
 name = "funtonic"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Philippe GASSMANN <philoops@gmail.com>"]
 edition = "2018"
 
@@ -37,6 +37,7 @@ anyhow = "1.0"
 http="0.1"
 os_info = "1.1"
 rustbreak = {version="2.0.0-rc3", features=["yaml_enc"]}
+nom="5"
 
 [build-dependencies]
 tonic-build = "0.1.0-alpha.5"

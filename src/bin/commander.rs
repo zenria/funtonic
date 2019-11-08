@@ -6,6 +6,7 @@ use funtonic::generated::tasks::client::TasksManagerClient;
 use funtonic::generated::tasks::task_execution_result::ExecutionResult;
 use funtonic::generated::tasks::task_output::Output;
 use funtonic::generated::tasks::{LaunchTaskRequest, TaskPayload};
+use funtonic::query_parser::parse;
 use funtonic::CLIENT_TOKEN_HEADER;
 use http::Uri;
 use std::path::PathBuf;
@@ -53,6 +54,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut client = TasksManagerClient::new(channel);
 
         let command = opt.command.join(" ");
+
+        //check the query is parsable
+        parse(&opt.query)?;
 
         let mut request = tonic::Request::new(LaunchTaskRequest {
             task_payload: Some(TaskPayload { payload: command }),

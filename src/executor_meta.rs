@@ -1,6 +1,7 @@
 use crate::config::ExecutorConfig;
 use crate::executor_meta::ColonSplitMatch::Colon;
 use crate::generated::tasks::{GetTasksRequest, ValueList, ValueMap};
+use crate::query_parser::{Query, QueryMatcher};
 use crate::VERSION;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -93,39 +94,23 @@ impl From<&Tag> for crate::generated::tasks::Tag {
     }
 }
 
-impl Tag {
-    pub fn matches(&self, pattern: &str) -> bool {
-        if pattern == "*" {
-            true
-        } else {
-            match self {
-                Tag::Value(v) => v == pattern,
-                Tag::List(v) => v.iter().any(|v| v == pattern),
-                Tag::Map(v) => match colon_split(pattern, v) {
-                    ColonSplitMatch::NoColon => v.iter().any(|(_, v)| v == pattern),
-                    Colon(sub_pattern, matching_value) => {
-                        sub_pattern == "*" || matching_value.map_or(false, |v| sub_pattern == v)
-                    }
-                },
-            }
+impl QueryMatcher for Tag {
+    fn qmatches(&self, query: &Query) -> bool {
+        match self {
+            Tag::Map(map) => map.qmatches(query),
+            Tag::List(list) => list.qmatches(query),
+            Tag::Value(v) => v.qmatches(query),
         }
     }
 }
 
-impl ExecutorMeta {
-    pub fn matches(&self, pattern: &str) -> bool {
-        if pattern == "*" {
-            return true;
-        }
-        // tag match
-        if let ColonSplitMatch::Colon(sub_pattern, matching_tag) = colon_split(pattern, &self.tags)
-        {
-            return matching_tag.map_or(false, |tag| tag.matches(sub_pattern));
-        }
-        // client id match
-        self.client_id == pattern
+impl QueryMatcher for ExecutorMeta {
+    fn qmatches(&self, query: &Query) -> bool {
+        self.client_id.qmatches(query) || self.tags.qmatches(query)
     }
+}
 
+impl ExecutorMeta {
     pub fn client_id(&self) -> &str {
         &self.client_id
     }
@@ -164,7 +149,17 @@ fn colon_split<'a, 'p, T>(
 #[cfg(test)]
 mod test {
     use crate::executor_meta::{ExecutorMeta, Tag};
+    use crate::query_parser::{parse, QueryMatcher};
     use std::collections::HashMap;
+
+    trait TestMatch {
+        fn matches(&self, query: &str) -> bool;
+    }
+    impl<T: QueryMatcher> TestMatch for T {
+        fn matches(&self, query: &str) -> bool {
+            self.qmatches(&parse(query).unwrap())
+        }
+    }
 
     #[test]
     fn tag_match() {

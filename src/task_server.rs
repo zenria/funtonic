@@ -2,6 +2,7 @@ use crate::executor_meta::ExecutorMeta;
 use crate::generated::tasks::server::*;
 use crate::generated::tasks::task_execution_result::ExecutionResult;
 use crate::generated::tasks::*;
+use crate::query_parser::{parse, Query, QueryMatcher};
 use crate::CLIENT_TOKEN_HEADER;
 use futures_channel::mpsc;
 use futures_sink::Sink;
@@ -85,7 +86,7 @@ fn get_task_sink(
 impl TaskServer {
     fn get_channels_to_matching_executors(
         &self,
-        query: &str,
+        query: &Query,
     ) -> Result<
         Vec<(
             String,
@@ -100,7 +101,7 @@ impl TaskServer {
             .read(|executors| {
                 executors
                     .iter()
-                    .filter(|(client_id, meta)| meta.matches(query))
+                    .filter(|(client_id, meta)| meta.qmatches(query))
                     .map(|(client_id, _meta)| client_id.clone())
                     .collect()
             })
@@ -255,11 +256,18 @@ impl TasksManager for TaskServer {
             payload, query, token
         );
 
+        let query = parse(query);
+        if let Err(e) = query {
+            return Err(Status::new(Code::InvalidArgument, "invalid query"));
+        }
+        let query = query.unwrap();
+
         let mut senders = self
             .get_channels_to_matching_executors(&query)
             .map_err(|e| tonic::Status::new(Code::Internal, format!("Unexpected Error {}", e)))?;
 
         for (client_id, executor_sender) in senders.iter_mut() {
+            debug!("client {} matches query!", client_id);
             if let Some(executor_sender) = executor_sender {
                 match executor_sender
                     .send((payload.clone(), sender.clone()))
