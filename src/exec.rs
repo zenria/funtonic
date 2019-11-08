@@ -200,7 +200,7 @@ mod tests {
     fn stderrnout() {
         let mut cmd = Command::new("bash");
         cmd.arg("-c")
-            .arg("echo foo\n>&2 echo coucou\nsleep 1;echo bar");
+            .arg("echo foo\n>&2 echo coucou\nsleep 5;echo bar");
         let output: Vec<ExecEvent> = extexec(cmd).unwrap().0.iter().collect();
         assert_eq!(
             vec![
@@ -215,7 +215,7 @@ mod tests {
         // same without tee output
         let mut cmd = Command::new("bash");
         cmd.arg("-c")
-            .arg("echo foo\n>&2 echo coucou\nsleep 1;echo bar");
+            .arg("echo foo\n>&2 echo coucou\nsleep 5;echo bar");
         let output: Vec<ExecEvent> = extexec(cmd).unwrap().0.iter().collect();
         assert_eq!(
             vec![
