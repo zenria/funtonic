@@ -1,0 +1,53 @@
+[package]
+name = "funtonic"
+version = "0.4.0"
+authors = ["Philippe GASSMANN <philoops@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+tonic={version="0.1.0-alpha.5", features=["rustls", "codegen"]}
+
+bytes = "0.4"
+prost = "0.5"
+
+rand = "0.7.2"
+
+tokio = "=0.2.0-alpha.6"
+tokio-executor = "0.2.0-alpha.6"
+tokio-sync = "0.2.0-alpha.6"
+futures-core-preview = "=0.3.0-alpha.19"
+futures-util-preview = "=0.3.0-alpha.19"
+futures-sink-preview = "=0.3.0-alpha.19"
+futures-channel-preview = {version="=0.3.0-alpha.19", features=["sink"]}
+async-stream = "0.1.2"
+crossbeam="0.7.2"
+itertools = "0.8.0"
+tracing="0.1.10"
+tracing-log="0.1.0"
+tracing-subscriber="0.1.5"
+log="0.4"
+serde = { version = "1.0.101", features = ["derive"] }
+serde_yaml="0.8.11"
+structopt = "0.3"
+shellexpand = "1.0.0"
+thiserror = "1.0"
+anyhow = "1.0"
+http="0.1"
+os_info = "1.1"
+rustbreak = {version="2.0.0-rc3", features=["yaml_enc"]}
+query-parser = {path="../query-parser"}
+
+[build-dependencies]
+tonic-build = "0.1.0-alpha.5"
+
+[[bin]]
+name = "taskserver"
+path = "src/bin/server.rs"
+[[bin]]
+name = "executor"
+path = "src/bin/executor.rs"
+[[bin]]
+name = "commander"
+path = "src/bin/commander.rs"

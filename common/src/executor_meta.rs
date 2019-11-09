@@ -1,6 +1,6 @@
 use crate::config::ExecutorConfig;
 use crate::generated::tasks::{GetTasksRequest, ValueList, ValueMap};
-use crate::query_parser::{Query, QueryMatcher};
+use query_parser::{Query, QueryMatcher};
 use crate::VERSION;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -145,7 +145,7 @@ impl ExecutorMeta {
 #[cfg(test)]
 mod test {
     use crate::executor_meta::{ExecutorMeta, Tag};
-    use crate::query_parser::{parse, QueryMatcher};
+    use query_parser::{parse, QueryMatcher};
     use std::collections::HashMap;
 
     trait TestMatch {

@@ -6,7 +6,7 @@ use funtonic::generated::tasks::client::TasksManagerClient;
 use funtonic::generated::tasks::task_execution_result::ExecutionResult;
 use funtonic::generated::tasks::task_output::Output;
 use funtonic::generated::tasks::{LaunchTaskRequest, TaskPayload};
-use funtonic::query_parser::parse;
+use query_parser::parse;
 use funtonic::CLIENT_TOKEN_HEADER;
 use http::Uri;
 use std::path::PathBuf;

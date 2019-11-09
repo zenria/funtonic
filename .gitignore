@@ -2,8 +2,8 @@
 **/*.rs.bk
 *.iml
 .idea
-/src/generated/tasks.rs
-tls/*.pem
-tls/*.csr
-tls/*.json
+/common/src/generated/tasks.rs
+/common/tls/*.pem
+/common/tls/*.csr
+/common/tls/*.json
 

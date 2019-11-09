@@ -2,7 +2,7 @@ use crate::executor_meta::ExecutorMeta;
 use crate::generated::tasks::server::*;
 use crate::generated::tasks::task_execution_result::ExecutionResult;
 use crate::generated::tasks::*;
-use crate::query_parser::{parse, Query, QueryMatcher};
+use query_parser::{parse, Query, QueryMatcher};
 use crate::CLIENT_TOKEN_HEADER;
 use futures_channel::mpsc;
 use futures_sink::Sink;
