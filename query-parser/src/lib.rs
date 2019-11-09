@@ -11,105 +11,33 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
 
+use crate::parser::{parse_raw, RawQuery};
 use thiserror::Error;
 
-const SPACES: &'static str = " \t\r\n";
-const SPECIAL_AUTHORIZED_CHARS: &'static str = "-_@#.";
-
-fn sp<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, &'a str, E> {
-    take_while1(move |c| SPACES.contains(c))(i)
-}
-
-fn wildcard<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, char, E> {
-    nom::character::complete::char('*')(i)
-}
-
-fn field_delimiter<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, char, E> {
-    nom::character::complete::char(':')(i)
-}
-
-fn pattern<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, &'a str, E> {
-    take_while1(|c| is_alphanumeric(c as u8) || SPECIAL_AUTHORIZED_CHARS.contains(c))(i)
-}
-// `or` or `||`
-fn or<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, (), E> {
-    value((), alt((tag_no_case("or"), tag("||"))))(i)
-}
-fn or_separator<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, (), E> {
-    value((), tuple((sp, or, sp)))(i)
-}
-
-fn or_clause<'a, E: ParseError<&'a str>>(
-    i: &'a str,
-) -> IResult<&'a str, (RawQuery<'a>, RawQuery<'a>), E> {
-    separated_pair(parse_simple_query, or_separator, parse_query)(i)
-}
-
-// `and` or `&&`
-fn and<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, (), E> {
-    value((), alt((tag_no_case("and"), tag("&&"))))(i)
-}
-
-fn and_separator<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, (), E> {
-    value((), tuple((sp, and, sp)))(i)
-}
-
-fn and_clause<'a, E: ParseError<&'a str>>(
-    i: &'a str,
-) -> IResult<&'a str, (RawQuery<'a>, RawQuery<'a>), E> {
-    separated_pair(parse_simple_query, and_separator, parse_query)(i)
-}
-
-// field:sub_query
-fn field_pattern<'a, E: ParseError<&'a str>>(
-    i: &'a str,
-) -> IResult<&'a str, (&'a str, char, RawQuery<'a>), E> {
-    tuple((pattern, field_delimiter, parse_query))(i)
-}
-fn parse_simple_query<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, RawQuery<'a>, E> {
-    alt((
-        // * wildcard
-        map(wildcard, |_| RawQuery::Wildcard),
-        // field:_sub_query
-        map(field_pattern, |(field, _, sub_query)| {
-            RawQuery::FieldPattern(field, Box::new(sub_query))
-        }),
-        map(pattern, |s| RawQuery::Pattern(s)),
-    ))(i)
-}
-fn parse_query<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, RawQuery<'a>, E> {
-    alt((
-        map(and_clause, |(l, r)| RawQuery::And(l.into(), r.into())),
-        map(or_clause, |(l, r)| RawQuery::Or(l.into(), r.into())),
-        parse_simple_query,
-    ))(i)
-}
-
-fn parse_raw<'a, E: ParseError<&'a str>>(i: &'a str) -> Result<RawQuery<'a>, Err<E>> {
-    let ret = complete(parse_query)(i)?;
-    Ok(ret.1)
-}
+mod parser;
 
 #[derive(Error, Debug, Clone)]
-#[error("Unable to parse query {0}")]
-pub struct QueryParseError(String);
-
-pub fn parse<'a>(i: &'a str) -> Result<Query<'a>, QueryParseError> {
-    let ret = complete::<_, _, VerboseError<&str>, _>(parse_query)(i);
-    match ret {
-        Err(e) => Err(QueryParseError(format!("{:?}", e))),
-        Ok(ret) => Ok(ret.1.into()),
-    }
+pub enum QueryParseError {
+    #[error("Unable to parse query {0}")]
+    ParseError(String),
+    #[error("Unable to parse query {0}")]
+    UnrecognizedInput(String),
 }
 
-/// Raw parsed query with no precedence applied
-#[derive(Debug, PartialOrd, PartialEq)]
-enum RawQuery<'a> {
-    Pattern(&'a str),
-    FieldPattern(&'a str, Box<RawQuery<'a>>),
-    Wildcard,
-    And(Box<RawQuery<'a>>, Box<RawQuery<'a>>),
-    Or(Box<RawQuery<'a>>, Box<RawQuery<'a>>),
+pub fn parse(i: &str) -> Result<Query, QueryParseError> {
+    let ret = parse_raw::<VerboseError<&str>>(i);
+    match ret {
+        Err(e) => Err(QueryParseError::ParseError(format!("{:?}", e))),
+        Ok(ret) => {
+            let rest = ret.0;
+            let res = ret.1;
+            if rest.len() > 0 {
+                Err(QueryParseError::UnrecognizedInput(rest.into()))
+            } else {
+                Ok(res.into())
+            }
+        }
+    }
 }
 
 #[derive(Debug, PartialOrd, PartialEq)]
@@ -288,9 +216,14 @@ impl<'a> From<RawQuery<'a>> for Query<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::{and, or, parse, parse_raw, Query, QueryMatcher, RawQuery};
+    use crate::{parse, QueryMatcher};
     use nom::error::VerboseError;
     use std::collections::HashMap;
+
+    #[test]
+    fn test_wrong_query() {
+        assert!(parse("prod and (env:foo or bar)").is_err());
+    }
 
     #[test]
     fn test_matches() {
@@ -334,76 +267,5 @@ mod tests {
         assert!(non_empty.qmatches(&parse("prod and bar and foo").unwrap()));
         assert!(non_empty.qmatches(&parse("prod and foo").unwrap()));
         assert!(non_empty.qmatches(&parse("prod or field:bar and foo").unwrap()));
-    }
-
-    #[test]
-    fn test() {
-        assert!(and::<VerboseError<&str>>("and").is_ok());
-        assert!(and::<VerboseError<&str>>("&&").is_ok());
-        assert!(or::<VerboseError<&str>>("or").is_ok());
-        assert!(or::<VerboseError<&str>>("||").is_ok());
-        assert!(parse_raw::<VerboseError<&str>>("").is_err());
-        assert_eq!(
-            RawQuery::Wildcard,
-            parse_raw::<VerboseError<&str>>("*").unwrap()
-        );
-        assert_eq!(
-            RawQuery::Pattern("coucou_les-amis1234"),
-            parse_raw::<VerboseError<&str>>("coucou_les-amis1234").unwrap()
-        );
-        assert_eq!(
-            RawQuery::FieldPattern("field", Box::new(RawQuery::Pattern("pattern"))),
-            parse_raw::<VerboseError<&str>>("field:pattern").unwrap()
-        );
-        assert_eq!(
-            RawQuery::FieldPattern("field", Box::new(RawQuery::Wildcard)),
-            parse_raw::<VerboseError<&str>>("field:*").unwrap()
-        );
-        assert_eq!(
-            RawQuery::FieldPattern(
-                "field",
-                Box::new(RawQuery::FieldPattern(
-                    "sub_field",
-                    Box::new(RawQuery::Pattern("pattern"))
-                ))
-            ),
-            parse_raw::<VerboseError<&str>>("field:sub_field:pattern").unwrap()
-        );
-        assert_eq!(
-            RawQuery::FieldPattern(
-                "field",
-                Box::new(RawQuery::FieldPattern(
-                    "sub_field",
-                    Box::new(RawQuery::Wildcard)
-                ))
-            ),
-            parse_raw::<VerboseError<&str>>("field:sub_field:*").unwrap()
-        );
-        // one lvl
-        assert_eq!(
-            parse_raw::<VerboseError<&str>>("foo and bar").unwrap(),
-            RawQuery::And(
-                Box::new(RawQuery::Pattern("foo")),
-                Box::new(RawQuery::Pattern("bar"))
-            ),
-        );
-        assert_eq!(
-            parse_raw::<VerboseError<&str>>("foo or bar").unwrap(),
-            RawQuery::Or(
-                Box::new(RawQuery::Pattern("foo")),
-                Box::new(RawQuery::Pattern("bar"))
-            ),
-        );
-        // two lvl
-        assert_eq!(
-            parse_raw::<VerboseError<&str>>("foo and bar and yak").unwrap(),
-            RawQuery::And(
-                Box::new(RawQuery::Pattern("foo")),
-                Box::new(RawQuery::And(
-                    Box::new(RawQuery::Pattern("bar")),
-                    Box::new(RawQuery::Pattern("yak"))
-                ))
-            ),
-        );
     }
 }
