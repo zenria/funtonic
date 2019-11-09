@@ -2,10 +2,10 @@
 extern crate log;
 
 use funtonic::config::{Config, Role};
-use funtonic::generated::tasks::client::TasksManagerClient;
-use funtonic::generated::tasks::task_execution_result::ExecutionResult;
-use funtonic::generated::tasks::task_output::Output;
-use funtonic::generated::tasks::{LaunchTaskRequest, TaskPayload};
+use grpc_service::client::TasksManagerClient;
+use grpc_service::task_execution_result::ExecutionResult;
+use grpc_service::task_output::Output;
+use grpc_service::{LaunchTaskRequest, TaskPayload};
 use query_parser::parse;
 use funtonic::CLIENT_TOKEN_HEADER;
 use http::Uri;

@@ -6,4 +6,5 @@
 /common/tls/*.pem
 /common/tls/*.csr
 /common/tls/*.json
+/grpc-service/src/tasks.rs
 

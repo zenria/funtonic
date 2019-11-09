@@ -3,7 +3,7 @@ extern crate log;
 
 use funtonic::config::{Config, Role};
 use funtonic::file_utils::{mkdirs, path_concat2};
-use funtonic::generated::tasks::server::TasksManagerServer;
+use grpc_service::server::TasksManagerServer;
 use funtonic::task_server::TaskServer;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;

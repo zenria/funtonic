@@ -5,10 +5,10 @@ use funtonic::config::{Config, Role};
 use funtonic::exec::Type::Out;
 use funtonic::exec::*;
 use funtonic::executor_meta::{ExecutorMeta, Tag};
-use funtonic::generated::tasks::client::TasksManagerClient;
-use funtonic::generated::tasks::task_execution_result::ExecutionResult;
-use funtonic::generated::tasks::task_output::Output;
-use funtonic::generated::tasks::{
+use grpc_service::client::TasksManagerClient;
+use grpc_service::task_execution_result::ExecutionResult;
+use grpc_service::task_output::Output;
+use grpc_service::{
      TaskAlive, TaskCompleted, TaskExecutionResult, TaskOutput,
 };
 use futures_util::{SinkExt, StreamExt};

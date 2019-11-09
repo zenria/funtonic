@@ -7,11 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tonic={version="0.1.0-alpha.5", features=["rustls", "codegen"]}
-
-bytes = "0.4"
-prost = "0.5"
-
+tonic={version="0.1.0-alpha.5", features=["rustls"]}
 rand = "0.7.2"
 
 tokio = "=0.2.0-alpha.6"
@@ -38,9 +34,7 @@ http="0.1"
 os_info = "1.1"
 rustbreak = {version="2.0.0-rc3", features=["yaml_enc"]}
 query-parser = {path="../query-parser"}
-
-[build-dependencies]
-tonic-build = "0.1.0-alpha.5"
+grpc-service = {path="../grpc-service"}
 
 [[bin]]
 name = "taskserver"

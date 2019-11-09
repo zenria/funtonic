@@ -1,7 +1,7 @@
 use crate::executor_meta::ExecutorMeta;
-use crate::generated::tasks::server::*;
-use crate::generated::tasks::task_execution_result::ExecutionResult;
-use crate::generated::tasks::*;
+use grpc_service::server::*;
+use grpc_service::task_execution_result::ExecutionResult;
+use grpc_service::*;
 use query_parser::{parse, Query, QueryMatcher};
 use crate::CLIENT_TOKEN_HEADER;
 use futures_channel::mpsc;

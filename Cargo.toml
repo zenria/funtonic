@@ -3,5 +3,5 @@
 members = [
     "common",
     "query-parser",
-    "proto"
+    "grpc-service"
 ]
