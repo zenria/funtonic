@@ -218,10 +218,8 @@ mod test {
         assert!(meta.matches("siderant"));
         assert!(!meta.matches("prod"));
         assert!(meta.matches("env:*"));
-        assert!(!meta.matches("env:"));
         assert!(meta.matches("env:prod"));
         assert!(!meta.matches("env:dev"));
-        assert!(!meta.matches("roles:"));
         assert!(meta.matches("roles:*"));
         assert!(meta.matches("roles:foo"));
         assert!(meta.matches("roles:bar"));
