@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .without_time()
             .finish(),
     )
-    .expect("setting tracing default failed");
+        .expect("setting tracing default failed");
     tracing_log::LogTracer::init().unwrap();
 
     let opt = Opt::from_args();

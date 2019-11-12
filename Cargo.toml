@@ -3,5 +3,8 @@
 members = [
     "common",
     "query-parser",
-    "grpc-service"
+    "grpc-service",
+    "executor",
+    "commander",
+    "taskserver"
 ]

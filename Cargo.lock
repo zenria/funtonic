@@ -176,6 +176,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "commander"
+version = "0.1.0"
+dependencies = [
+ "funtonic 0.4.0",
+ "grpc-service 0.1.0",
+ "query-parser 0.1.0",
+ "structopt 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "crossbeam"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -270,6 +280,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 name = "either"
 version = "1.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "executor"
+version = "0.1.0"
+dependencies = [
+ "funtonic 0.4.0",
+ "grpc-service 0.1.0",
+ "query-parser 0.1.0",
+]
 
 [[package]]
 name = "failure"
@@ -1304,6 +1323,15 @@ dependencies = [
  "quote 1.0.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "syn 1.0.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "unicode-xid 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "taskserver"
+version = "0.1.0"
+dependencies = [
+ "funtonic 0.4.0",
+ "grpc-service 0.1.0",
+ "query-parser 0.1.0",
 ]
 
 [[package]]

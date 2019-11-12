@@ -30,7 +30,7 @@ async fn main() -> Result<(), anyhow::Error> {
             .without_time()
             .finish(),
     )
-    .expect("setting tracing default failed");
+        .expect("setting tracing default failed");
     tracing_log::LogTracer::init().unwrap();
 
     let opt = Opt::from_args();

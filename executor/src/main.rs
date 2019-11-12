@@ -9,7 +9,7 @@ use grpc_service::client::TasksManagerClient;
 use grpc_service::task_execution_result::ExecutionResult;
 use grpc_service::task_output::Output;
 use grpc_service::{
-     TaskAlive, TaskCompleted, TaskExecutionResult, TaskOutput,
+    TaskAlive, TaskCompleted, TaskExecutionResult, TaskOutput,
 };
 use futures_util::{SinkExt, StreamExt};
 use http::Uri;
@@ -51,7 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .without_time()
             .finish(),
     )
-    .expect("setting tracing default failed");
+        .expect("setting tracing default failed");
     tracing_log::LogTracer::init().unwrap();
     let opt = Opt::from_args();
     let config = Config::parse(&opt.config, "executor.yml")?;
@@ -82,22 +82,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             tokio_sync::watch::channel(LastConnectionStatus::Connecting);
 
         while let Err(e) =
-            executor_main(&endpoint, &executor_meta, &mut connection_status_sender).await
-        {
-            error!("Error {}", e);
-            // increase reconnect time if connecting, reset if connected
-            match *connection_status_receiver.get_ref() {
-                LastConnectionStatus::Connecting => {
-                    reconnect_time = reconnect_time + Duration::from_secs(1);
-                    if reconnect_time > max_reconnect_time {
-                        reconnect_time = max_reconnect_time;
+        executor_main(&endpoint, &executor_meta, &mut connection_status_sender).await
+            {
+                error!("Error {}", e);
+                // increase reconnect time if connecting, reset if connected
+                match *connection_status_receiver.get_ref() {
+                    LastConnectionStatus::Connecting => {
+                        reconnect_time = reconnect_time + Duration::from_secs(1);
+                        if reconnect_time > max_reconnect_time {
+                            reconnect_time = max_reconnect_time;
+                        }
                     }
+                    LastConnectionStatus::Connected => reconnect_time = Duration::from_secs(1),
                 }
-                LastConnectionStatus::Connected => reconnect_time = Duration::from_secs(1),
+                info!("Reconnecting in {}s", reconnect_time.as_secs());
+                tokio::timer::delay_for(reconnect_time).await;
             }
-            info!("Reconnecting in {}s", reconnect_time.as_secs());
-            tokio::timer::delay_for(reconnect_time).await;
-        }
         Ok(())
     } else {
         Err(InvalidConfig)?
