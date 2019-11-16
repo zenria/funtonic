@@ -1,13 +1,13 @@
 use crate::executor_meta::ExecutorMeta;
-use grpc_service::server::*;
-use grpc_service::task_execution_result::ExecutionResult;
-use grpc_service::*;
-use query_parser::{parse, Query, QueryMatcher};
 use crate::CLIENT_TOKEN_HEADER;
 use futures_channel::mpsc;
 use futures_sink::Sink;
 use futures_util::pin_mut;
 use futures_util::{FutureExt, SinkExt, StreamExt};
+use grpc_service::server::*;
+use grpc_service::task_execution_result::ExecutionResult;
+use grpc_service::*;
+use query_parser::{parse, Query, QueryMatcher};
 use rand::Rng;
 use rustbreak::deser::Yaml;
 use rustbreak::{Database, FileDatabase};
@@ -101,7 +101,7 @@ impl TaskServer {
             .read(|executors| {
                 executors
                     .iter()
-                    .filter(|(client_id, meta)| meta.qmatches(query))
+                    .filter(|(_client_id, meta)| meta.qmatches(query))
                     .map(|(client_id, _meta)| client_id.clone())
                     .collect()
             })
@@ -258,7 +258,10 @@ impl TasksManager for TaskServer {
 
         let query = parse(query);
         if let Err(e) = query {
-            return Err(Status::new(Code::InvalidArgument, format!("invalid query: {}", e)));
+            return Err(Status::new(
+                Code::InvalidArgument,
+                format!("invalid query: {}", e),
+            ));
         }
         let query = query.unwrap();
         debug!("Parsed query: {:#?}", query);
@@ -266,6 +269,25 @@ impl TasksManager for TaskServer {
         let mut senders = self
             .get_channels_to_matching_executors(&query)
             .map_err(|e| tonic::Status::new(Code::Internal, format!("Unexpected Error {}", e)))?;
+
+        let matching_clients: Vec<String> = senders
+            .iter()
+            .map(|(client_id, _)| client_id.clone())
+            .collect();
+
+        sender
+            .send(TaskExecutionResult {
+                task_id: "".into(),
+                client_id: "".into(),
+                execution_result: Some(ExecutionResult::MatchingExecutors(MatchingExecutors {
+                    client_id: matching_clients,
+                })),
+            })
+            .await
+            .map_err(|e| {
+                error!("Commander disconnected!");
+                tonic::Status::new(Code::Internal, format!("Unexpected Error {}", e))
+            })?;
 
         for (client_id, executor_sender) in senders.iter_mut() {
             debug!("client {} matches query!", client_id);

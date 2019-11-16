@@ -5,13 +5,11 @@ use funtonic::config::{Config, Role};
 use funtonic::exec::Type::Out;
 use funtonic::exec::*;
 use funtonic::executor_meta::{ExecutorMeta, Tag};
+use futures_util::{SinkExt, StreamExt};
 use grpc_service::client::TasksManagerClient;
 use grpc_service::task_execution_result::ExecutionResult;
 use grpc_service::task_output::Output;
-use grpc_service::{
-    TaskAlive, TaskCompleted, TaskExecutionResult, TaskOutput,
-};
-use futures_util::{SinkExt, StreamExt};
+use grpc_service::{TaskAlive, TaskCompleted, TaskExecutionResult, TaskOutput};
 use http::Uri;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -20,7 +18,7 @@ use std::time::Duration;
 use structopt::StructOpt;
 use thiserror::Error;
 use tokio_sync::watch::Sender;
-use tonic::metadata::{AsciiMetadataValue};
+use tonic::metadata::AsciiMetadataValue;
 use tonic::transport::{Channel, Endpoint};
 use tonic::Request;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
@@ -51,7 +49,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .without_time()
             .finish(),
     )
-        .expect("setting tracing default failed");
+    .expect("setting tracing default failed");
     tracing_log::LogTracer::init().unwrap();
     let opt = Opt::from_args();
     let config = Config::parse(&opt.config, "executor.yml")?;
@@ -70,10 +68,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         // add some generic meta about system
         let info = os_info::get();
         let mut os: HashMap<String, Tag> = HashMap::new();
-        os.insert(
-            "type".into(),
-            format!("{:?}", info.os_type()).into(),
-        );
+        os.insert("type".into(), format!("{:?}", info.os_type()).into());
         os.insert("version".into(), format!("{}", info.version()).into());
         executor_meta.tags_mut().insert("os".into(), Tag::Map(os));
         info!("Metas: {:#?}", executor_meta);
@@ -82,22 +77,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             tokio_sync::watch::channel(LastConnectionStatus::Connecting);
 
         while let Err(e) =
-        executor_main(&endpoint, &executor_meta, &mut connection_status_sender).await
-            {
-                error!("Error {}", e);
-                // increase reconnect time if connecting, reset if connected
-                match *connection_status_receiver.get_ref() {
-                    LastConnectionStatus::Connecting => {
-                        reconnect_time = reconnect_time + Duration::from_secs(1);
-                        if reconnect_time > max_reconnect_time {
-                            reconnect_time = max_reconnect_time;
-                        }
+            executor_main(&endpoint, &executor_meta, &mut connection_status_sender).await
+        {
+            error!("Error {}", e);
+            // increase reconnect time if connecting, reset if connected
+            match *connection_status_receiver.get_ref() {
+                LastConnectionStatus::Connecting => {
+                    reconnect_time = reconnect_time + Duration::from_secs(1);
+                    if reconnect_time > max_reconnect_time {
+                        reconnect_time = max_reconnect_time;
                     }
-                    LastConnectionStatus::Connected => reconnect_time = Duration::from_secs(1),
                 }
-                info!("Reconnecting in {}s", reconnect_time.as_secs());
-                tokio::timer::delay_for(reconnect_time).await;
+                LastConnectionStatus::Connected => reconnect_time = Duration::from_secs(1),
             }
+            info!("Reconnecting in {}s", reconnect_time.as_secs());
+            tokio::timer::delay_for(reconnect_time).await;
+        }
         Ok(())
     } else {
         Err(InvalidConfig)?

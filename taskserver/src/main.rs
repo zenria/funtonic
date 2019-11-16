@@ -3,8 +3,8 @@ extern crate log;
 
 use funtonic::config::{Config, Role};
 use funtonic::file_utils::{mkdirs, path_concat2};
-use grpc_service::server::TasksManagerServer;
 use funtonic::task_server::TaskServer;
+use grpc_service::server::TasksManagerServer;
 use std::path::{Path, PathBuf};
 use structopt::StructOpt;
 use thiserror::Error;
@@ -30,7 +30,7 @@ async fn main() -> Result<(), anyhow::Error> {
             .without_time()
             .finish(),
     )
-        .expect("setting tracing default failed");
+    .expect("setting tracing default failed");
     tracing_log::LogTracer::init().unwrap();
 
     let opt = Opt::from_args();

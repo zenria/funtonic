@@ -84,6 +84,8 @@ message TaskExecutionResult {
     TaskOutput taskOutput=4;
     TaskAlive ping=5;
     ExecutorDisconnected disconnected=6;
+    // first message sent back by the taskserver
+    MatchingExecutors matchingExecutors = 7;
   }
 }
 message TaskExecutionReply {
@@ -95,4 +97,8 @@ message TaskAlive {
 
 message ExecutorDisconnected {
   // empty message
+}
+
+message MatchingExecutors {
+  repeated string clientId = 1;
 }

@@ -2,13 +2,13 @@
 extern crate log;
 
 use funtonic::config::{Config, Role};
+use funtonic::CLIENT_TOKEN_HEADER;
 use grpc_service::client::TasksManagerClient;
 use grpc_service::task_execution_result::ExecutionResult;
 use grpc_service::task_output::Output;
 use grpc_service::{LaunchTaskRequest, TaskPayload};
-use query_parser::parse;
-use funtonic::CLIENT_TOKEN_HEADER;
 use http::Uri;
+use query_parser::parse;
 use std::path::PathBuf;
 use std::str::FromStr;
 use structopt::StructOpt;
@@ -38,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .without_time()
             .finish(),
     )
-        .expect("setting tracing default failed");
+    .expect("setting tracing default failed");
     tracing_log::LogTracer::init().unwrap();
 
     let opt = Opt::from_args();
@@ -70,6 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut response = client.launch_task(request).await?.into_inner();
 
         while let Some(task_execution_result) = response.message().await? {
+            debug!("Received {:?}", task_execution_result);
             // by convention this field is always here, so we can "safely" unwrap
             let execution_result = task_execution_result.execution_result.as_ref().unwrap();
             let client_id = &task_execution_result.client_id;
@@ -94,6 +95,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 ExecutionResult::Disconnected(_) => {
                     error!("{} disconnected!", client_id);
                     eprintln!("{} disconnected!", client_id);
+                }
+                ExecutionResult::MatchingExecutors(executors) => {
+                    for client_id in &executors.client_id {
+                        println!("Executor {} matches.", client_id);
+                    }
                 }
             }
         }
