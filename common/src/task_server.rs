@@ -190,7 +190,7 @@ impl TasksManager for TaskServer {
     async fn task_execution(
         &self,
         request: tonic::Request<tonic::Streaming<TaskExecutionResult>>,
-    ) -> Result<tonic::Response<TaskExecutionReply>, tonic::Status> {
+    ) -> Result<tonic::Response<Empty>, tonic::Status> {
         let task_id =
             String::from_utf8_lossy(request.metadata().get("task_id").unwrap().as_bytes())
                 .into_owned();
@@ -219,7 +219,7 @@ impl TasksManager for TaskServer {
                     break;
                 }
             }
-            Ok(Response::new(TaskExecutionReply {}))
+            Ok(Response::new(Empty {}))
         } else {
             error!("Task id not found {}", task_id);
             Err(tonic::Status::new(Code::NotFound, "task_id not found"))
@@ -295,35 +295,60 @@ impl TasksManager for TaskServer {
                     .await
                 {
                     Err(_) => {
-                        error!("Executor {} disconnected!", client_id);
-                        if let Err(_) = sender
+                        // disconnected executor: task sink has been found
+                        error!("Executor {} disEmptyconnected!", client_id);
+                        sender
                             .send(TaskExecutionResult {
                                 task_id: random_task_id(),
                                 client_id: client_id.clone(),
                                 execution_result: Some(ExecutionResult::Disconnected(
-                                    ExecutorDisconnected {},
+                                    Empty {},
                                 )),
                             })
                             .await
-                        {
-                            error!("Commander also disconnected!");
-                        }
+                            .map_err(|e| {
+                                error!("Commander disconnected!");
+                                tonic::Status::new(
+                                    Code::Internal,
+                                    format!("Unexpected Error {}", e),
+                                )
+                            })?;
                     }
-                    Ok(..) => info!("Command {:?} sent to {}", payload, client_id),
+                    Ok(..) => {
+                        info!("Command {:?} sent to {}", payload, client_id);
+                        sender
+                            .send(TaskExecutionResult {
+                                task_id: random_task_id(),
+                                client_id: client_id.clone(),
+                                execution_result: Some(ExecutionResult::ExecutorConnected(
+                                    Empty {},
+                                )),
+                            })
+                            .await
+                            .map_err(|e| {
+                                error!("Commander disconnected!");
+                                tonic::Status::new(
+                                    Code::Internal,
+                                    format!("Unexpected Error {}", e),
+                                )
+                            })?;
+                    }
                 }
             } else {
-                if let Err(_) = sender
+                // executor is knowm but do commication channel has been found
+                sender
                     .send(TaskExecutionResult {
                         task_id: random_task_id(),
                         client_id: client_id.clone(),
                         execution_result: Some(ExecutionResult::Disconnected(
-                            ExecutorDisconnected {},
+                            Empty {},
                         )),
                     })
                     .await
-                {
-                    error!("Commander also disconnected!");
-                }
+                    .map_err(|e| {
+                        error!("Commander disconnected!");
+                        tonic::Status::new(Code::Internal, format!("Unexpected Error {}", e))
+                    })?;
             }
         }
         let response_stream = receiver.map(|task_execution| Ok(task_execution));

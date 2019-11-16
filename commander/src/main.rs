@@ -101,6 +101,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("Executor {} matches.", client_id);
                     }
                 }
+                ExecutionResult::ExecutorConnected(_) => {
+                    println!("{} connected", client_id);
+                }
             }
         }
 

@@ -9,7 +9,7 @@ use futures_util::{SinkExt, StreamExt};
 use grpc_service::client::TasksManagerClient;
 use grpc_service::task_execution_result::ExecutionResult;
 use grpc_service::task_output::Output;
-use grpc_service::{TaskAlive, TaskCompleted, TaskExecutionResult, TaskOutput};
+use grpc_service::{Empty, TaskCompleted, TaskExecutionResult, TaskOutput};
 use http::Uri;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -130,13 +130,13 @@ async fn executor_main(
 
         let (mut sender, receiver) = tokio_sync::mpsc::unbounded_channel();
         // unconditionnaly ping so the task will be "consumed" on the server
-        if let Err(_) = sender.try_send(ExecutionResult::Ping(TaskAlive {})) {}
+        if let Err(_) = sender.try_send(ExecutionResult::Ping(Empty {})) {}
         // TODO handle error (this should also be an event)
         let (exec_receiver, kill_sender) = exec_command(&task_payload.payload).unwrap();
         tokio_executor::blocking::run(move || {
             for exec_event in exec_receiver {
                 let execution_result = match exec_event {
-                    ExecEvent::Started => ExecutionResult::Ping(TaskAlive {}),
+                    ExecEvent::Started => ExecutionResult::Ping(Empty {}),
                     ExecEvent::Finished(return_code) => {
                         ExecutionResult::TaskCompleted(TaskCompleted { return_code })
                     }
