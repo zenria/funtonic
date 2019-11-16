@@ -106,9 +106,7 @@ impl TaskServer {
                     .collect()
             })
             .map_err(|e| RustBreakWrappedError(e))?;
-        // this code needs to be done in a separate block because aht executors variable is not Send,
-        // thus, if it resides in the stack it will fail the whole Future stuff
-        //
+
         let mut executor_senders = self.executors.lock().unwrap();
         // find matching senders, clone them
         Ok(client_ids
