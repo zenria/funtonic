@@ -89,7 +89,7 @@ message TaskExecutionResult {
     // first message sent back by the taskserver
     MatchingExecutors matchingExecutors = 7;
     // Executor is known by the taskserver and the task payload has been successfully sent
-    Empty executorConnected = 8;
+    Empty taskSubmitted = 8;
   }
 }
 message Empty {

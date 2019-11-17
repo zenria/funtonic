@@ -17,6 +17,12 @@ use tonic::metadata::MetadataValue;
 use tonic::transport::Channel;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
+enum ExecutorState {
+    Matching,
+    Submitted,
+    Alive
+}
+
 #[derive(StructOpt, Debug)]
 #[structopt(name = "basic")]
 struct Opt {
@@ -69,6 +75,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let mut response = client.launch_task(request).await?.into_inner();
 
+        let mut executors = HashMap::new();
+
         while let Some(task_execution_result) = response.message().await? {
             debug!("Received {:?}", task_execution_result);
             // by convention this field is always here, so we can "safely" unwrap
@@ -101,8 +109,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("Executor {} matches.", client_id);
                     }
                 }
-                ExecutionResult::ExecutorConnected(_) => {
-                    println!("{} connected", client_id);
+                ExecutionResult::TaskSubmitted(_) => {
+                    println!("{} task submitted", client_id);
                 }
             }
         }

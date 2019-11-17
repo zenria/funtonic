@@ -320,7 +320,7 @@ impl TasksManager for TaskServer {
                             .send(TaskExecutionResult {
                                 task_id: random_task_id(),
                                 client_id: client_id.clone(),
-                                execution_result: Some(ExecutionResult::ExecutorConnected(
+                                execution_result: Some(ExecutionResult::TaskSubmitted(
                                     Empty {},
                                 )),
                             })
