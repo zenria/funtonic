@@ -39,7 +39,7 @@ async fn main() -> Result<(), anyhow::Error> {
     if let Role::Server(server_config) = &config.role {
         let mut server = Server::builder();
         if let Some(tls_config) = &config.tls {
-            server.tls_config(&tls_config.get_server_config()?);
+            server = server.tls_config(tls_config.get_server_config()?);
         }
 
         let addr = server_config.bind_address.parse().unwrap();

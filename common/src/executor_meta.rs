@@ -20,8 +20,8 @@ pub struct ExecutorMeta {
     tags: HashMap<String, Tag>,
 }
 
-impl From<&ExecutorConfig> for ExecutorMeta {
-    fn from(config: &ExecutorConfig) -> Self {
+impl From<ExecutorConfig> for ExecutorMeta {
+    fn from(config: ExecutorConfig) -> Self {
         Self {
             client_id: config.client_id.clone(),
             version: VERSION.into(),

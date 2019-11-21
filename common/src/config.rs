@@ -31,21 +31,19 @@ pub struct TlsConfig {
 impl TlsConfig {
     pub fn get_client_config(&self) -> Result<ClientTlsConfig, anyhow::Error> {
         let mut client_tls_config = ClientTlsConfig::with_rustls();
-        client_tls_config
+        client_tls_config = client_tls_config
             .identity(self.get_identity()?)
             .ca_certificate(self.get_ca_certificate()?);
         if let Some(domain) = &self.server_domain {
-            client_tls_config.domain_name(domain);
+            client_tls_config = client_tls_config.domain_name(domain);
         }
         Ok(client_tls_config)
     }
 
     pub fn get_server_config(&self) -> Result<ServerTlsConfig, anyhow::Error> {
-        let mut server_tls_config = ServerTlsConfig::with_rustls();
-        server_tls_config
+        Ok(ServerTlsConfig::with_rustls()
             .identity(self.get_identity()?)
-            .client_ca_root(self.get_ca_certificate()?);
-        Ok(server_tls_config)
+            .client_ca_root(self.get_ca_certificate()?))
     }
 
     fn get_identity(&self) -> Result<Identity, anyhow::Error> {

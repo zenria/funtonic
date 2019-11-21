@@ -16,6 +16,7 @@ use thiserror::Error;
 use tonic::metadata::MetadataValue;
 use tonic::transport::Channel;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
+use std::collections::HashMap;
 
 enum ExecutorState {
     Matching,
@@ -53,7 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     if let Role::Commander(commander_config) = &config.role {
         let mut channel = Channel::builder(Uri::from_str(&commander_config.server_url)?);
         if let Some(tls_config) = &config.tls {
-            channel.tls_config(&tls_config.get_client_config()?);
+            channel = channel.tls_config(tls_config.get_client_config()?);
         }
         let channel = channel.connect().await?;
 
@@ -75,7 +76,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let mut response = client.launch_task(request).await?.into_inner();
 
-        let mut executors = HashMap::new();
+        //let mut executors = HashMap::new();
 
         while let Some(task_execution_result) = response.message().await? {
             debug!("Received {:?}", task_execution_result);

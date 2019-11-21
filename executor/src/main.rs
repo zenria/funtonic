@@ -55,10 +55,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = Config::parse(&opt.config, "executor.yml")?;
     info!("Executor starting with config {:#?}", config);
 
-    if let Role::Executor(executor_config) = &config.role {
+    if let Role::Executor(executor_config) = config.role {
         let mut endpoint = Channel::builder(Uri::from_str(&executor_config.server_url)?);
-        if let Some(tls_config) = &config.tls {
-            endpoint.tls_config(&tls_config.get_client_config()?);
+        if let Some(tls_config) = config.tls {
+            endpoint = endpoint.tls_config(tls_config.get_client_config()?);
         }
 
         let max_reconnect_time = Duration::from_secs(10);
