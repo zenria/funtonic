@@ -12,6 +12,7 @@ use query_parser::parse;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::time::Duration;
 use structopt::StructOpt;
 use thiserror::Error;
 use tonic::metadata::MetadataValue;
@@ -52,7 +53,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config = Config::parse(&opt.config, "commander.yml")?;
     debug!("Commander starting with config {:#?}", config);
     if let Role::Commander(commander_config) = &config.role {
-        let mut channel = Channel::builder(Uri::from_str(&commander_config.server_url)?);
+        let mut channel = Channel::builder(Uri::from_str(&commander_config.server_url)?)
+            .tcp_keepalive(Some(Duration::from_secs(60)));
         if let Some(tls_config) = &config.tls {
             channel = channel.tls_config(tls_config.get_client_config()?);
         }

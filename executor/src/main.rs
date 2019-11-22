@@ -56,7 +56,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Executor starting with config {:#?}", config);
 
     if let Role::Executor(executor_config) = config.role {
-        let mut endpoint = Channel::builder(Uri::from_str(&executor_config.server_url)?);
+        let mut endpoint = Channel::builder(Uri::from_str(&executor_config.server_url)?)
+            .tcp_keepalive(Some(Duration::from_secs(60)));
+
         if let Some(tls_config) = config.tls {
             endpoint = endpoint.tls_config(tls_config.get_client_config()?);
         }
