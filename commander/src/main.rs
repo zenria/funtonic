@@ -9,6 +9,7 @@ use grpc_service::task_output::Output;
 use grpc_service::{LaunchTaskRequest, TaskPayload};
 use http::Uri;
 use query_parser::parse;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::str::FromStr;
 use structopt::StructOpt;
@@ -16,12 +17,11 @@ use thiserror::Error;
 use tonic::metadata::MetadataValue;
 use tonic::transport::Channel;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
-use std::collections::HashMap;
 
 enum ExecutorState {
     Matching,
     Submitted,
-    Alive
+    Alive,
 }
 
 #[derive(StructOpt, Debug)]

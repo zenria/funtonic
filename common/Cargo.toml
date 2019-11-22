@@ -7,7 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tonic={git="https://github.com/zenria/tonic.git", features=["tokio-rustls", "tls"]}
+tonic={git="https://github.com/zenria/tonic.git", features=["tokio-rustls", "tls"], branch = "tcp_keepalive" }
 rand = "0.7.2"
 
 tokio = "=0.2.0-alpha.6"

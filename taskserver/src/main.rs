@@ -6,6 +6,7 @@ use funtonic::file_utils::{mkdirs, path_concat2};
 use funtonic::task_server::TaskServer;
 use grpc_service::server::TasksManagerServer;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use structopt::StructOpt;
 use thiserror::Error;
 use tonic::transport::Server;
@@ -37,7 +38,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let config = Config::parse(&opt.config, "server.yml")?;
     info!("Server starting with config {:#?}", config);
     if let Role::Server(server_config) = &config.role {
-        let mut server = Server::builder();
+        let mut server = Server::builder().tcp_keepalive(Some(Duration::from_secs(25)));
         if let Some(tls_config) = &config.tls {
             server = server.tls_config(tls_config.get_server_config()?);
         }

@@ -194,7 +194,7 @@ dependencies = [
  "tokio 0.2.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-executor 0.2.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-sync 0.2.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "tonic 0.1.0-alpha.6 (git+https://github.com/zenria/tonic.git)",
+ "tonic 0.1.0-alpha.6 (git+https://github.com/zenria/tonic.git?branch=tcp_keepalive)",
  "tracing 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "tracing-log 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "tracing-subscriber 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -316,7 +316,7 @@ dependencies = [
  "tokio 0.2.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-executor 0.2.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-sync 0.2.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "tonic 0.1.0-alpha.6 (git+https://github.com/zenria/tonic.git)",
+ "tonic 0.1.0-alpha.6 (git+https://github.com/zenria/tonic.git?branch=tcp_keepalive)",
  "tracing 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "tracing-log 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "tracing-subscriber 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -398,7 +398,7 @@ dependencies = [
  "tokio 0.2.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-executor 0.2.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-sync 0.2.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "tonic 0.1.0-alpha.6 (git+https://github.com/zenria/tonic.git)",
+ "tonic 0.1.0-alpha.6 (git+https://github.com/zenria/tonic.git?branch=tcp_keepalive)",
  "tracing 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "tracing-log 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "tracing-subscriber 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -452,8 +452,8 @@ dependencies = [
  "async-stream 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
  "prost 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "tonic 0.1.0-alpha.6 (git+https://github.com/zenria/tonic.git)",
- "tonic-build 0.1.0-alpha.6 (git+https://github.com/zenria/tonic.git)",
+ "tonic 0.1.0-alpha.6 (git+https://github.com/zenria/tonic.git?branch=tcp_keepalive)",
+ "tonic-build 0.1.0-alpha.6 (git+https://github.com/zenria/tonic.git?branch=tcp_keepalive)",
 ]
 
 [[package]]
@@ -1375,7 +1375,7 @@ dependencies = [
  "tokio 0.2.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-executor 0.2.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-sync 0.2.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)",
- "tonic 0.1.0-alpha.6 (git+https://github.com/zenria/tonic.git)",
+ "tonic 0.1.0-alpha.6 (git+https://github.com/zenria/tonic.git?branch=tcp_keepalive)",
  "tracing 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)",
  "tracing-log 0.1.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "tracing-subscriber 0.1.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1587,7 +1587,7 @@ dependencies = [
 [[package]]
 name = "tonic"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/zenria/tonic.git#354d4fdc35dc51575f4c685fc04354f2058061ff"
+source = "git+https://github.com/zenria/tonic.git?branch=tcp_keepalive#ac8934a58155bb0053dc1b09f93c3ea8503195ec"
 dependencies = [
  "async-stream 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-trait 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -1616,7 +1616,7 @@ dependencies = [
 [[package]]
 name = "tonic-build"
 version = "0.1.0-alpha.6"
-source = "git+https://github.com/zenria/tonic.git#354d4fdc35dc51575f4c685fc04354f2058061ff"
+source = "git+https://github.com/zenria/tonic.git?branch=tcp_keepalive#ac8934a58155bb0053dc1b09f93c3ea8503195ec"
 dependencies = [
  "proc-macro2 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "prost-build 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2212,8 +2212,8 @@ dependencies = [
 "checksum tokio-rustls 0.12.0-alpha.5 (registry+https://github.com/rust-lang/crates.io-index)" = "9a22c7bc0e5e2bb497ccbe336280b27e6575aaeaad888cbefab0d72d266ef884"
 "checksum tokio-sync 0.2.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)" = "4f1aaeb685540f7407ea0e27f1c9757d258c7c6bf4e3eb19da6fc59b747239d2"
 "checksum tokio-timer 0.3.0-alpha.6 (registry+https://github.com/rust-lang/crates.io-index)" = "b97c1587fe71018eb245a4a9daa13a5a3b681bbc1f7fdadfe24720e141472c13"
-"checksum tonic 0.1.0-alpha.6 (git+https://github.com/zenria/tonic.git)" = "<none>"
-"checksum tonic-build 0.1.0-alpha.6 (git+https://github.com/zenria/tonic.git)" = "<none>"
+"checksum tonic 0.1.0-alpha.6 (git+https://github.com/zenria/tonic.git?branch=tcp_keepalive)" = "<none>"
+"checksum tonic-build 0.1.0-alpha.6 (git+https://github.com/zenria/tonic.git?branch=tcp_keepalive)" = "<none>"
 "checksum tower 0.3.0-alpha.2 (registry+https://github.com/rust-lang/crates.io-index)" = "b05ce6a5913c351c65d5538545302eceaf3f84e8257654370d298c3ea1a97935"
 "checksum tower-balance 0.3.0-alpha.2 (registry+https://github.com/rust-lang/crates.io-index)" = "38dce028671196b8e89965a7b057b8e4bc99206185c0418ce8d164fe674c9d72"
 "checksum tower-buffer 0.3.0-alpha.2 (registry+https://github.com/rust-lang/crates.io-index)" = "eb66caab441682c3eac396617cbc1c2bd8962589468d08be3b05cb6875200694"
