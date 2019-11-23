@@ -4,6 +4,7 @@ extern crate log;
 use funtonic::config::{Config, Role};
 use funtonic::CLIENT_TOKEN_HEADER;
 use grpc_service::client::TasksManagerClient;
+use grpc_service::launch_task_response::TaskResponse;
 use grpc_service::task_execution_result::ExecutionResult;
 use grpc_service::task_output::Output;
 use grpc_service::{LaunchTaskRequest, TaskPayload};
@@ -83,37 +84,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         while let Some(task_execution_result) = response.message().await? {
             debug!("Received {:?}", task_execution_result);
             // by convention this field is always here, so we can "safely" unwrap
-            let execution_result = task_execution_result.execution_result.as_ref().unwrap();
-            let client_id = &task_execution_result.client_id;
-            match execution_result {
-                ExecutionResult::TaskCompleted(completion) => {
-                    println!(
-                        "Tasks completed on {} with exit code: {}",
-                        client_id, completion.return_code
-                    );
-                }
-                ExecutionResult::TaskOutput(output) => {
-                    if let Some(output) = output.output.as_ref() {
-                        match output {
-                            Output::Stdout(o) => print!("{}: {}", client_id, o),
-                            Output::Stderr(e) => eprint!("{}: {}", client_id, e),
-                        }
-                    }
-                }
-                ExecutionResult::Ping(_) => {
-                    debug!("Pinged!");
-                }
-                ExecutionResult::Disconnected(_) => {
-                    error!("{} disconnected!", client_id);
-                    eprintln!("{} disconnected!", client_id);
-                }
-                ExecutionResult::MatchingExecutors(executors) => {
+            let task_response = task_execution_result.task_response.unwrap();
+            match task_response {
+                TaskResponse::MatchingExecutors(executors) => {
                     for client_id in &executors.client_id {
                         println!("Executor {} matches.", client_id);
                     }
                 }
-                ExecutionResult::TaskSubmitted(_) => {
-                    println!("{} task submitted", client_id);
+                TaskResponse::TaskExecutionResult(task_execution_result) => {
+                    let client_id = &task_execution_result.client_id;
+                    match task_execution_result.execution_result.unwrap() {
+                        ExecutionResult::TaskCompleted(completion) => {
+                            println!(
+                                "Tasks completed on {} with exit code: {}",
+                                client_id, completion.return_code
+                            );
+                        }
+                        ExecutionResult::TaskOutput(output) => {
+                            if let Some(output) = output.output.as_ref() {
+                                match output {
+                                    Output::Stdout(o) => print!("{}: {}", client_id, o),
+                                    Output::Stderr(e) => eprint!("{}: {}", client_id, e),
+                                }
+                            }
+                        }
+                        ExecutionResult::Ping(_) => {
+                            debug!("Pinged!");
+                        }
+                        ExecutionResult::Disconnected(_) => {
+                            error!("{} disconnected!", client_id);
+                            eprintln!("{} disconnected!", client_id);
+                        }
+                        ExecutionResult::TaskSubmitted(_) => {
+                            println!("{} task submitted", client_id);
+                        }
+                    }
                 }
             }
         }

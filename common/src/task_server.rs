@@ -4,6 +4,7 @@ use futures_channel::mpsc;
 use futures_sink::Sink;
 use futures_util::pin_mut;
 use futures_util::{FutureExt, SinkExt, StreamExt};
+use grpc_service::launch_task_response::TaskResponse;
 use grpc_service::server::*;
 use grpc_service::task_execution_result::ExecutionResult;
 use grpc_service::*;
@@ -28,14 +29,11 @@ pub struct TaskServer {
     /// executors by id: when a task must be submited to an executor,
     /// a Sender is sent to each matching executor
     executors: Mutex<
-        HashMap<
-            String,
-            mpsc::UnboundedSender<(TaskPayload, mpsc::UnboundedSender<TaskExecutionResult>)>,
-        >,
+        HashMap<String, mpsc::UnboundedSender<(TaskPayload, mpsc::UnboundedSender<TaskResponse>)>>,
     >,
 
     /// by task id, sinks where executors reports task execution
-    tasks_sinks: Arc<Mutex<HashMap<String, mpsc::UnboundedSender<TaskExecutionResult>>>>,
+    tasks_sinks: Arc<Mutex<HashMap<String, mpsc::UnboundedSender<TaskResponse>>>>,
 
     executor_meta_database: Arc<FileDatabase<HashMap<String, ExecutorMeta>, Yaml>>,
 
@@ -65,8 +63,8 @@ impl TaskServer {
 }
 
 fn register_new_task(
-    tasks_sinks: &Mutex<HashMap<String, mpsc::UnboundedSender<TaskExecutionResult>>>,
-    sender_to_commander: mpsc::UnboundedSender<TaskExecutionResult>,
+    tasks_sinks: &Mutex<HashMap<String, mpsc::UnboundedSender<TaskResponse>>>,
+    sender_to_commander: mpsc::UnboundedSender<TaskResponse>,
 ) -> String {
     let task_id = random_task_id();
     tasks_sinks
@@ -77,9 +75,9 @@ fn register_new_task(
 }
 
 fn get_task_sink(
-    tasks_sinks: &Mutex<HashMap<String, mpsc::UnboundedSender<TaskExecutionResult>>>,
+    tasks_sinks: &Mutex<HashMap<String, mpsc::UnboundedSender<TaskResponse>>>,
     task_id: &str,
-) -> Option<mpsc::UnboundedSender<TaskExecutionResult>> {
+) -> Option<mpsc::UnboundedSender<TaskResponse>> {
     tasks_sinks.lock().unwrap().remove(task_id)
 }
 
@@ -90,9 +88,7 @@ impl TaskServer {
     ) -> Result<
         Vec<(
             String,
-            Option<
-                mpsc::UnboundedSender<(TaskPayload, mpsc::UnboundedSender<TaskExecutionResult>)>,
-            >,
+            Option<mpsc::UnboundedSender<(TaskPayload, mpsc::UnboundedSender<TaskResponse>)>>,
         )>,
         RustBreakWrappedError,
     > {
@@ -125,7 +121,7 @@ impl TaskServer {
         executor_meta: ExecutorMeta,
         sender_to_get_task_response: mpsc::UnboundedSender<(
             TaskPayload,
-            mpsc::UnboundedSender<TaskExecutionResult>,
+            mpsc::UnboundedSender<TaskResponse>,
         )>,
     ) -> Result<(), RustBreakWrappedError> {
         self.executors.lock().unwrap().insert(
@@ -211,7 +207,10 @@ impl TasksManager for TaskServer {
                         );
                     }
                 }
-                if let Err(_e) = sender.send(task_execution_stream).await {
+                if let Err(_e) = sender
+                    .send(TaskResponse::TaskExecutionResult(task_execution_stream))
+                    .await
+                {
                     warn!(
                         "Commander disconnected for task {}, task will be killed by executor.",
                         task_id
@@ -225,7 +224,7 @@ impl TasksManager for TaskServer {
             Err(tonic::Status::new(Code::NotFound, "task_id not found"))
         }
     }
-    type LaunchTaskStream = Stream<TaskExecutionResult>;
+    type LaunchTaskStream = Stream<LaunchTaskResponse>;
 
     async fn launch_task(
         &self,
@@ -247,7 +246,7 @@ impl TasksManager for TaskServer {
 
         // this channel will be sent to the matching executors. the executors will then register it so
         // further task progression reporting could be sent o
-        let (mut sender, receiver) = mpsc::unbounded();
+        let (mut sender, receiver) = mpsc::unbounded::<TaskResponse>();
 
         info!(
             "Command received {:?} for {} with token {}",
@@ -274,13 +273,9 @@ impl TasksManager for TaskServer {
             .collect();
 
         sender
-            .send(TaskExecutionResult {
-                task_id: "".into(),
-                client_id: "".into(),
-                execution_result: Some(ExecutionResult::MatchingExecutors(MatchingExecutors {
-                    client_id: matching_clients,
-                })),
-            })
+            .send(TaskResponse::MatchingExecutors(MatchingExecutors {
+                client_id: matching_clients,
+            }))
             .await
             .map_err(|e| {
                 error!("Commander disconnected!");
@@ -298,11 +293,11 @@ impl TasksManager for TaskServer {
                         // disconnected executor: task sink has been found
                         error!("Executor {} disEmptyconnected!", client_id);
                         sender
-                            .send(TaskExecutionResult {
+                            .send(TaskResponse::TaskExecutionResult(TaskExecutionResult {
                                 task_id: random_task_id(),
                                 client_id: client_id.clone(),
                                 execution_result: Some(ExecutionResult::Disconnected(Empty {})),
-                            })
+                            }))
                             .await
                             .map_err(|e| {
                                 error!("Commander disconnected!");
@@ -315,11 +310,11 @@ impl TasksManager for TaskServer {
                     Ok(..) => {
                         info!("Command {:?} sent to {}", payload, client_id);
                         sender
-                            .send(TaskExecutionResult {
+                            .send(TaskResponse::TaskExecutionResult(TaskExecutionResult {
                                 task_id: random_task_id(),
                                 client_id: client_id.clone(),
                                 execution_result: Some(ExecutionResult::TaskSubmitted(Empty {})),
-                            })
+                            }))
                             .await
                             .map_err(|e| {
                                 error!("Commander disconnected!");
@@ -331,13 +326,13 @@ impl TasksManager for TaskServer {
                     }
                 }
             } else {
-                // executor is knowm but do commication channel has been found
+                // executor is knowm but no commication channel has been found
                 sender
-                    .send(TaskExecutionResult {
+                    .send(TaskResponse::TaskExecutionResult(TaskExecutionResult {
                         task_id: random_task_id(),
                         client_id: client_id.clone(),
                         execution_result: Some(ExecutionResult::Disconnected(Empty {})),
-                    })
+                    }))
                     .await
                     .map_err(|e| {
                         error!("Commander disconnected!");
@@ -345,7 +340,11 @@ impl TasksManager for TaskServer {
                     })?;
             }
         }
-        let response_stream = receiver.map(|task_execution| Ok(task_execution));
+        let response_stream = receiver.map(|task_response| {
+            Ok(LaunchTaskResponse {
+                task_response: Some(task_response),
+            })
+        });
         Ok(Response::new(
             Box::pin(response_stream) as Self::LaunchTaskStream
         ))

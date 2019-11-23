@@ -26,7 +26,7 @@ service TasksManager {
 
   rpc TaskExecution (stream TaskExecutionResult) returns (Empty) {}
 
-  rpc LaunchTask (LaunchTaskRequest) returns (stream TaskExecutionResult) {}
+  rpc LaunchTask (LaunchTaskRequest) returns (stream LaunchTaskResponse) {}
 }
 
 message GetTasksRequest {
@@ -76,6 +76,15 @@ message TaskOutput {
   }
 }
 
+message LaunchTaskResponse {
+  oneof task_response {
+    // First message sent by the taskserver
+    MatchingExecutors matchingExecutors = 1;
+    // Generic task output per executor
+    TaskExecutionResult taskExecutionResult = 2;
+  }
+}
+
 message TaskExecutionResult {
   string taskId = 1;
   string clientId = 2;
@@ -86,8 +95,6 @@ message TaskExecutionResult {
     Empty ping=5;
     // executor is disconnected (not connected or connection drop)
     Empty disconnected=6;
-    // first message sent back by the taskserver
-    MatchingExecutors matchingExecutors = 7;
     // Executor is known by the taskserver and the task payload has been successfully sent
     Empty taskSubmitted = 8;
   }
