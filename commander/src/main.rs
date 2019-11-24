@@ -24,6 +24,9 @@ enum ExecutorState {
     Matching,
     Submitted,
     Alive,
+    Disconnected,
+    Success,
+    Error,
 }
 
 #[derive(StructOpt, Debug)]
@@ -79,16 +82,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let mut response = client.launch_task(request).await?.into_inner();
 
-        //let mut executors = HashMap::new();
+        let mut executors = HashMap::new();
 
         while let Some(task_execution_result) = response.message().await? {
             debug!("Received {:?}", task_execution_result);
             // by convention this field is always here, so we can "safely" unwrap
             let task_response = task_execution_result.task_response.unwrap();
             match task_response {
-                TaskResponse::MatchingExecutors(executors) => {
-                    for client_id in &executors.client_id {
-                        println!("Executor {} matches.", client_id);
+                TaskResponse::MatchingExecutors(e) => {
+                    let executors_string = e.client_id.join(", ");
+                    println!("Matching executors: {}", executors_string);
+                    for id in e.client_id {
+                        executors.insert(id, ExecutorState::Matching);
                     }
                 }
                 TaskResponse::TaskExecutionResult(task_execution_result) => {
@@ -99,6 +104,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 "Tasks completed on {} with exit code: {}",
                                 client_id, completion.return_code
                             );
+                            if completion.return_code == 0 {
+                                *executors.entry(client_id.clone()).or_insert(ExecutorState::Matching) = ExecutorState::Success;
+                            } else{
+                                *executors.entry(client_id.clone()).or_insert(ExecutorState::Matching) = ExecutorState::Error;
+                            }
+
                         }
                         ExecutionResult::TaskOutput(output) => {
                             if let Some(output) = output.output.as_ref() {
@@ -110,13 +121,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                         ExecutionResult::Ping(_) => {
                             debug!("Pinged!");
+                            *executors.entry(client_id.clone()).or_insert(ExecutorState::Matching) = ExecutorState::Alive;
                         }
                         ExecutionResult::Disconnected(_) => {
-                            error!("{} disconnected!", client_id);
+                            debug!("{} disconnected!", client_id);
                             eprintln!("{} disconnected!", client_id);
+                            *executors.entry(client_id.clone()).or_insert(ExecutorState::Matching) = ExecutorState::Disconnected;
+
                         }
                         ExecutionResult::TaskSubmitted(_) => {
-                            println!("{} task submitted", client_id);
+                            debug!("{} task submitted", client_id);
+                            *executors.entry(client_id.clone()).or_insert(ExecutorState::Matching) = ExecutorState::Submitted;
                         }
                     }
                 }
