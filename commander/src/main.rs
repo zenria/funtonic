@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate log;
 
-use colored::{Color, ColoredString, Colorize};
+use colored::{Color, Colorize};
 use funtonic::config::{Config, Role};
 use funtonic::CLIENT_TOKEN_HEADER;
 use grpc_service::client::TasksManagerClient;
@@ -14,11 +14,8 @@ use indicatif::ProgressBar;
 use query_parser::parse;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt::{Display, Error, Formatter};
-use std::io::Stdout;
-use std::ops::Deref;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::thread;
 use std::time::Duration;
 use structopt::StructOpt;
 use thiserror::Error;
@@ -173,7 +170,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                         ExecutionResult::Disconnected(_) => {
                             debug!("{} disconnected!", client_id);
-                            pb.iter().for_each(|pb| pb.println(format!("{} disconnected!", client_id.red())));
+                            pb.iter().for_each(|pb| {
+                                pb.println(format!("{} disconnected!", client_id.red()))
+                            });
                             *executors
                                 .entry(client_id.clone())
                                 .or_insert(ExecutorState::Matching) = ExecutorState::Disconnected;
