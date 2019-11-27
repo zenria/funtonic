@@ -60,6 +60,9 @@ impl ExecutorState {
 #[derive(StructOpt, Debug)]
 #[structopt(name = "basic")]
 struct Opt {
+    /// Group output by executor instead displaying a live stream of all executor outputs
+    #[structopt(short = "g", long = "group")]
+    group: bool,
     #[structopt(short, long, parse(from_os_str))]
     config: Option<PathBuf>,
     query: String,
@@ -81,7 +84,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .expect("setting tracing default failed");
     tracing_log::LogTracer::init().unwrap();
 
-    let opt = Opt::from_args();
+    let opt: Opt = Opt::from_args();
     let config = Config::parse(&opt.config, "commander.yml")?;
     debug!("Commander starting with config {:#?}", config);
     if let Role::Commander(commander_config) = &config.role {
@@ -101,7 +104,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let mut request = tonic::Request::new(LaunchTaskRequest {
             task_payload: Some(TaskPayload { payload: command }),
-            predicate: opt.query,
+            predicate: opt.query.clone(),
         });
         request.metadata_mut().append(
             CLIENT_TOKEN_HEADER,
@@ -111,6 +114,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut response = client.launch_task(request).await?.into_inner();
 
         let mut executors = HashMap::new();
+
+        /// output by executor
+        let mut executors_output = HashMap::new();
 
         let mut pb: Option<ProgressBar> = None;
 
@@ -146,20 +152,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     .entry(client_id.clone())
                                     .or_insert(ExecutorState::Matching) = ExecutorState::Error;
                             }
-                            pb.iter().for_each(|pb| pb.inc(1))
+                            pb.iter().for_each(|pb| {
+                                if opt.group {
+                                    if let Some(lines) = executors_output.remove(client_id) {
+                                        pb.println(format!("{} {}:", "########".green(), client_id));
+                                        for line in lines{
+                                            pb.println(line);
+                                        }
+                                    }
+
+                                }
+                                pb.inc(1)
+                            })
                         }
                         ExecutionResult::TaskOutput(output) => {
                             if let Some(output) = output.output.as_ref() {
-                                pb.iter().for_each(|pb| {
-                                    pb.println(match output {
+                                if opt.group {
+                                    (*executors_output.entry(client_id.clone()).or_insert(Vec::new())).push(match output {
                                         Output::Stdout(o) => {
-                                            format!("{}: {}", client_id, o.trim_end().green())
+                                            o.clone()
                                         }
                                         Output::Stderr(e) => {
-                                            format!("{}: {}", client_id, e.trim_end().red())
+                                            format!("{}", e.trim_end().red())
                                         }
-                                    })
-                                });
+                                    });
+                                } else {
+                                    pb.iter().for_each(|pb| {
+                                        pb.println(match output {
+                                            Output::Stdout(o) => {
+                                                format!("{}: {}", client_id.green(), o.trim_end())
+                                            }
+                                            Output::Stderr(e) => {
+                                                format!("{}: {}", client_id.red(), e.trim_end())
+                                            }
+                                        })
+                                    });
+                                }
                             }
                         }
                         ExecutionResult::Ping(_) => {
