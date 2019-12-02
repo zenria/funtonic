@@ -10,7 +10,8 @@ use std::time::Duration;
 use structopt::StructOpt;
 use thiserror::Error;
 use tonic::transport::Server;
-use tracing_subscriber::{EnvFilter, FmtSubscriber};
+
+const LOG4RS_CONFIG: &'static str = "/etc/funtonic/server-log4rs.yaml";
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "basic")]
@@ -25,14 +26,11 @@ struct InvalidConfig;
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    tracing::subscriber::set_global_default(
-        FmtSubscriber::builder()
-            .with_env_filter(EnvFilter::from_default_env())
-            .without_time()
-            .finish(),
-    )
-    .expect("setting tracing default failed");
-    tracing_log::LogTracer::init().unwrap();
+    log4rs_gelf::init_file(LOG4RS_CONFIG, None).unwrap_or_else(|e| {
+        eprintln!("Cannot initialize logger from {} - {}", LOG4RS_CONFIG, e);
+        eprintln!("Trying with dev assets!");
+        log4rs_gelf::init_file("executor/assets/log4rs.yaml", None).expect("Cannot open executor/assets/log4rs.yaml");
+    });
 
     let opt = Opt::from_args();
     let config = Config::parse(&opt.config, "server.yml")?;

@@ -1,0 +1,7 @@
+appenders:
+  console:
+    kind: console
+root:
+  appenders:
+    - console
+  level: info

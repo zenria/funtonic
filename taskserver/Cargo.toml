@@ -13,15 +13,26 @@ funtonic = {path="../common"}
 structopt="0.3"
 tonic={git="https://github.com/zenria/tonic.git", branch = "tcp_keepalive" }
 thiserror="1"
-tracing-subscriber="0.1.5"
 tokio = "=0.2.0-alpha.6"
 tokio-executor = "0.2.0-alpha.6"
 anyhow="1"
-tracing="0.1.10"
-tracing-log="0.1.0"
 log="0.4"
 tokio-sync = "0.2.0-alpha.6"
 futures-core-preview = "=0.3.0-alpha.19"
 futures-util-preview = "=0.3.0-alpha.19"
 futures-sink-preview = "=0.3.0-alpha.19"
 futures-channel-preview = {version="=0.3.0-alpha.19", features=["sink"]}
+log4rs-gelf = { git = "https://github.com/zenria/rust-log4rs-gelf.git", branch="use-gelf-logger-that-compiles"}
+
+[package.metadata.deb]
+maintainer-scripts = "deb"
+name="funtonic-taskserver"
+assets = [
+    # binary
+    ["target/release/taskserver", "usr/bin/", "755"],
+    # assets
+    ["assets/log4rs.yaml", "etc/funtonic/server-log4rs.yaml", "644"],
+    ["assets/taskserver.service", "etc/systemd/system/", "644"],
+]
+conf-files = [ "/etc/funtonic/server-log4rs.yaml"]
+

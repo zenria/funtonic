@@ -1,0 +1,10 @@
+[Unit]
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/taskserver
+Restart=on-abnormal
+
+[Install]
+WantedBy=multi-user.target
