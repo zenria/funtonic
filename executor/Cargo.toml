@@ -26,14 +26,3 @@ futures-channel-preview = {version="=0.3.0-alpha.19", features=["sink"]}
 http="0.1"
 log4rs-gelf = { git = "https://github.com/zenria/rust-log4rs-gelf.git", branch="use-gelf-logger-that-compiles"}
 
-[package.metadata.deb]
-maintainer-scripts = "deb"
-name="funtonic-executor"
-assets = [
-    # binary
-    ["target/release/executor", "usr/bin/", "755"],
-    # assets
-    ["assets/log4rs.yaml", "etc/funtonic/executor-log4rs.yaml", "644"],
-    #["assets/executor.service", "etc/systemd/system/", "644"],
-]
-conf-files = [ "/etc/funtonic/executor-log4rs.yaml"]
