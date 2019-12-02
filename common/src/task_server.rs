@@ -12,7 +12,7 @@ use query_parser::{parse, Query, QueryMatcher};
 use rand::Rng;
 use rustbreak::deser::Yaml;
 use rustbreak::{Database, FileDatabase};
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, BTreeMap};
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
@@ -37,13 +37,14 @@ pub struct TaskServer {
 
     executor_meta_database: Arc<FileDatabase<HashMap<String, ExecutorMeta>, Yaml>>,
 
-    authorized_client_tokens: BTreeSet<String>,
+    /// map<token, name> the name is used for logging purpose
+    authorized_client_tokens: BTreeMap<String, String>,
 }
 
 impl TaskServer {
     pub fn new(
         database_path: &Path,
-        authorized_client_tokens: BTreeSet<String>,
+        authorized_client_tokens: BTreeMap<String, String>,
     ) -> Result<Self, anyhow::Error> {
         if !database_path.exists() {
             let mut empty = File::create(database_path)?;
@@ -103,7 +104,7 @@ impl TaskServer {
             })
             .map_err(|e| RustBreakWrappedError(e))?;
 
-        let mut executor_senders = self.executors.lock().unwrap();
+        let executor_senders = self.executors.lock().unwrap();
         // find matching senders, clone them
         Ok(client_ids
             .into_iter()
@@ -162,7 +163,10 @@ impl TasksManager for TaskServer {
         // register the client and wait for new tasks to come, forward them
         // to the response
         let (sender, receiver) = mpsc::unbounded();
-        self.register_executor(request.into(), sender);
+        if let Err(e) = self.register_executor(request.into(), sender){
+            error!("Unable to register executor {}", e);
+            Err(tonic::Status::new(Code::Internal, "internal storage error!"))?;
+        }
 
         let tasks_sinks = self.tasks_sinks.clone();
 
@@ -236,7 +240,8 @@ impl TasksManager for TaskServer {
             return Err(Status::new(Code::PermissionDenied, "no client token"));
         }
         let token = token.unwrap().to_str().unwrap();
-        if !self.authorized_client_tokens.contains(token) {
+        let token_name = self.authorized_client_tokens.get(token);
+        if token_name.is_none() {
             return Err(Status::new(Code::PermissionDenied, "invalid client token"));
         }
 
@@ -250,7 +255,7 @@ impl TasksManager for TaskServer {
 
         info!(
             "Command received {:?} for {} with token {}",
-            payload, query, token
+            payload, query, token_name.unwrap()
         );
 
         let query = parse(query);
@@ -291,7 +296,7 @@ impl TasksManager for TaskServer {
                 {
                     Err(_) => {
                         // disconnected executor: task sink has been found
-                        error!("Executor {} disEmptyconnected!", client_id);
+                        error!("Executor {} disconnected!", client_id);
                         sender
                             .send(TaskResponse::TaskExecutionResult(TaskExecutionResult {
                                 task_id: random_task_id(),
