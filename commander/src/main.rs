@@ -115,7 +115,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let mut executors = HashMap::new();
 
-        /// output by executor
+        // output by executor
         let mut executors_output = HashMap::new();
 
         let mut pb: Option<ProgressBar> = None;
