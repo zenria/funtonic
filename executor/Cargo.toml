@@ -24,6 +24,6 @@ futures-util-preview = "=0.3.0-alpha.19"
 futures-sink-preview = "=0.3.0-alpha.19"
 futures-channel-preview = {version="=0.3.0-alpha.19", features=["sink"]}
 http="0.1"
-log4rs-gelf = { git = "https://github.com/zenria/rust-log4rs-gelf.git", branch="use-gelf-logger-that-compiles"}
+log4rs-gelf = "0.1.4"
 native-tls = { version = "0.2", features=["vendored"] }
 
