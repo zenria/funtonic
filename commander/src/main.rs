@@ -22,6 +22,7 @@ use thiserror::Error;
 use tonic::metadata::MetadataValue;
 use tonic::transport::Channel;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
+use atty::Stream;
 
 #[derive(Eq, Ord, PartialOrd, PartialEq, Hash)]
 enum ExecutorState {
@@ -63,7 +64,7 @@ struct Opt {
     /// Group output by executor instead displaying a live stream of all executor outputs
     #[structopt(short = "g", long = "group")]
     group: bool,
-    /// Do not display the progress bar
+    /// Do not display the progress bar, note that is will be hidden if stderr is not a tty
     #[structopt(short = "n", long = "no-progress")]
     no_progress: bool,
     #[structopt(short, long, parse(from_os_str))]
@@ -131,7 +132,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 TaskResponse::MatchingExecutors(mut e) => {
                     e.client_id.sort();
                     let executors_string = e.client_id.join(", ");
-                    if opt.no_progress {
+                    if opt.no_progress || !atty::is(Stream::Stderr) {
                         println!("Matching executors: {}", executors_string);
                     } else {
                         let progress = ProgressBar::new(e.client_id.len() as u64);
