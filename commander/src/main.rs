@@ -63,6 +63,9 @@ struct Opt {
     /// Group output by executor instead displaying a live stream of all executor outputs
     #[structopt(short = "g", long = "group")]
     group: bool,
+    /// Do not display the progress bar
+    #[structopt(short = "n", long = "no-progress")]
+    no_progress: bool,
     #[structopt(short, long, parse(from_os_str))]
     config: Option<PathBuf>,
     query: String,
@@ -128,9 +131,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 TaskResponse::MatchingExecutors(mut e) => {
                     e.client_id.sort();
                     let executors_string = e.client_id.join(", ");
-                    let progress = ProgressBar::new(e.client_id.len() as u64);
-                    progress.println(format!("Matching executors: {}", executors_string));
-                    pb = Some(progress);
+                    if opt.no_progress {
+                        println!("Matching executors: {}", executors_string);
+                    } else {
+                        let progress = ProgressBar::new(e.client_id.len() as u64);
+                        progress.println(format!("Matching executors: {}", executors_string));
+                        pb = Some(progress);
+                    }
                     for id in e.client_id {
                         executors.insert(id, ExecutorState::Matching);
                     }
@@ -152,18 +159,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     .entry(client_id.clone())
                                     .or_insert(ExecutorState::Matching) = ExecutorState::Error;
                             }
-                            pb.iter().for_each(|pb| {
-                                if opt.group {
-                                    if let Some(lines) = executors_output.remove(client_id) {
-                                        pb.println(format!("{} {}:", "########".green(), client_id));
-                                        for line in lines{
-                                            pb.println(line);
-                                        }
+                            if let Some(pb) = &pb {
+                                pb.inc(1);
+                            }
+                            if opt.group {
+                                if let Some(lines) = executors_output.remove(client_id) {
+                                    match &pb {
+                                        None => {
+                                            println!("{} {}:", "########".green(), client_id);
+                                            for line in lines {
+                                                println!("{}", line);
+                                            }
+                                        },
+                                        Some(pb) => {
+                                            pb.println(format!("{} {}:", "########".green(), client_id));
+                                            for line in lines {
+                                                pb.println(line);
+                                            }
+                                        },
                                     }
-
                                 }
-                                pb.inc(1)
-                            })
+                            }
                         }
                         ExecutionResult::TaskOutput(output) => {
                             if let Some(output) = output.output.as_ref() {
@@ -177,16 +193,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                         }
                                     });
                                 } else {
-                                    pb.iter().for_each(|pb| {
-                                        pb.println(match output {
-                                            Output::Stdout(o) => {
-                                                format!("{}: {}", client_id.green(), o.trim_end())
-                                            }
-                                            Output::Stderr(e) => {
-                                                format!("{}: {}", client_id.red(), e.trim_end())
-                                            }
-                                        })
-                                    });
+                                    let out = match output {
+                                        Output::Stdout(o) => {
+                                            format!("{}: {}", client_id.green(), o.trim_end())
+                                        }
+                                        Output::Stderr(e) => {
+                                            format!("{}: {}", client_id.red(), e.trim_end())
+                                        }
+                                    };
+                                    match &pb {
+                                        None => println!("{}", out),
+                                        Some(pb) => pb.println(out),
+                                    }
                                 }
                             }
                         }
