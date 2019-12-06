@@ -1,6 +1,6 @@
 [package]
 name = "funtonic"
-version = "0.9.3"
+version = "0.9.4"
 authors = ["Philippe GASSMANN <philoops@gmail.com>"]
 edition = "2018"
 
@@ -32,4 +32,3 @@ os_info = "1.1"
 rustbreak = {version="2.0.0-rc3", features=["yaml_enc"]}
 query-parser = {path="../query-parser"}
 grpc-service = {path="../grpc-service"}
-libc="0.2"
