@@ -1713,7 +1713,7 @@ dependencies = [
 
 [[package]]
 name = "taskserver"
-version = "0.9.0"
+version = "0.9.3"
 dependencies = [
  "anyhow 1.0.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "funtonic 0.9.3",
