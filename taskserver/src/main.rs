@@ -42,7 +42,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
     let opt = Opt::from_args();
     let config = Config::parse(&opt.config, "server.yml")?;
-    info!("Server starting with config {:#?}", config);
+    info!("{:#?}", config);
     if let Role::Server(server_config) = &config.role {
         let mut server = Server::builder().tcp_keepalive(Some(Duration::from_secs(25)));
         if let Some(tls_config) = &config.tls {
