@@ -10,13 +10,11 @@ edition = "2018"
 tonic={git="https://github.com/zenria/tonic.git", features=["tokio-rustls", "tls"], branch = "tcp_keepalive" }
 rand = "0.7.2"
 
-tokio = "=0.2.0-alpha.6"
-tokio-executor = "0.2.0-alpha.6"
-tokio-sync = "0.2.0-alpha.6"
-futures-core-preview = "=0.3.0-alpha.19"
-futures-util-preview = "=0.3.0-alpha.19"
-futures-sink-preview = "=0.3.0-alpha.19"
-futures-channel-preview = {version="=0.3.0-alpha.19", features=["sink"]}
+tokio = {version="0.2", features=["full"]}
+futures-core = "0.3"
+futures-util = "0.3"
+futures-sink = "0.3"
+futures-channel = {version="0.3", features=["sink"]}
 async-stream = "0.1.2"
 crossbeam="0.7.2"
 itertools = "0.8.0"

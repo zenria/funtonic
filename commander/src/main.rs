@@ -59,7 +59,7 @@ impl ExecutorState {
 }
 
 #[derive(StructOpt, Debug)]
-#[structopt(name = "basic")]
+#[structopt(name = "Funtonic commander")]
 struct Opt {
     /// Group output by executor instead displaying a live stream of all executor outputs
     #[structopt(short = "g", long = "group")]

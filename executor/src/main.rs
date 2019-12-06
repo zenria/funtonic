@@ -25,7 +25,7 @@ use tonic::Request;
 const LOG4RS_CONFIG: &'static str = "/etc/funtonic/executor-log4rs.yaml";
 
 #[derive(StructOpt, Debug)]
-#[structopt(name = "basic")]
+#[structopt(name = "Funtonic executor")]
 struct Opt {
     #[structopt(short, long, parse(from_os_str))]
     config: Option<PathBuf>,

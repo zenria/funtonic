@@ -13,15 +13,13 @@ funtonic = {path="../common"}
 structopt="0.3"
 tonic={git="https://github.com/zenria/tonic.git", branch = "tcp_keepalive" }
 thiserror="1"
-tokio = "=0.2.0-alpha.6"
-tokio-executor = "0.2.0-alpha.6"
+tokio = {version="0.2", features=["full"]}
 anyhow="1"
 log="0.4"
-tokio-sync = "0.2.0-alpha.6"
-futures-core-preview = "=0.3.0-alpha.19"
-futures-util-preview = "=0.3.0-alpha.19"
-futures-sink-preview = "=0.3.0-alpha.19"
-futures-channel-preview = {version="=0.3.0-alpha.19", features=["sink"]}
+futures-core = "0.3"
+futures-util = "0.3"
+futures-sink = "0.3"
+futures-channel = {version="0.3", features=["sink"]}
 log4rs-gelf = "0.1.4"
 native-tls = { version = "0.2", features=["vendored"] }
 

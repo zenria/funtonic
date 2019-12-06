@@ -14,7 +14,7 @@ use tonic::transport::Server;
 const LOG4RS_CONFIG: &'static str = "/etc/funtonic/server-log4rs.yaml";
 
 #[derive(StructOpt, Debug)]
-#[structopt(name = "basic")]
+#[structopt(name = "Funtonic taskserver")]
 struct Opt {
     #[structopt(short, long, parse(from_os_str))]
     config: Option<PathBuf>,

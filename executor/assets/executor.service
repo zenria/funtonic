@@ -8,6 +8,7 @@ User=root
 Group=root
 ExecStart=/usr/bin/executor
 Restart=always
+KillMode=process
 
 [Install]
 WantedBy=multi-user.target
