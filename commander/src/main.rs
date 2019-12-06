@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate log;
 
+use atty::Stream;
 use colored::{Color, Colorize};
 use funtonic::config::{Config, Role};
 use funtonic::CLIENT_TOKEN_HEADER;
@@ -22,7 +23,6 @@ use thiserror::Error;
 use tonic::metadata::MetadataValue;
 use tonic::transport::Channel;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
-use atty::Stream;
 
 #[derive(Eq, Ord, PartialOrd, PartialEq, Hash)]
 enum ExecutorState {
@@ -171,13 +171,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                             for line in lines {
                                                 println!("{}", line);
                                             }
-                                        },
+                                        }
                                         Some(pb) => {
-                                            pb.println(format!("{} {}:", "########".green(), client_id));
+                                            pb.println(format!(
+                                                "{} {}:",
+                                                "########".green(),
+                                                client_id
+                                            ));
                                             for line in lines {
                                                 pb.println(line);
                                             }
-                                        },
+                                        }
                                     }
                                 }
                             }
@@ -185,13 +189,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         ExecutionResult::TaskOutput(output) => {
                             if let Some(output) = output.output.as_ref() {
                                 if opt.group {
-                                    (*executors_output.entry(client_id.clone()).or_insert(Vec::new())).push(match output {
-                                        Output::Stdout(o) => {
-                                            o.clone()
-                                        }
-                                        Output::Stderr(e) => {
-                                            format!("{}", e.trim_end().red())
-                                        }
+                                    (*executors_output
+                                        .entry(client_id.clone())
+                                        .or_insert(Vec::new()))
+                                    .push(match output {
+                                        Output::Stdout(o) => o.clone(),
+                                        Output::Stderr(e) => format!("{}", e.trim_end().red()),
                                     });
                                 } else {
                                     let out = match output {

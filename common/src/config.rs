@@ -4,7 +4,7 @@ use anyhow::Error;
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use serde::Serialize;
-use std::collections::{BTreeSet, HashMap, BTreeMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs::File;
 use std::path::Path;
 use std::path::PathBuf;

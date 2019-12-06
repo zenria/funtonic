@@ -1,6 +1,7 @@
 use std::fmt::{Debug, Formatter};
 use std::io;
 use std::io::{Error, Read, Write};
+use std::os::unix::process::CommandExt;
 use std::process::{Command, ExitStatus, Stdio};
 use std::time::Duration;
 
@@ -86,6 +87,16 @@ pub fn extexec(
     let (events_sender, event_receiver) = crossbeam::channel::unbounded();
 
     let (kill_sender, kill_receiver) = crossbeam::channel::bounded(1);
+
+    // Execute the process in a new session, this is needed to ensure forking children (eg daemon, systemd stuff)
+    // are not attached to the funtonic process group. (otherwise, restarting funtonic process will restart
+    // daemons launched with funtonic LOL)
+    unsafe {
+        command.pre_exec(|| {
+            libc::setsid();
+            Ok(())
+        });
+    }
 
     let mut child = command
         .stdout(Stdio::piped())

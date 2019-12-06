@@ -29,7 +29,8 @@ async fn main() -> Result<(), anyhow::Error> {
     log4rs_gelf::init_file(LOG4RS_CONFIG, None).unwrap_or_else(|e| {
         eprintln!("Cannot initialize logger from {} - {}", LOG4RS_CONFIG, e);
         eprintln!("Trying with dev assets!");
-        log4rs_gelf::init_file("executor/assets/log4rs.yaml", None).expect("Cannot open executor/assets/log4rs.yaml");
+        log4rs_gelf::init_file("executor/assets/log4rs.yaml", None)
+            .expect("Cannot open executor/assets/log4rs.yaml");
     });
 
     let opt = Opt::from_args();

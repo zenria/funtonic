@@ -12,7 +12,7 @@ use query_parser::{parse, Query, QueryMatcher};
 use rand::Rng;
 use rustbreak::deser::Yaml;
 use rustbreak::{Database, FileDatabase};
-use std::collections::{BTreeSet, HashMap, BTreeMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
@@ -163,9 +163,12 @@ impl TasksManager for TaskServer {
         // register the client and wait for new tasks to come, forward them
         // to the response
         let (sender, receiver) = mpsc::unbounded();
-        if let Err(e) = self.register_executor(request.into(), sender){
+        if let Err(e) = self.register_executor(request.into(), sender) {
             error!("Unable to register executor {}", e);
-            Err(tonic::Status::new(Code::Internal, "internal storage error!"))?;
+            Err(tonic::Status::new(
+                Code::Internal,
+                "internal storage error!",
+            ))?;
         }
 
         let tasks_sinks = self.tasks_sinks.clone();
@@ -255,7 +258,9 @@ impl TasksManager for TaskServer {
 
         info!(
             "Command received {:?} for {} with token {}",
-            payload, query, token_name.unwrap()
+            payload,
+            query,
+            token_name.unwrap()
         );
 
         let query = parse(query);
