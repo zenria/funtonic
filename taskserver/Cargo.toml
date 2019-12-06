@@ -1,6 +1,6 @@
 [package]
 name = "taskserver"
-version = "0.9.3"
+version = "0.10.0"
 authors = ["Philippe GASSMANN <philoops@gmail.com>"]
 edition = "2018"
 
@@ -11,15 +11,12 @@ query-parser = {path="../query-parser"}
 grpc-service = {path="../grpc-service"}
 funtonic = {path="../common"}
 structopt="0.3"
-tonic={git="https://github.com/zenria/tonic.git", branch = "tcp_keepalive" }
+tonic={git="https://github.com/zenria/tonic.git", branch = "master" }
 thiserror="1"
 tokio = {version="0.2", features=["full"]}
 anyhow="1"
 log="0.4"
-futures-core = "0.3"
-futures-util = "0.3"
-futures-sink = "0.3"
-futures-channel = {version="0.3", features=["sink"]}
+futures = "0.3"
 log4rs-gelf = "0.1.4"
 native-tls = { version = "0.2", features=["vendored"] }
 

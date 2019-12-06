@@ -12,6 +12,7 @@ use thiserror::Error;
 use tonic::transport::Server;
 
 const LOG4RS_CONFIG: &'static str = "/etc/funtonic/server-log4rs.yaml";
+const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "Funtonic taskserver")]
@@ -32,6 +33,12 @@ async fn main() -> Result<(), anyhow::Error> {
         log4rs_gelf::init_file("executor/assets/log4rs.yaml", None)
             .expect("Cannot open executor/assets/log4rs.yaml");
     });
+    info!(
+        "Taskserver v{}, core v{},  protocol v{}",
+        VERSION,
+        funtonic::VERSION,
+        funtonic::PROTOCOL_VERSION
+    );
 
     let opt = Opt::from_args();
     let config = Config::parse(&opt.config, "server.yml")?;

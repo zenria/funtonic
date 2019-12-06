@@ -1,9 +1,7 @@
 use crate::executor_meta::ExecutorMeta;
 use crate::CLIENT_TOKEN_HEADER;
-use futures_channel::mpsc;
-use futures_sink::Sink;
-use futures_util::pin_mut;
-use futures_util::{FutureExt, SinkExt, StreamExt};
+use futures::channel::mpsc;
+use futures::{SinkExt, StreamExt};
 use grpc_service::launch_task_response::TaskResponse;
 use grpc_service::server::*;
 use grpc_service::task_execution_result::ExecutionResult;
@@ -145,9 +143,8 @@ impl TaskServer {
     }
 }
 
-type Stream<T> = Pin<
-    Box<dyn futures_core::Stream<Item = std::result::Result<T, Status>> + Send + Sync + 'static>,
->;
+type Stream<T> =
+    Pin<Box<dyn futures::Stream<Item = std::result::Result<T, Status>> + Send + Sync + 'static>>;
 
 #[tonic::async_trait]
 impl TasksManager for TaskServer {

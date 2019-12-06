@@ -5,7 +5,8 @@ use funtonic::config::{Config, Role};
 use funtonic::exec::Type::Out;
 use funtonic::exec::*;
 use funtonic::executor_meta::{ExecutorMeta, Tag};
-use futures_util::{SinkExt, StreamExt};
+use funtonic::PROTOCOL_VERSION;
+use futures::StreamExt;
 use grpc_service::client::TasksManagerClient;
 use grpc_service::task_execution_result::ExecutionResult;
 use grpc_service::task_output::Output;
@@ -17,12 +18,13 @@ use std::str::FromStr;
 use std::time::Duration;
 use structopt::StructOpt;
 use thiserror::Error;
-use tokio_sync::watch::Sender;
+use tokio::sync::watch::Sender;
 use tonic::metadata::AsciiMetadataValue;
 use tonic::transport::{Channel, Endpoint};
 use tonic::Request;
 
 const LOG4RS_CONFIG: &'static str = "/etc/funtonic/executor-log4rs.yaml";
+pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "Funtonic executor")]
@@ -36,7 +38,7 @@ struct Opt {
 #[error("Missing field for server config!")]
 struct InvalidConfig;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 enum LastConnectionStatus {
     Connecting,
     Connected,
@@ -52,7 +54,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     let opt = Opt::from_args();
     let config = Config::parse(&opt.config, "executor.yml")?;
-    info!("Executor starting with config {:#?}", config);
+    info!(
+        "Executor v{}, core v{},  protocol v{}",
+        VERSION,
+        funtonic::VERSION,
+        PROTOCOL_VERSION
+    );
+    info!("{:#?}", config);
 
     if let Role::Executor(executor_config) = config.role {
         let mut endpoint = Channel::builder(Uri::from_str(&executor_config.server_url)?)
@@ -75,14 +83,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         info!("Metas: {:#?}", executor_meta);
 
         let (mut connection_status_sender, connection_status_receiver) =
-            tokio_sync::watch::channel(LastConnectionStatus::Connecting);
+            tokio::sync::watch::channel(LastConnectionStatus::Connecting);
 
         while let Err(e) =
             executor_main(&endpoint, &executor_meta, &mut connection_status_sender).await
         {
             error!("Error {}", e);
             // increase reconnect time if connecting, reset if connected
-            match *connection_status_receiver.get_ref() {
+            match *connection_status_receiver.borrow() {
                 LastConnectionStatus::Connecting => {
                     reconnect_time = reconnect_time + Duration::from_secs(1);
                     if reconnect_time > max_reconnect_time {
@@ -92,7 +100,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 LastConnectionStatus::Connected => reconnect_time = Duration::from_secs(1),
             }
             info!("Reconnecting in {}s", reconnect_time.as_secs());
-            tokio::timer::delay_for(reconnect_time).await;
+            tokio::time::delay_for(reconnect_time).await;
         }
         Ok(())
     } else {
@@ -105,13 +113,9 @@ async fn executor_main(
     executor_metas: &ExecutorMeta,
     last_connection_status_sender: &mut Sender<LastConnectionStatus>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    last_connection_status_sender
-        .send(LastConnectionStatus::Connecting)
-        .await?;
+    last_connection_status_sender.broadcast(LastConnectionStatus::Connecting)?;
     let channel = endpoint.connect().await?;
-    last_connection_status_sender
-        .send(LastConnectionStatus::Connected)
-        .await?;
+    last_connection_status_sender.broadcast(LastConnectionStatus::Connected)?;
 
     let mut client = TasksManagerClient::new(channel);
 
@@ -129,12 +133,12 @@ async fn executor_main(
         let task_payload = task.task_payload.unwrap();
         info!("Received task {} - {}", task_id, task_payload.payload);
 
-        let (mut sender, receiver) = tokio_sync::mpsc::unbounded_channel();
+        let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
         // unconditionnaly ping so the task will be "consumed" on the server
-        if let Err(_) = sender.try_send(ExecutionResult::Ping(Empty {})) {}
+        if let Err(_) = sender.send(ExecutionResult::Ping(Empty {})) {}
         // TODO handle error (this should also be an event)
         let (exec_receiver, kill_sender) = exec_command(&task_payload.payload).unwrap();
-        tokio_executor::blocking::run(move || {
+        tokio::task::spawn_blocking(move || {
             for exec_event in exec_receiver {
                 let execution_result = match exec_event {
                     ExecEvent::Started => ExecutionResult::Ping(Empty {}),
@@ -149,7 +153,7 @@ async fn executor_main(
                     }),
                 };
                 // ignore send errors, continue to consume the execution results
-                let _ = sender.try_send(execution_result);
+                let _ = sender.send(execution_result);
             }
         });
 

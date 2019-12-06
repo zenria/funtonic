@@ -1,20 +1,18 @@
 [package]
 name = "funtonic"
-version = "0.9.4"
+version = "0.10.0"
 authors = ["Philippe GASSMANN <philoops@gmail.com>"]
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tonic={git="https://github.com/zenria/tonic.git", features=["tokio-rustls", "tls"], branch = "tcp_keepalive" }
+tonic={git="https://github.com/zenria/tonic.git", features=["tokio-rustls", "tls"], branch = "master" }
 rand = "0.7.2"
 
 tokio = {version="0.2", features=["full"]}
-futures-core = "0.3"
-futures-util = "0.3"
-futures-sink = "0.3"
-futures-channel = {version="0.3", features=["sink"]}
+futures="0.3"
+#futures-channel = {version="0.3", features=["sink"]}
 async-stream = "0.1.2"
 crossbeam="0.7.2"
 itertools = "0.8.0"
@@ -25,7 +23,7 @@ structopt = "0.3"
 shellexpand = "1.0.0"
 thiserror = "1.0"
 anyhow = "1.0"
-http="0.1"
+http="0.2"
 os_info = "1.1"
 rustbreak = {version="2.0.0-rc3", features=["yaml_enc"]}
 query-parser = {path="../query-parser"}
