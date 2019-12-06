@@ -22,7 +22,6 @@ use structopt::StructOpt;
 use thiserror::Error;
 use tonic::metadata::MetadataValue;
 use tonic::transport::Channel;
-use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
 #[derive(Eq, Ord, PartialOrd, PartialEq, Hash)]
 enum ExecutorState {
@@ -78,14 +77,6 @@ pub struct Opt {
 struct InvalidConfig;
 
 pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std::error::Error>> {
-    tracing::subscriber::set_global_default(
-        FmtSubscriber::builder()
-            .with_env_filter(EnvFilter::from_default_env())
-            .without_time()
-            .finish(),
-    )
-        .expect("setting tracing default failed");
-    tracing_log::LogTracer::init().unwrap();
     debug!("Commander starting with config {:#?}", config);
     if let Role::Commander(commander_config) = &config.role {
         let mut channel = Channel::builder(Uri::from_str(&commander_config.server_url)?)
@@ -188,10 +179,10 @@ pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std:
                                     (*executors_output
                                         .entry(client_id.clone())
                                         .or_insert(Vec::new()))
-                                        .push(match output {
-                                            Output::Stdout(o) => o.clone(),
-                                            Output::Stderr(e) => format!("{}", e.trim_end().red()),
-                                        });
+                                    .push(match output {
+                                        Output::Stdout(o) => o.clone(),
+                                        Output::Stderr(e) => format!("{}", e.trim_end().red()),
+                                    });
                                 } else {
                                     let out = match output {
                                         Output::Stdout(o) => {
@@ -252,7 +243,6 @@ pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std:
         Err(InvalidConfig)?
     }
 }
-
 
 fn colorize<'a, T: Iterator<Item = &'a String>>(collection: T, color: Color) -> String {
     let mut ret = collection.fold(String::new(), |mut acc, item| {
