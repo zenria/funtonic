@@ -3,19 +3,23 @@ mod tests {
     use commander::{commander_main, Opt};
     use executor::executor_main;
     use funtonic::config::Role::Commander;
-    use funtonic::config::{CommanderConfig, Config, ExecutorConfig, Role, ServerConfig};
+    use funtonic::config::{CommanderConfig, Config, ExecutorConfig, Role, ServerConfig, TlsConfig};
     use log::LevelFilter;
     use std::collections::BTreeMap;
     use std::time::Duration;
     use taskserver::taskserver_main;
+    use std::sync::Once;
 
-    #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
+    static INIT_LOGGER: Once = Once::new();
+
+    fn init_logger(){
+        INIT_LOGGER.call_once(||env_logger::builder().filter_level(LevelFilter::Info).init())
     }
-
     #[tokio::test]
-    async fn my_test() {
+    async fn no_tls_test() {
+
+        init_logger();
+
         let mut authorized_client_tokens = BTreeMap::new();
         authorized_client_tokens.insert("coucou".into(), "test client".into());
         let taskserver_config = Config {
@@ -27,7 +31,7 @@ mod tests {
             }),
         };
 
-        env_logger::builder().filter_level(LevelFilter::Info).init();
+
 
         std::thread::spawn(|| {
             let mut rt = tokio::runtime::Builder::new()
@@ -59,6 +63,82 @@ mod tests {
             tls: None,
             role: Commander(CommanderConfig {
                 server_url: "http://127.0.0.1:54010".to_string(),
+                client_token: "coucou".to_string(),
+            }),
+        };
+
+        let commander_opt = Opt {
+            group: false,
+            no_progress: false,
+            config: None,
+            query: "*".to_string(),
+            command: vec!["cat".into(), "Cargo.toml".into()],
+        };
+        std::thread::sleep(Duration::from_secs(1));
+        commander_main(commander_opt, commander_config)
+            .await
+            .expect("This must not throw errors");
+    }
+
+    #[tokio::test]
+    async fn tls_test() {
+        init_logger();
+        let mut authorized_client_tokens = BTreeMap::new();
+        authorized_client_tokens.insert("coucou".into(), "test client".into());
+        let taskserver_config = Config {
+            tls: Some(TlsConfig{
+                ca_cert: "tls/funtonic-ca.pem".to_string(),
+                key: "tls/server-key.pem".to_string(),
+                cert: "tls/server.pem".to_string(),
+                server_domain: None
+            }),
+            role: Role::Server(ServerConfig {
+                bind_address: "127.0.0.1:54011".to_string(),
+                data_directory: "/tmp/taskserver".to_string(),
+                authorized_client_tokens,
+            }),
+        };
+
+        std::thread::spawn(|| {
+            let mut rt = tokio::runtime::Builder::new()
+                .basic_scheduler()
+                .enable_all()
+                .build()
+                .unwrap();
+            rt.block_on(taskserver_main(taskserver_config)).unwrap();
+        });
+
+        let executor_config = Config {
+            tls: Some(TlsConfig{
+                ca_cert: "tls/funtonic-ca.pem".to_string(),
+                key: "tls/executor-key.pem".to_string(),
+                cert: "tls/executor.pem".to_string(),
+                server_domain: Some("test.funtonic.io".into())
+            }),
+            role: Role::Executor(ExecutorConfig {
+                client_id: "exec".to_string(),
+                tags: Default::default(),
+                server_url: "http://127.0.0.1:54011".to_string(),
+            }),
+        };
+        std::thread::spawn(|| {
+            let mut rt = tokio::runtime::Builder::new()
+                .basic_scheduler()
+                .enable_all()
+                .build()
+                .unwrap();
+            rt.block_on(executor_main(executor_config)).unwrap();
+        });
+
+        let commander_config = Config {
+            tls: Some(TlsConfig{
+                ca_cert: "tls/funtonic-ca.pem".to_string(),
+                key: "tls/commander-key.pem".to_string(),
+                cert: "tls/commander.pem".to_string(),
+                server_domain: Some("test.funtonic.io".into())
+            }),
+            role: Commander(CommanderConfig {
+                server_url: "http://127.0.0.1:54011".to_string(),
                 client_token: "coucou".to_string(),
             }),
         };

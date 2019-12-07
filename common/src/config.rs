@@ -14,18 +14,18 @@ use tonic::transport::{Certificate, ClientTlsConfig, Identity, ServerTlsConfig};
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TlsConfig {
     /// CA PEM encoded certificate file path
-    ca_cert: String,
+    pub ca_cert: String,
     /// PEM encoded private key file path
-    key: String,
+    pub key: String,
     /// PEM encoded certificate file path
-    cert: String,
+    pub cert: String,
     /// Expected domain name of the server certificate.
     ///
     /// When configuring a client, the domain name of the server certificate is validated against
     /// the server url.
     ///
     /// Specifying the server_domain overrides the server url domain.
-    server_domain: Option<String>,
+    pub server_domain: Option<String>,
 }
 
 impl TlsConfig {
