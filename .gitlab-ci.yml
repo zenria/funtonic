@@ -9,6 +9,7 @@ build:
   script:
     - rustup component add rustfmt
     - cargo build --all --all-targets --color=always
+    - cargo test
     - RUST_BACKTRACE=1 cargo test
 
 release:
