@@ -1,3 +1,7 @@
+
+#[cfg(test)]
+mod test_utils;
+
 #[cfg(test)]
 mod tests {
     use commander::{commander_main, Opt};
@@ -31,16 +35,7 @@ mod tests {
             }),
         };
 
-
-
-        std::thread::spawn(|| {
-            let mut rt = tokio::runtime::Builder::new()
-                .basic_scheduler()
-                .enable_all()
-                .build()
-                .unwrap();
-            rt.block_on(taskserver_main(taskserver_config)).unwrap();
-        });
+        super::test_utils::spawn_future_on_new_thread(|| taskserver_main(taskserver_config));
 
         let executor_config = Config {
             tls: None,
@@ -50,14 +45,8 @@ mod tests {
                 server_url: "http://127.0.0.1:54010".to_string(),
             }),
         };
-        std::thread::spawn(|| {
-            let mut rt = tokio::runtime::Builder::new()
-                .basic_scheduler()
-                .enable_all()
-                .build()
-                .unwrap();
-            rt.block_on(executor_main(executor_config)).unwrap();
-        });
+        super::test_utils::spawn_future_on_new_thread(|| executor_main(executor_config));
+
 
         let commander_config = Config {
             tls: None,
@@ -99,14 +88,7 @@ mod tests {
             }),
         };
 
-        std::thread::spawn(|| {
-            let mut rt = tokio::runtime::Builder::new()
-                .basic_scheduler()
-                .enable_all()
-                .build()
-                .unwrap();
-            rt.block_on(taskserver_main(taskserver_config)).unwrap();
-        });
+        super::test_utils::spawn_future_on_new_thread(|| taskserver_main(taskserver_config));
 
         let executor_config = Config {
             tls: Some(TlsConfig{
@@ -121,21 +103,14 @@ mod tests {
                 server_url: "http://127.0.0.1:54011".to_string(),
             }),
         };
-        std::thread::spawn(|| {
-            let mut rt = tokio::runtime::Builder::new()
-                .basic_scheduler()
-                .enable_all()
-                .build()
-                .unwrap();
-            rt.block_on(executor_main(executor_config)).unwrap();
-        });
+        super::test_utils::spawn_future_on_new_thread(|| executor_main(executor_config));
 
         let commander_config = Config {
             tls: Some(TlsConfig{
                 ca_cert: "tls/funtonic-ca.pem".to_string(),
                 key: "tls/commander-key.pem".to_string(),
                 cert: "tls/commander.pem".to_string(),
-                server_domain: Some("test.funtonic.io".into())
+                server_domain: Some("test-.funtonic.io".into())
             }),
             role: Commander(CommanderConfig {
                 server_url: "http://127.0.0.1:54011".to_string(),
@@ -151,8 +126,8 @@ mod tests {
             command: vec!["cat".into(), "Cargo.toml".into()],
         };
         std::thread::sleep(Duration::from_secs(1));
-        commander_main(commander_opt, commander_config)
+        assert!(commander_main(commander_opt, commander_config)
             .await
-            .expect("This must not throw errors");
+            .is_ok());
     }
 }
