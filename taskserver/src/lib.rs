@@ -26,10 +26,11 @@ struct InvalidConfig;
 
 pub async fn taskserver_main(config: Config) -> Result<(), Box<dyn std::error::Error>> {
     info!(
-        "Taskserver v{}, core v{},  protocol v{}",
+        "Taskserver v{}, core v{},  protocol v{}, query parser v{}",
         VERSION,
         funtonic::VERSION,
-        funtonic::PROTOCOL_VERSION
+        funtonic::PROTOCOL_VERSION,
+        funtonic::QUERY_PARSER_VERSION
     );
 
     info!("{:#?}", config);

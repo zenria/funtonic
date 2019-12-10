@@ -1,6 +1,5 @@
 use futures::Future;
 use std::error::Error;
-use tokio::runtime::Runtime;
 
 pub fn spawn_future_on_new_thread<
     F: FnOnce() -> Fut + Send + 'static,

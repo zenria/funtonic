@@ -16,6 +16,8 @@ use thiserror::Error;
 
 mod parser;
 
+pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+
 #[derive(Error, Debug, Clone)]
 pub enum QueryParseError {
     #[error("Unable to parse query {0}")]

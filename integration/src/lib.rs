@@ -19,6 +19,11 @@ mod tests {
     fn init_logger(){
         INIT_LOGGER.call_once(||env_logger::builder().filter_level(LevelFilter::Info).init())
     }
+    #[test]
+    fn dummy(){
+        assert!(true)
+    }
+
     #[tokio::test]
     async fn no_tls_test() {
 
@@ -110,7 +115,7 @@ mod tests {
                 ca_cert: "tls/funtonic-ca.pem".to_string(),
                 key: "tls/commander-key.pem".to_string(),
                 cert: "tls/commander.pem".to_string(),
-                server_domain: Some("test-.funtonic.io".into())
+                server_domain: Some("test.funtonic.io".into())
             }),
             role: Commander(CommanderConfig {
                 server_url: "http://127.0.0.1:54011".to_string(),
@@ -129,5 +134,6 @@ mod tests {
         assert!(commander_main(commander_opt, commander_config)
             .await
             .is_ok());
+
     }
 }

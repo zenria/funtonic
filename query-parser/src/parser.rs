@@ -1,5 +1,6 @@
 use nom::branch::alt;
-use nom::bytes::complete::{tag, tag_no_case, take_while1};
+use nom::bytes::complete::{tag, tag_no_case, take_while, take_while1};
+use nom::character::complete::char;
 use nom::character::is_alphanumeric;
 use nom::combinator::{complete, map, value};
 use nom::error::ParseError;
@@ -29,6 +30,10 @@ fn sp<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, &'a str, E> {
     take_while1(move |c| SPACES.contains(c))(i)
 }
 
+fn maybe_sp<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, &'a str, E> {
+    take_while(move |c| SPACES.contains(c))(i)
+}
+
 fn wildcard<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, char, E> {
     nom::character::complete::char('*')(i)
 }
@@ -44,6 +49,13 @@ fn pattern<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, &'a str, 
 fn or<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, (), E> {
     value((), alt((tag_no_case("or"), tag("||"))))(i)
 }
+fn comma<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, (), E> {
+    value(
+        (),
+        tuple((maybe_sp, nom::character::complete::char(','), maybe_sp)),
+    )(i)
+}
+
 fn or_separator<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, (), E> {
     value((), tuple((sp, or, sp)))(i)
 }
@@ -51,7 +63,7 @@ fn or_separator<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, (), 
 fn or_clause<'a, E: ParseError<&'a str>>(
     i: &'a str,
 ) -> IResult<&'a str, (RawQuery<'a>, RawQuery<'a>), E> {
-    separated_pair(parse_simple_query, or_separator, parse_query)(i)
+    separated_pair(parse_simple_query, alt((comma, or_separator)), parse_query)(i)
 }
 
 // `and` or `&&`
@@ -96,7 +108,7 @@ fn parse_query<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, RawQu
 
 #[cfg(test)]
 mod test {
-    use crate::parser::{and, or, parse_raw, RawQuery};
+    use crate::parser::{and, comma, or, parse_raw, RawQuery};
     use nom::error::VerboseError;
 
     #[test]
@@ -105,6 +117,13 @@ mod test {
         assert!(and::<VerboseError<&str>>("&&").is_ok());
         assert!(or::<VerboseError<&str>>("or").is_ok());
         assert!(or::<VerboseError<&str>>("||").is_ok());
+        assert!(comma::<VerboseError<&str>>(",").is_ok());
+        assert!(comma::<VerboseError<&str>>(" ,").is_ok());
+        assert!(comma::<VerboseError<&str>>(", ").is_ok());
+        assert!(comma::<VerboseError<&str>>(" , ").is_ok());
+        assert!(comma::<VerboseError<&str>>("  ,").is_ok());
+        assert!(comma::<VerboseError<&str>>(",  ").is_ok());
+        assert!(comma::<VerboseError<&str>>("  ,  ").is_ok());
         assert!(parse_raw::<VerboseError<&str>>("").is_err());
         assert_eq!(
             parse_raw::<VerboseError<&str>>("*").unwrap().1,
@@ -163,6 +182,35 @@ mod test {
                 Box::new(RawQuery::Pattern("bar"))
             ),
         );
+        assert_eq!(
+            parse_raw::<VerboseError<&str>>("foo , bar").unwrap().1,
+            RawQuery::Or(
+                Box::new(RawQuery::Pattern("foo")),
+                Box::new(RawQuery::Pattern("bar"))
+            ),
+        );
+        assert_eq!(
+            parse_raw::<VerboseError<&str>>("foo,bar").unwrap().1,
+            RawQuery::Or(
+                Box::new(RawQuery::Pattern("foo")),
+                Box::new(RawQuery::Pattern("bar"))
+            ),
+        );
+        assert_eq!(
+            parse_raw::<VerboseError<&str>>("foo, bar").unwrap().1,
+            RawQuery::Or(
+                Box::new(RawQuery::Pattern("foo")),
+                Box::new(RawQuery::Pattern("bar"))
+            ),
+        );
+        assert_eq!(
+            parse_raw::<VerboseError<&str>>("foo ,bar").unwrap().1,
+            RawQuery::Or(
+                Box::new(RawQuery::Pattern("foo")),
+                Box::new(RawQuery::Pattern("bar"))
+            ),
+        );
+
         // two lvl
         assert_eq!(
             parse_raw::<VerboseError<&str>>("foo and bar and yak")
