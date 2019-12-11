@@ -1,4 +1,3 @@
-
 #[cfg(test)]
 mod test_utils;
 
@@ -7,26 +6,27 @@ mod tests {
     use commander::{commander_main, Opt};
     use executor::executor_main;
     use funtonic::config::Role::Commander;
-    use funtonic::config::{CommanderConfig, Config, ExecutorConfig, Role, ServerConfig, TlsConfig};
+    use funtonic::config::{
+        CommanderConfig, Config, ExecutorConfig, Role, ServerConfig, TlsConfig,
+    };
     use log::LevelFilter;
     use std::collections::BTreeMap;
+    use std::sync::Once;
     use std::time::Duration;
     use taskserver::taskserver_main;
-    use std::sync::Once;
 
     static INIT_LOGGER: Once = Once::new();
 
-    fn init_logger(){
-        INIT_LOGGER.call_once(||env_logger::builder().filter_level(LevelFilter::Info).init())
+    fn init_logger() {
+        INIT_LOGGER.call_once(|| env_logger::builder().filter_level(LevelFilter::Info).init())
     }
     #[test]
-    fn dummy(){
+    fn dummy() {
         assert!(true)
     }
 
     #[tokio::test]
     async fn no_tls_test() {
-
         init_logger();
 
         let mut authorized_client_tokens = BTreeMap::new();
@@ -51,7 +51,6 @@ mod tests {
             }),
         };
         super::test_utils::spawn_future_on_new_thread(|| executor_main(executor_config));
-
 
         let commander_config = Config {
             tls: None,
@@ -80,11 +79,11 @@ mod tests {
         let mut authorized_client_tokens = BTreeMap::new();
         authorized_client_tokens.insert("coucou".into(), "test client".into());
         let taskserver_config = Config {
-            tls: Some(TlsConfig{
+            tls: Some(TlsConfig {
                 ca_cert: "tls/funtonic-ca.pem".to_string(),
                 key: "tls/server-key.pem".to_string(),
                 cert: "tls/server.pem".to_string(),
-                server_domain: None
+                server_domain: None,
             }),
             role: Role::Server(ServerConfig {
                 bind_address: "127.0.0.1:54011".to_string(),
@@ -96,11 +95,11 @@ mod tests {
         super::test_utils::spawn_future_on_new_thread(|| taskserver_main(taskserver_config));
 
         let executor_config = Config {
-            tls: Some(TlsConfig{
+            tls: Some(TlsConfig {
                 ca_cert: "tls/funtonic-ca.pem".to_string(),
                 key: "tls/executor-key.pem".to_string(),
                 cert: "tls/executor.pem".to_string(),
-                server_domain: Some("test.funtonic.io".into())
+                server_domain: Some("test.funtonic.io".into()),
             }),
             role: Role::Executor(ExecutorConfig {
                 client_id: "exec".to_string(),
@@ -111,11 +110,11 @@ mod tests {
         super::test_utils::spawn_future_on_new_thread(|| executor_main(executor_config));
 
         let commander_config = Config {
-            tls: Some(TlsConfig{
+            tls: Some(TlsConfig {
                 ca_cert: "tls/funtonic-ca.pem".to_string(),
                 key: "tls/commander-key.pem".to_string(),
                 cert: "tls/commander.pem".to_string(),
-                server_domain: Some("test.funtonic.io".into())
+                server_domain: Some("test.funtonic.io".into()),
             }),
             role: Commander(CommanderConfig {
                 server_url: "http://127.0.0.1:54011".to_string(),
@@ -134,6 +133,5 @@ mod tests {
         assert!(commander_main(commander_opt, commander_config)
             .await
             .is_ok());
-
     }
 }
