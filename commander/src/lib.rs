@@ -227,6 +227,9 @@ pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std:
         pb.iter().for_each(|pb| pb.finish_and_clear());
 
         let mut success = true;
+        if executors.len() == 0 {
+            success = false;
+        }
         let mut states = BTreeMap::new();
         for (client_id, state) in executors {
             if state != ExecutorState::Success {
