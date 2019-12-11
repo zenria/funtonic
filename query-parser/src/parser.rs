@@ -204,6 +204,15 @@ mod test {
             ),
         );
         assert_eq!(
+            parse_raw::<VerboseError<&str>>("w1.prod, w2.prod")
+                .unwrap()
+                .1,
+            RawQuery::Or(
+                Box::new(RawQuery::Pattern("w1.prod")),
+                Box::new(RawQuery::Pattern("w2.prod"))
+            ),
+        );
+        assert_eq!(
             parse_raw::<VerboseError<&str>>("foo ,bar").unwrap().1,
             RawQuery::Or(
                 Box::new(RawQuery::Pattern("foo")),
