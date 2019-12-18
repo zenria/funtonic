@@ -119,7 +119,7 @@ pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std:
                 TaskResponse::MatchingExecutors(mut e) => {
                     e.client_id.sort();
                     let executors_string = e.client_id.join(", ");
-                    if opt.no_progress || !atty::is(Stream::Stderr) {
+                    if opt.no_progress || !atty::is(Stream::Stdout) {
                         println!("Matching executors: {}", executors_string);
                     } else {
                         let progress = ProgressBar::new(e.client_id.len() as u64);
@@ -156,7 +156,7 @@ pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std:
                                         None => {
                                             println!("{} {}:", "########".green(), client_id);
                                             for line in lines {
-                                                println!("{}", line);
+                                                print!("{}", line);
                                             }
                                         }
                                         Some(pb) => {
