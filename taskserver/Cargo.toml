@@ -1,6 +1,6 @@
 [package]
 name = "taskserver"
-version = "0.10.0"
+version = "0.10.1"
 authors = ["Philippe GASSMANN <philoops@gmail.com>"]
 edition = "2018"
 
@@ -11,7 +11,8 @@ query-parser = {path="../query-parser"}
 grpc-service = {path="../grpc-service"}
 funtonic = {path="../common"}
 structopt="0.3"
-tonic={git="https://github.com/zenria/tonic.git", branch = "master" }
+#tonic={git="https://github.com/zenria/tonic.git", features=["tokio-rustls", "tls"], branch = "master" }
+tonic={version="0.1.0-beta.1", features=["tokio-rustls", "tls"] }
 thiserror="1"
 tokio = {version="0.2", features=["full"]}
 anyhow="1"

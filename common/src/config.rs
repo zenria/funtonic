@@ -30,7 +30,7 @@ pub struct TlsConfig {
 
 impl TlsConfig {
     pub fn get_client_config(&self) -> Result<ClientTlsConfig, anyhow::Error> {
-        let mut client_tls_config = ClientTlsConfig::with_rustls();
+        let mut client_tls_config = ClientTlsConfig::new();
         client_tls_config = client_tls_config
             .identity(self.get_identity()?)
             .ca_certificate(self.get_ca_certificate()?);
@@ -41,7 +41,7 @@ impl TlsConfig {
     }
 
     pub fn get_server_config(&self) -> Result<ServerTlsConfig, anyhow::Error> {
-        Ok(ServerTlsConfig::with_rustls()
+        Ok(ServerTlsConfig::new()
             .identity(self.get_identity()?)
             .client_ca_root(self.get_ca_certificate()?))
     }
