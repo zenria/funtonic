@@ -15,7 +15,7 @@ pub enum Type {
 #[derive(Eq, PartialEq)]
 pub struct Line {
     pub line_type: Type,
-    pub line: Vec<u8>,
+    pub line: String,
 }
 #[derive(Eq, PartialEq, Debug)]
 pub enum ExecEvent {
@@ -26,12 +26,7 @@ pub enum ExecEvent {
 
 impl Debug for Line {
     fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
-        write!(
-            f,
-            "{:?}({})",
-            self.line_type,
-            String::from_utf8_lossy(&self.line)
-        )
+        write!(f, "{:?}({})", self.line_type, self.line)
     }
 }
 
@@ -51,7 +46,7 @@ impl ExecEventHelper for ExecEvent {
     fn line(s: &str, line_type: Type) -> ExecEvent {
         ExecEvent::LineEmitted(Line {
             line_type,
-            line: s.as_bytes().to_vec(),
+            line: s.into(),
         })
     }
     fn out(s: &str) -> ExecEvent {

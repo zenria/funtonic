@@ -156,7 +156,7 @@ pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std:
                                         None => {
                                             println!("{} {}:", "########".green(), client_id);
                                             for line in lines {
-                                                print!("{}", line);
+                                                println!("{}", line);
                                             }
                                         }
                                         Some(pb) => {

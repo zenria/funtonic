@@ -135,8 +135,8 @@ async fn do_executor_main(
                 }
                 ExecEvent::LineEmitted(line) => ExecutionResult::TaskOutput(TaskOutput {
                     output: Some(match &line.line_type {
-                        Type::Out => Output::Stdout(String::from_utf8_lossy(&line.line).into()),
-                        Type::Err => Output::Stderr(String::from_utf8_lossy(&line.line).into()),
+                        Type::Out => Output::Stdout(line.line),
+                        Type::Err => Output::Stderr(line.line),
                     }),
                 }),
             })

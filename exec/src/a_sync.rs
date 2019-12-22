@@ -94,7 +94,7 @@ async fn read_output_stream<T: AsyncRead + Unpin>(
                     Some(line) => {
                         if let Err(e) = sender.send(ExecEvent::LineEmitted(Line {
                             line_type: stream_type,
-                            line: line.as_bytes().to_vec(),
+                            line,
                         })) {
                             // this should not happen however
                             warn!("Unable to send finished execution result {}", e)
