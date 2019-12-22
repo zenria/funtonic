@@ -4,6 +4,7 @@ extern crate log;
 use std::fmt::{Debug, Formatter};
 use std::process::ExitStatus;
 
+pub mod a_sync;
 pub mod sync;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -38,4 +39,26 @@ impl Debug for Line {
 pub struct Output {
     pub exit_status: ExitStatus,
     pub output_lines: Vec<Line>,
+}
+
+#[cfg(test)]
+trait ExecEventHelper {
+    fn line(s: &str, line_type: Type) -> ExecEvent;
+    fn out(s: &str) -> ExecEvent;
+    fn err(s: &str) -> ExecEvent;
+}
+#[cfg(test)]
+impl ExecEventHelper for ExecEvent {
+    fn line(s: &str, line_type: Type) -> ExecEvent {
+        ExecEvent::LineEmitted(Line {
+            line_type,
+            line: s.as_bytes().to_vec(),
+        })
+    }
+    fn out(s: &str) -> ExecEvent {
+        Self::line(s, Type::Out)
+    }
+    fn err(s: &str) -> ExecEvent {
+        Self::line(s, Type::Err)
+    }
 }

@@ -1,9 +1,6 @@
 use crate::{ExecEvent, Line, Type};
-use std::fmt::{Debug, Formatter};
-use std::io;
-use std::io::{Error, Read, Write};
-use std::os::unix::process::CommandExt;
-use std::process::{Command, ExitStatus, Stdio};
+use std::io::Read;
+use std::process::{Command, Stdio};
 use std::time::Duration;
 
 fn capture_lines<R: Read + Send + 'static>(
@@ -117,26 +114,8 @@ pub fn exec_command(
 mod tests {
     use super::Type::Out;
     use super::*;
+    use crate::ExecEventHelper;
     use std::process::Command;
-    trait ExecEventHelper {
-        fn line(s: &str, line_type: Type) -> ExecEvent;
-        fn out(s: &str) -> ExecEvent;
-        fn err(s: &str) -> ExecEvent;
-    }
-    impl ExecEventHelper for ExecEvent {
-        fn line(s: &str, line_type: Type) -> ExecEvent {
-            ExecEvent::LineEmitted(Line {
-                line_type,
-                line: s.as_bytes().to_vec(),
-            })
-        }
-        fn out(s: &str) -> ExecEvent {
-            Self::line(s, Type::Out)
-        }
-        fn err(s: &str) -> ExecEvent {
-            Self::line(s, Type::Err)
-        }
-    }
 
     #[test]
     fn stdout() {

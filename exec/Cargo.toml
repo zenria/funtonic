@@ -9,3 +9,7 @@ edition = "2018"
 [dependencies]
 log = "0.4"
 crossbeam="0.7.2"
+tokio={version="0.2", features=["process", "sync", "rt-core", "io-util", "macros", "stream"]}
+thiserror="1"
+env_logger = "0.7"
+futures="0.3"
