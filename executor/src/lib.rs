@@ -1,9 +1,9 @@
 #[macro_use]
 extern crate log;
 
+use exec::sync::exec_command;
+use exec::*;
 use funtonic::config::{Config, Role};
-use funtonic::exec::Type::Out;
-use funtonic::exec::*;
 use funtonic::executor_meta::{ExecutorMeta, Tag};
 use funtonic::PROTOCOL_VERSION;
 use futures::StreamExt;
@@ -136,7 +136,7 @@ async fn do_executor_main(
                     }
                     ExecEvent::LineEmitted(line) => ExecutionResult::TaskOutput(TaskOutput {
                         output: Some(match &line.line_type {
-                            Out => Output::Stdout(String::from_utf8_lossy(&line.line).into()),
+                            Type::Out => Output::Stdout(String::from_utf8_lossy(&line.line).into()),
                             Type::Err => Output::Stderr(String::from_utf8_lossy(&line.line).into()),
                         }),
                     }),

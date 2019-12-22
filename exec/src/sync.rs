@@ -1,43 +1,10 @@
+use crate::{ExecEvent, Line, Type};
 use std::fmt::{Debug, Formatter};
 use std::io;
 use std::io::{Error, Read, Write};
 use std::os::unix::process::CommandExt;
 use std::process::{Command, ExitStatus, Stdio};
 use std::time::Duration;
-
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
-pub enum Type {
-    Out,
-    Err,
-}
-
-#[derive(Eq, PartialEq)]
-pub struct Line {
-    pub line_type: Type,
-    pub line: Vec<u8>,
-}
-#[derive(Eq, PartialEq, Debug)]
-pub enum ExecEvent {
-    Started,
-    Finished(i32),
-    LineEmitted(Line),
-}
-
-impl Debug for Line {
-    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
-        write!(
-            f,
-            "{:?}({})",
-            self.line_type,
-            String::from_utf8_lossy(&self.line)
-        )
-    }
-}
-
-pub struct Output {
-    pub exit_status: ExitStatus,
-    pub output_lines: Vec<Line>,
-}
 
 fn capture_lines<R: Read + Send + 'static>(
     reader: R,
@@ -151,8 +118,12 @@ mod tests {
     use super::Type::Out;
     use super::*;
     use std::process::Command;
-
-    impl ExecEvent {
+    trait ExecEventHelper {
+        fn line(s: &str, line_type: Type) -> ExecEvent;
+        fn out(s: &str) -> ExecEvent;
+        fn err(s: &str) -> ExecEvent;
+    }
+    impl ExecEventHelper for ExecEvent {
         fn line(s: &str, line_type: Type) -> ExecEvent {
             ExecEvent::LineEmitted(Line {
                 line_type,
