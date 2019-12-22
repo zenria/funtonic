@@ -261,7 +261,7 @@ dependencies = [
 
 [[package]]
 name = "commander"
-version = "0.10.1"
+version = "0.12.0"
 dependencies = [
  "anyhow 1.0.25 (registry+https://github.com/rust-lang/crates.io-index)",
  "atty 0.2.13 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -808,7 +808,7 @@ dependencies = [
 name = "integration"
 version = "0.1.0"
 dependencies = [
- "commander 0.10.1",
+ "commander 0.12.0",
  "env_logger 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "executor 0.12.0",
  "funtonic 0.11.0",
