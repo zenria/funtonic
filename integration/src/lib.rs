@@ -20,10 +20,6 @@ mod tests {
     fn init_logger() {
         INIT_LOGGER.call_once(|| env_logger::builder().filter_level(LevelFilter::Info).init())
     }
-    #[test]
-    fn dummy() {
-        assert!(true)
-    }
 
     #[tokio::test]
     async fn no_tls_test() {

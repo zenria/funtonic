@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate log;
 
+use exec::a_sync;
 use exec::sync::exec_command;
 use exec::*;
 use funtonic::config::{Config, Role};
@@ -122,11 +123,11 @@ async fn do_executor_main(
         let task_payload = task.task_payload.unwrap();
         info!("Received task {} - {}", task_id, task_payload.payload);
 
-        let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
+        //let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
         // unconditionnaly ping so the task will be "consumed" on the server
-        if let Err(_) = sender.send(ExecutionResult::Ping(Empty {})) {}
+        //if let Err(_) = sender.send(ExecutionResult::Ping(Empty {})) {}
         // TODO handle error (this should also be an event)
-        let (exec_receiver, kill_sender) = exec_command(&task_payload.payload).unwrap();
+        /*let (exec_receiver, kill_sender) = exec_command(&task_payload.payload).unwrap();
         tokio::task::spawn_blocking(move || {
             for exec_event in exec_receiver {
                 let execution_result = match exec_event {
@@ -144,15 +145,31 @@ async fn do_executor_main(
                 // ignore send errors, continue to consume the execution results
                 let _ = sender.send(execution_result);
             }
-        });
+        });*/
 
         let cloned_task_id = task_id.clone();
         let cloned_client_id = client_id.clone();
-        let stream = receiver.map(move |execution_result| TaskExecutionResult {
-            task_id: task_id.clone(),
-            client_id: cloned_client_id.clone(),
-            execution_result: Some(execution_result),
-        });
+
+        let (exec_receiver, kill_sender) = a_sync::exec_command(&task_payload.payload)?;
+
+        let stream = exec_receiver
+            .map(|exec_event| match exec_event {
+                ExecEvent::Started => ExecutionResult::Ping(Empty {}),
+                ExecEvent::Finished(return_code) => {
+                    ExecutionResult::TaskCompleted(TaskCompleted { return_code })
+                }
+                ExecEvent::LineEmitted(line) => ExecutionResult::TaskOutput(TaskOutput {
+                    output: Some(match &line.line_type {
+                        Type::Out => Output::Stdout(String::from_utf8_lossy(&line.line).into()),
+                        Type::Err => Output::Stderr(String::from_utf8_lossy(&line.line).into()),
+                    }),
+                }),
+            })
+            .map(move |execution_result| TaskExecutionResult {
+                task_id: task_id.clone(),
+                client_id: cloned_client_id.clone(),
+                execution_result: Some(execution_result),
+            });
 
         let mut request = Request::new(stream);
         request.metadata_mut().insert(
@@ -161,7 +178,7 @@ async fn do_executor_main(
         );
         client.task_execution(request).await?;
         // do not leave process behind
-        let _ = kill_sender.try_send(());
+        let _ = kill_sender.send(());
         info!("Waiting for next task")
     }
 
