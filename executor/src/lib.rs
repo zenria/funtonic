@@ -2,7 +2,6 @@
 extern crate log;
 
 use exec::a_sync;
-use exec::sync::exec_command;
 use exec::*;
 use funtonic::config::{Config, Role};
 use funtonic::executor_meta::{ExecutorMeta, Tag};
@@ -122,30 +121,6 @@ async fn do_executor_main(
         let task_id = task.task_id;
         let task_payload = task.task_payload.unwrap();
         info!("Received task {} - {}", task_id, task_payload.payload);
-
-        //let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
-        // unconditionnaly ping so the task will be "consumed" on the server
-        //if let Err(_) = sender.send(ExecutionResult::Ping(Empty {})) {}
-        // TODO handle error (this should also be an event)
-        /*let (exec_receiver, kill_sender) = exec_command(&task_payload.payload).unwrap();
-        tokio::task::spawn_blocking(move || {
-            for exec_event in exec_receiver {
-                let execution_result = match exec_event {
-                    ExecEvent::Started => ExecutionResult::Ping(Empty {}),
-                    ExecEvent::Finished(return_code) => {
-                        ExecutionResult::TaskCompleted(TaskCompleted { return_code })
-                    }
-                    ExecEvent::LineEmitted(line) => ExecutionResult::TaskOutput(TaskOutput {
-                        output: Some(match &line.line_type {
-                            Type::Out => Output::Stdout(String::from_utf8_lossy(&line.line).into()),
-                            Type::Err => Output::Stderr(String::from_utf8_lossy(&line.line).into()),
-                        }),
-                    }),
-                };
-                // ignore send errors, continue to consume the execution results
-                let _ = sender.send(execution_result);
-            }
-        });*/
 
         let cloned_task_id = task_id.clone();
         let cloned_client_id = client_id.clone();

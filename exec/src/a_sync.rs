@@ -1,10 +1,12 @@
 use crate::{ExecEvent, Line, Type};
+use futures::future::join_all;
 use futures::{select, FutureExt};
 use std::process::Stdio;
 use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot::{Receiver, Sender};
+use tokio::task::JoinHandle;
 
 #[derive(thiserror::Error, Debug)]
 pub enum InternalError {
@@ -32,21 +34,36 @@ pub fn exec_command(
     let stdout = child.stdout().take().ok_or(InternalError::NoStdOut)?;
     let stderr = child.stderr().take().ok_or(InternalError::NoStdErr)?;
 
-    tokio::spawn(wait_for_exit(child, kill_receiver, sender.clone()));
-    tokio::spawn(read_output_stream(Type::Out, stdout, sender.clone()));
-    tokio::spawn(read_output_stream(Type::Err, stderr, sender));
+    let stdout_join = tokio::spawn(read_output_stream(Type::Out, stdout, sender.clone()));
+    let stderr_join = tokio::spawn(read_output_stream(Type::Err, stderr, sender.clone()));
+    tokio::spawn(wait_for_exit(
+        child,
+        kill_receiver,
+        sender.clone(),
+        vec![stdout_join, stderr_join],
+    ));
 
     Ok((receiver, kill_sender))
 }
 
-async fn wait_for_exit(child: Child, kill_recv: Receiver<()>, sender: UnboundedSender<ExecEvent>) {
+async fn wait_for_exit(
+    child: Child,
+    kill_recv: Receiver<()>,
+    sender: UnboundedSender<ExecEvent>,
+    streams_join: Vec<JoinHandle<()>>,
+) {
     if let Err(e) = sender.send(ExecEvent::Started) {
         // this should not happen however
         warn!("Unable to send started event {}", e)
     }
+    let mut kill_recv = kill_recv.fuse();
+
+    select! {
+        _ = join_all(streams_join).fuse() => (),
+        _ = kill_recv => return
+    }
 
     let mut child = child.fuse();
-    let mut kill_recv = kill_recv.fuse();
 
     select! {
         status = child =>{
@@ -59,6 +76,7 @@ async fn wait_for_exit(child: Child, kill_recv: Receiver<()>, sender: UnboundedS
         _ = kill_recv => {
             // this function will exit, thus the child future will be dropped and
             // and the child process will be killed
+            return;
         }
     }
 }

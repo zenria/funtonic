@@ -5,7 +5,6 @@ use std::fmt::{Debug, Formatter};
 use std::process::ExitStatus;
 
 pub mod a_sync;
-pub mod sync;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum Type {
