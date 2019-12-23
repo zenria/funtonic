@@ -10,9 +10,10 @@ use futures::StreamExt;
 use grpc_service::task_execution_result::ExecutionResult;
 use grpc_service::task_output::Output;
 use grpc_service::tasks_manager_client::TasksManagerClient;
-use grpc_service::{Empty, TaskCompleted, TaskExecutionResult, TaskOutput};
+use grpc_service::{Empty, TaskCompleted, TaskExecutionResult, TaskOutput, TaskPayload};
 use http::Uri;
 use std::collections::HashMap;
+use std::error::Error;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Duration;
@@ -116,46 +117,76 @@ async fn do_executor_main(
 
     let mut response = client.get_tasks(request).await?.into_inner();
 
+    //let client = Arc::new(Mutex::new(client));
+
     while let Some(task) = response.message().await? {
         // by convention this field is always here, so we can "safely" unwrap
         let task_id = task.task_id;
         let task_payload = task.task_payload.unwrap();
         info!("Received task {} - {}", task_id, task_payload.payload);
 
-        let cloned_task_id = task_id.clone();
-        let cloned_client_id = client_id.clone();
-
-        let (exec_receiver, kill_sender) = a_sync::exec_command(&task_payload.payload)?;
-
-        let stream = exec_receiver
-            .map(|exec_event| match exec_event {
-                ExecEvent::Started => ExecutionResult::Ping(Empty {}),
-                ExecEvent::Finished(return_code) => {
-                    ExecutionResult::TaskCompleted(TaskCompleted { return_code })
-                }
-                ExecEvent::LineEmitted(line) => ExecutionResult::TaskOutput(TaskOutput {
-                    output: Some(match &line.line_type {
-                        Type::Out => Output::Stdout(line.line),
-                        Type::Err => Output::Stderr(line.line),
-                    }),
-                }),
-            })
-            .map(move |execution_result| TaskExecutionResult {
-                task_id: task_id.clone(),
-                client_id: cloned_client_id.clone(),
-                execution_result: Some(execution_result),
-            });
-
-        let mut request = Request::new(stream);
-        request.metadata_mut().insert(
-            "task_id",
-            AsciiMetadataValue::from_str(&cloned_task_id).unwrap(),
-        );
-        client.task_execution(request).await?;
-        // do not leave process behind
-        let _ = kill_sender.send(());
+        tokio::spawn(execute_task(
+            task_payload,
+            task_id,
+            client_id.clone(),
+            client.clone(),
+        ));
         info!("Waiting for next task")
     }
 
+    Ok(())
+}
+
+async fn execute_task(
+    task_payload: TaskPayload,
+    task_id: String,
+    client_id: String,
+    client: TasksManagerClient<Channel>,
+) {
+    match do_execute_task(task_payload, task_id, client_id, client).await {
+        Ok(_) => (),
+        Err(e) => error!("Something wrong happened while executing task {}", e),
+    }
+}
+
+async fn do_execute_task(
+    task_payload: TaskPayload,
+    task_id: String,
+    client_id: String,
+    mut client: TasksManagerClient<Channel>,
+) -> Result<(), Box<dyn Error>> {
+    let cloned_task_id = task_id.clone();
+    let cloned_client_id = client_id.clone();
+
+    let (exec_receiver, kill_sender) = a_sync::exec_command(&task_payload.payload)?;
+
+    let stream = exec_receiver
+        .map(|exec_event| match exec_event {
+            ExecEvent::Started => ExecutionResult::Ping(Empty {}),
+            ExecEvent::Finished(return_code) => {
+                ExecutionResult::TaskCompleted(TaskCompleted { return_code })
+            }
+            ExecEvent::LineEmitted(line) => ExecutionResult::TaskOutput(TaskOutput {
+                output: Some(match &line.line_type {
+                    Type::Out => Output::Stdout(line.line),
+                    Type::Err => Output::Stderr(line.line),
+                }),
+            }),
+        })
+        .map(move |execution_result| TaskExecutionResult {
+            task_id: task_id.clone(),
+            client_id: cloned_client_id.clone(),
+            execution_result: Some(execution_result),
+        });
+
+    let mut request = Request::new(stream);
+    request.metadata_mut().insert(
+        "task_id",
+        AsciiMetadataValue::from_str(&cloned_task_id).unwrap(),
+    );
+    client.task_execution(request).await?;
+    // do not leave process behind
+    let _ = kill_sender.send(());
+    info!("Finished task {}", cloned_task_id);
     Ok(())
 }
