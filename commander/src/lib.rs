@@ -5,6 +5,7 @@ use atty::Stream;
 use colored::{Color, Colorize};
 use funtonic::config::{Config, Role};
 use funtonic::CLIENT_TOKEN_HEADER;
+use grpc_service::launch_task_request::Task;
 use grpc_service::launch_task_response::TaskResponse;
 use grpc_service::task_execution_result::ExecutionResult;
 use grpc_service::task_output::Output;
@@ -94,7 +95,7 @@ pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std:
         parse(&opt.query)?;
 
         let mut request = tonic::Request::new(LaunchTaskRequest {
-            task_payload: Some(TaskPayload { payload: command }),
+            task: Some(Task::TaskPayload(TaskPayload { payload: command })),
             predicate: opt.query.clone(),
         });
         request.metadata_mut().append(

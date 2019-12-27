@@ -2,6 +2,7 @@ use crate::executor_meta::ExecutorMeta;
 use crate::CLIENT_TOKEN_HEADER;
 use futures::channel::mpsc;
 use futures::{SinkExt, StreamExt};
+use grpc_service::launch_task_request::Task;
 use grpc_service::launch_task_response::TaskResponse;
 use grpc_service::task_execution_result::ExecutionResult;
 use grpc_service::tasks_manager_server::*;
@@ -247,7 +248,13 @@ impl TasksManager for TaskServer {
 
         let request = request.get_ref();
         let query = &request.predicate;
-        let payload = request.task_payload.as_ref().unwrap();
+        let payload = match request.task.as_ref().unwrap() {
+            Task::TaskPayload(payload) => payload,
+            Task::StreamingPayload(_) => {
+                return Err(Status::new(Code::Internal, "not implemented"))
+            }
+        };
+        //let payload = request.task_payload.as_ref().unwrap();
 
         // this channel will be sent to the matching executors. the executors will then register it so
         // further task progression reporting could be sent o

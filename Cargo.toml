@@ -8,5 +8,6 @@ members = [
     "commander",
     "taskserver",
     "integration",
-    "exec"
+    "exec",
+    "sandbox"
 ]

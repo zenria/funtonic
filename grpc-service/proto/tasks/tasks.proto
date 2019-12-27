@@ -1,16 +1,19 @@
-// Copyright 2015 gRPC authors.
 //
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
+//  Command Execution:
+//    -> predicate
+//    -> command payload
+//  => stream tasks
 //
-//     http://www.apache.org/licenses/LICENSE-2.0
+//  File Upload:
+//    -> predicate
+//    -> file path
+//  => matching+streamId
+//  => clients acks (path creation etc...)
+//    -> data stream
 //
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+//
+//
+//
 
 syntax = "proto3";
 
@@ -57,12 +60,23 @@ message GetTaskStreamReply {
 }
 
 message LaunchTaskRequest {
-  TaskPayload taskPayload=1;
   string predicate=2;
+  oneof task {
+    TaskPayload taskPayload=1;
+    StreamingPayload streamingPayload=3;
+  }
 }
 
 message TaskPayload {
   string payload=1;
+}
+
+message StreamingPayload {
+  string streamId = 1;
+  oneof payload {
+    bytes bytes = 2;
+    Empty eof = 3;
+  }
 }
 
 message TaskCompleted {

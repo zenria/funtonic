@@ -117,8 +117,6 @@ async fn do_executor_main(
 
     let mut response = client.get_tasks(request).await?.into_inner();
 
-    //let client = Arc::new(Mutex::new(client));
-
     while let Some(task) = response.message().await? {
         // by convention this field is always here, so we can "safely" unwrap
         let task_id = task.task_id;
