@@ -7,4 +7,6 @@
 /common/tls/*.csr
 /common/tls/*.json
 /grpc-service/src/tasks.rs
+/director/front/node_modules
+/director/front/build
 
