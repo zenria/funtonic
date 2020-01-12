@@ -16,3 +16,5 @@ structopt="0.3"
 futures="0.3"
 http="0.2"
 funtonic={path="../common"}
+tokio="0.2"
+log4rs-gelf = "0.1"

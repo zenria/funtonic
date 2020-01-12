@@ -1,6 +1,7 @@
 import React, {useState, useEffect} from 'react';
 import './App.css';
 import {Version, version} from "./api";
+import {CircularProgress} from "@material-ui/core";
 
 
 const VersionComp: React.FC = () => {
@@ -16,7 +17,11 @@ const VersionComp: React.FC = () => {
         fetchData();
     });
 
-    return data == null ? null :
+    return data == null ?
+        <div>
+            <CircularProgress />
+        </div>
+        :
         <div>
             <p>director: {data?.director}</p>
             <p>core: {data?.core}</p>
