@@ -134,6 +134,37 @@ pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std:
                 TaskResponse::TaskExecutionResult(task_execution_result) => {
                     let client_id = &task_execution_result.client_id;
                     match task_execution_result.execution_result.unwrap() {
+                        ExecutionResult::TaskAborted(_) => {
+                            debug!("Tasks completed on {} (KILLED)", client_id);
+                            *executors
+                                .entry(client_id.clone())
+                                .or_insert(ExecutorState::Matching) = ExecutorState::Error;
+                            if let Some(pb) = &pb {
+                                pb.inc(1);
+                            }
+                            if opt.group {
+                                if let Some(lines) = executors_output.remove(client_id) {
+                                    match &pb {
+                                        None => {
+                                            println!("{} {}:", "########".green(), client_id);
+                                            for line in lines {
+                                                println!("{}", line);
+                                            }
+                                        }
+                                        Some(pb) => {
+                                            pb.println(format!(
+                                                "{} {}:",
+                                                "########".green(),
+                                                client_id
+                                            ));
+                                            for line in lines {
+                                                pb.println(line);
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         ExecutionResult::TaskCompleted(completion) => {
                             debug!(
                                 "Tasks completed on {} with exit code: {}",

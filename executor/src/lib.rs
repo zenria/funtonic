@@ -8,6 +8,7 @@ use funtonic::executor_meta::{ExecutorMeta, Tag};
 use funtonic::PROTOCOL_VERSION;
 use futures::StreamExt;
 use grpc_service::task_execution_result::ExecutionResult;
+use grpc_service::task_execution_result::ExecutionResult::TaskAborted;
 use grpc_service::task_output::Output;
 use grpc_service::tasks_manager_client::TasksManagerClient;
 use grpc_service::{Empty, TaskCompleted, TaskExecutionResult, TaskOutput, TaskPayload};
@@ -161,9 +162,10 @@ async fn do_execute_task(
     let stream = exec_receiver
         .map(|exec_event| match exec_event {
             ExecEvent::Started => ExecutionResult::Ping(Empty {}),
-            ExecEvent::Finished(return_code) => {
-                ExecutionResult::TaskCompleted(TaskCompleted { return_code })
-            }
+            ExecEvent::Finished(return_code) => match return_code {
+                None => ExecutionResult::TaskAborted(Empty {}),
+                Some(return_code) => ExecutionResult::TaskCompleted(TaskCompleted { return_code }),
+            },
             ExecEvent::LineEmitted(line) => ExecutionResult::TaskOutput(TaskOutput {
                 output: Some(match &line.line_type {
                     Type::Out => Output::Stdout(line.line),

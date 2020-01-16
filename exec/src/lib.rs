@@ -20,7 +20,7 @@ pub struct Line {
 #[derive(Eq, PartialEq, Debug)]
 pub enum ExecEvent {
     Started,
-    Finished(i32),
+    Finished(Option<i32>),
     LineEmitted(Line),
 }
 

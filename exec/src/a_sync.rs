@@ -68,7 +68,7 @@ async fn wait_for_exit(
     select! {
         status = child =>{
             let status = status.expect("child process encountered an error");
-            if let Err(e) = sender.send(ExecEvent::Finished(status.code().unwrap())) {
+            if let Err(e) = sender.send(ExecEvent::Finished(status.code())) {
                 // this should not happen however
                 warn!("Unable to send finished execution result {}", e)
             }
@@ -129,7 +129,7 @@ mod test {
                 ExecEvent::Started,
                 ExecEvent::out("foo"),
                 ExecEvent::out("bar"),
-                ExecEvent::Finished(0)
+                ExecEvent::Finished(Some(0))
             ],
         );
 
@@ -142,7 +142,7 @@ mod test {
             vec![
                 ExecEvent::Started,
                 ExecEvent::out("foo"),
-                ExecEvent::Finished(123)
+                ExecEvent::Finished(Some(123))
             ],
         );
 
@@ -155,7 +155,7 @@ mod test {
             vec![
                 ExecEvent::Started,
                 ExecEvent::err("bar"),
-                ExecEvent::Finished(5)
+                ExecEvent::Finished(Some(5))
             ],
         );
     }

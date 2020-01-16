@@ -9,6 +9,5 @@ members = [
     "taskserver",
     "integration",
     "exec",
-    "sandbox",
     "director"
 ]

@@ -82,7 +82,6 @@ message StreamingPayload {
 message TaskCompleted {
   int32 returnCode=1;
 }
-
 message TaskOutput {
   oneof output {
     string stdout=1;
@@ -111,6 +110,8 @@ message TaskExecutionResult {
     Empty disconnected=6;
     // Executor is known by the taskserver and the task payload has been successfully sent
     Empty taskSubmitted = 8;
+    // Task exited without any status (killed)
+    Empty taskAborted = 9;
   }
 }
 message Empty {
