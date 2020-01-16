@@ -8,7 +8,6 @@ use funtonic::executor_meta::{ExecutorMeta, Tag};
 use funtonic::PROTOCOL_VERSION;
 use futures::StreamExt;
 use grpc_service::task_execution_result::ExecutionResult;
-use grpc_service::task_execution_result::ExecutionResult::TaskAborted;
 use grpc_service::task_output::Output;
 use grpc_service::tasks_manager_client::TasksManagerClient;
 use grpc_service::{Empty, TaskCompleted, TaskExecutionResult, TaskOutput, TaskPayload};

@@ -22,7 +22,7 @@ pub fn exec_command(
     let mut child = Command::new("sh")
         .arg("-c")
         .arg(command)
-        .stdin(Stdio::piped())
+        .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true) // needed to allow the command to be killed on kill event
@@ -31,8 +31,8 @@ pub fn exec_command(
     let (sender, receiver) = tokio::sync::mpsc::unbounded_channel();
     let (kill_sender, kill_receiver) = tokio::sync::oneshot::channel::<()>();
 
-    let stdout = child.stdout().take().ok_or(InternalError::NoStdOut)?;
-    let stderr = child.stderr().take().ok_or(InternalError::NoStdErr)?;
+    let stdout = child.stdout.take().ok_or(InternalError::NoStdOut)?;
+    let stderr = child.stderr.take().ok_or(InternalError::NoStdErr)?;
 
     let stdout_join = tokio::spawn(read_output_stream(Type::Out, stdout, sender.clone()));
     let stderr_join = tokio::spawn(read_output_stream(Type::Err, stderr, sender.clone()));
@@ -115,7 +115,6 @@ mod test {
     use super::*;
     use crate::*;
     use futures::stream::StreamExt;
-    use log::LevelFilter;
 
     #[tokio::test]
     async fn test() {
