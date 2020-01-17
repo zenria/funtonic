@@ -36,6 +36,7 @@ message GetTasksRequest {
   string clientId = 1;
   string clientVersion = 2;
   map<string, Tag> tags = 3;
+  string clientProtocolVersion = 4;
 }
 
 message Tag {

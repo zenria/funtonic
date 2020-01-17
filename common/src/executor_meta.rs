@@ -1,5 +1,5 @@
 use crate::config::ExecutorConfig;
-use crate::VERSION;
+use crate::{PROTOCOL_VERSION, VERSION};
 use grpc_service::{GetTasksRequest, ValueList, ValueMap};
 use query_parser::{Query, QueryMatcher};
 use serde::{Deserialize, Serialize};
@@ -40,6 +40,8 @@ impl From<&ExecutorMeta> for GetTasksRequest {
                 .iter()
                 .map(|(tag_name, tag_value)| (tag_name.clone(), grpc_service::Tag::from(tag_value)))
                 .collect(),
+
+            client_protocol_version: PROTOCOL_VERSION.into(),
         }
     }
 }

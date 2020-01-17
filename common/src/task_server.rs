@@ -1,5 +1,5 @@
 use crate::executor_meta::ExecutorMeta;
-use crate::CLIENT_TOKEN_HEADER;
+use crate::{CLIENT_TOKEN_HEADER, PROTOCOL_VERSION};
 use futures::channel::mpsc;
 use futures::{SinkExt, StreamExt};
 use grpc_service::launch_task_request::Task;
@@ -156,6 +156,22 @@ impl TasksManager for TaskServer {
     ) -> Result<tonic::Response<Self::GetTasksStream>, tonic::Status> {
         let metadata = request.metadata();
         let request = request.get_ref();
+
+        // Strict protocol version check
+        if request.client_protocol_version != PROTOCOL_VERSION {
+            warn!(
+                "{} has protocol version {}, but expecting protovol version {}",
+                request.client_id, request.client_protocol_version, PROTOCOL_VERSION
+            );
+            Err(tonic::Status::new(
+                Code::FailedPrecondition,
+                format!(
+                    "Expecting protocol version {} but got {}",
+                    PROTOCOL_VERSION, request.client_protocol_version
+                ),
+            ))?;
+        }
+
         let client_id = request.client_id.clone();
         info!("{} connected with meta {:?}", client_id, metadata);
         // register the client and wait for new tasks to come, forward them
@@ -205,6 +221,12 @@ impl TasksManager for TaskServer {
                     task_execution_stream.client_id, task_id
                 );
                 if let Some(execution_result) = &task_execution_stream.execution_result {
+                    if let ExecutionResult::TaskAborted(_) = execution_result {
+                        info!(
+                            "Task {} aborted (killed) on {}",
+                            task_id, task_execution_stream.client_id,
+                        );
+                    }
                     if let ExecutionResult::TaskCompleted(completed) = execution_result {
                         info!(
                             "Task {} completed with code {} on {}",
@@ -217,7 +239,7 @@ impl TasksManager for TaskServer {
                     .await
                 {
                     warn!(
-                        "Commander disconnected for task {}, task will be killed by executor.",
+                        "Commander disconnected for task {}, task will be killed by executor if not already done.",
                         task_id
                     );
                     break;
