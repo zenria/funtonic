@@ -7,10 +7,12 @@ use funtonic::config::{Config, Role};
 use funtonic::executor_meta::{ExecutorMeta, Tag};
 use funtonic::PROTOCOL_VERSION;
 use futures::StreamExt;
-use grpc_service::task_execution_result::ExecutionResult;
-use grpc_service::task_output::Output;
-use grpc_service::tasks_manager_client::TasksManagerClient;
-use grpc_service::{Empty, TaskCompleted, TaskExecutionResult, TaskOutput, TaskPayload};
+use grpc_service::grpc_protocol::task_execution_result::ExecutionResult;
+use grpc_service::grpc_protocol::task_output::Output;
+use grpc_service::grpc_protocol::tasks_manager_client::TasksManagerClient;
+use grpc_service::grpc_protocol::{
+    Empty, TaskCompleted, TaskExecutionResult, TaskOutput, TaskPayload,
+};
 use http::Uri;
 use std::collections::HashMap;
 use std::error::Error;

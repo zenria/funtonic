@@ -1,6 +1,6 @@
 use crate::config::ExecutorConfig;
 use crate::{PROTOCOL_VERSION, VERSION};
-use grpc_service::{GetTasksRequest, ValueList, ValueMap};
+use grpc_service::grpc_protocol::{GetTasksRequest, ValueList, ValueMap};
 use query_parser::{Query, QueryMatcher};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -38,7 +38,12 @@ impl From<&ExecutorMeta> for GetTasksRequest {
             tags: m
                 .tags
                 .iter()
-                .map(|(tag_name, tag_value)| (tag_name.clone(), grpc_service::Tag::from(tag_value)))
+                .map(|(tag_name, tag_value)| {
+                    (
+                        tag_name.clone(),
+                        grpc_service::grpc_protocol::Tag::from(tag_value),
+                    )
+                })
                 .collect(),
 
             client_protocol_version: PROTOCOL_VERSION.into(),
@@ -61,33 +66,33 @@ impl From<&GetTasksRequest> for ExecutorMeta {
 }
 
 // protobuf types are really painful
-impl From<&Tag> for grpc_service::Tag {
+impl From<&Tag> for grpc_service::grpc_protocol::Tag {
     fn from(t: &Tag) -> Self {
         Self {
             tag: Some(match t {
-                Tag::Map(m) => grpc_service::tag::Tag::ValueMap(ValueMap {
+                Tag::Map(m) => grpc_service::grpc_protocol::tag::Tag::ValueMap(ValueMap {
                     values: m.iter().map(|(k, tag)| (k.clone(), tag.into())).collect(),
                 }),
-                Tag::List(l) => grpc_service::tag::Tag::ValueList(ValueList {
+                Tag::List(l) => grpc_service::grpc_protocol::tag::Tag::ValueList(ValueList {
                     values: l.iter().map(|v| v.into()).collect(),
                 }),
-                Tag::Value(v) => grpc_service::tag::Tag::Value(v.clone()),
+                Tag::Value(v) => grpc_service::grpc_protocol::tag::Tag::Value(v.clone()),
             }),
         }
     }
 }
 // protobuf types are really painful
-impl From<&grpc_service::Tag> for Tag {
-    fn from(t: &grpc_service::Tag) -> Self {
+impl From<&grpc_service::grpc_protocol::Tag> for Tag {
+    fn from(t: &grpc_service::grpc_protocol::Tag) -> Self {
         match t.tag.as_ref().unwrap() {
-            grpc_service::tag::Tag::Value(v) => Tag::Value(v.clone()),
-            grpc_service::tag::Tag::ValueMap(m) => Tag::Map(
+            grpc_service::grpc_protocol::tag::Tag::Value(v) => Tag::Value(v.clone()),
+            grpc_service::grpc_protocol::tag::Tag::ValueMap(m) => Tag::Map(
                 m.values
                     .iter()
                     .map(|(k, tag)| (k.clone(), tag.into()))
                     .collect(),
             ),
-            grpc_service::tag::Tag::ValueList(l) => {
+            grpc_service::grpc_protocol::tag::Tag::ValueList(l) => {
                 Tag::List(l.values.iter().map(|v| v.into()).collect())
             }
         }

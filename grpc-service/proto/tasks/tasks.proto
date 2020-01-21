@@ -21,7 +21,7 @@ option java_multiple_files = true;
 option java_package = "fr.gassmann.funtonic";
 option java_outer_classname = "TasksProto";
 
-package tasks;
+package grpc_protocol;
 
 service TasksManager {
 

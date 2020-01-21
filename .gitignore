@@ -10,3 +10,4 @@
 /director/front/node_modules
 /director/front/build
 
+/grpc-service/src/grpc_protocol.rs
