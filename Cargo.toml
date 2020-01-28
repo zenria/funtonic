@@ -11,3 +11,6 @@ members = [
     "exec",
     "director"
 ]
+
+[profile.release]
+lto="fat"
