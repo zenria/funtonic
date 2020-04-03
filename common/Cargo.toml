@@ -8,7 +8,7 @@ edition = "2018"
 
 [dependencies]
 #tonic={git="https://github.com/zenria/tonic.git", features=["tokio-rustls", "tls"], branch = "master" }
-tonic={version="0.1.0-beta.1", features=["tokio-rustls", "tls"] }
+tonic={version="0.2.0", features=["tokio-rustls", "tls"] }
 rand = "0.7.2"
 
 tokio = {version="0.2", features=["full"]}
