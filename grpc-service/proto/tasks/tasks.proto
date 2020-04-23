@@ -57,19 +57,19 @@ message ValueList {
 
 message GetTaskStreamReply {
   string taskId = 1;
-  TaskPayload taskPayload = 2;
+  ExecuteCommand executeCommand = 2;
 }
 
 message LaunchTaskRequest {
   string predicate=2;
   oneof task {
-    TaskPayload taskPayload=1;
+    ExecuteCommand executeCommand=1;
     StreamingPayload streamingPayload=3;
   }
 }
 
-message TaskPayload {
-  string payload=1;
+message ExecuteCommand {
+  string command=1;
 }
 
 message StreamingPayload {

@@ -10,7 +10,7 @@ use grpc_service::grpc_protocol::launch_task_response::TaskResponse;
 use grpc_service::grpc_protocol::task_execution_result::ExecutionResult;
 use grpc_service::grpc_protocol::task_output::Output;
 use grpc_service::grpc_protocol::tasks_manager_client::TasksManagerClient;
-use grpc_service::grpc_protocol::{LaunchTaskRequest, TaskPayload};
+use grpc_service::grpc_protocol::{ExecuteCommand, LaunchTaskRequest};
 use http::Uri;
 use indicatif::ProgressBar;
 use query_parser::parse;
@@ -95,7 +95,7 @@ pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std:
         parse(&opt.query)?;
 
         let mut request = tonic::Request::new(LaunchTaskRequest {
-            task: Some(Task::TaskPayload(TaskPayload { payload: command })),
+            task: Some(Task::ExecuteCommand(ExecuteCommand { command: command })),
             predicate: opt.query.clone(),
         });
         request.metadata_mut().append(

@@ -11,7 +11,7 @@ use grpc_service::grpc_protocol::task_execution_result::ExecutionResult;
 use grpc_service::grpc_protocol::task_output::Output;
 use grpc_service::grpc_protocol::tasks_manager_client::TasksManagerClient;
 use grpc_service::grpc_protocol::{
-    Empty, TaskCompleted, TaskExecutionResult, TaskOutput, TaskPayload,
+    Empty, ExecuteCommand, TaskCompleted, TaskExecutionResult, TaskOutput,
 };
 use http::Uri;
 use std::collections::HashMap;
@@ -122,8 +122,8 @@ async fn do_executor_main(
     while let Some(task) = response.message().await? {
         // by convention this field is always here, so we can "safely" unwrap
         let task_id = task.task_id;
-        let task_payload = task.task_payload.unwrap();
-        info!("Received task {} - {}", task_id, task_payload.payload);
+        let task_payload = task.execute_command.unwrap();
+        info!("Received task {} - {}", task_id, task_payload.command);
 
         tokio::spawn(execute_task(
             task_payload,
@@ -138,7 +138,7 @@ async fn do_executor_main(
 }
 
 async fn execute_task(
-    task_payload: TaskPayload,
+    task_payload: ExecuteCommand,
     task_id: String,
     client_id: String,
     client: TasksManagerClient<Channel>,
@@ -150,7 +150,7 @@ async fn execute_task(
 }
 
 async fn do_execute_task(
-    task_payload: TaskPayload,
+    execute_command: ExecuteCommand,
     task_id: String,
     client_id: String,
     mut client: TasksManagerClient<Channel>,
@@ -158,7 +158,7 @@ async fn do_execute_task(
     let cloned_task_id = task_id.clone();
     let cloned_client_id = client_id.clone();
 
-    let (exec_receiver, kill_sender) = a_sync::exec_command(&task_payload.payload)?;
+    let (exec_receiver, kill_sender) = a_sync::exec_command(&execute_command.command)?;
 
     let stream = exec_receiver
         .map(|exec_event| match exec_event {

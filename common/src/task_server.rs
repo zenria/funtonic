@@ -28,7 +28,10 @@ pub struct TaskServer {
     /// executors by id: when a task must be submited to an executor,
     /// a Sender is sent to each matching executor
     executors: Mutex<
-        HashMap<String, mpsc::UnboundedSender<(TaskPayload, mpsc::UnboundedSender<TaskResponse>)>>,
+        HashMap<
+            String,
+            mpsc::UnboundedSender<(ExecuteCommand, mpsc::UnboundedSender<TaskResponse>)>,
+        >,
     >,
 
     /// by task id, sinks where executors reports task execution
@@ -88,7 +91,7 @@ impl TaskServer {
     ) -> Result<
         Vec<(
             String,
-            Option<mpsc::UnboundedSender<(TaskPayload, mpsc::UnboundedSender<TaskResponse>)>>,
+            Option<mpsc::UnboundedSender<(ExecuteCommand, mpsc::UnboundedSender<TaskResponse>)>>,
         )>,
         RustBreakWrappedError,
     > {
@@ -120,7 +123,7 @@ impl TaskServer {
         &self,
         executor_meta: ExecutorMeta,
         sender_to_get_task_response: mpsc::UnboundedSender<(
-            TaskPayload,
+            ExecuteCommand,
             mpsc::UnboundedSender<TaskResponse>,
         )>,
     ) -> Result<(), RustBreakWrappedError> {
@@ -187,16 +190,16 @@ impl TasksManager for TaskServer {
 
         let tasks_sinks = self.tasks_sinks.clone();
 
-        let response_stream = receiver.map(move |(task_payload, sender_to_commander)| {
+        let response_stream = receiver.map(move |(execute_command, sender_to_commander)| {
             // for each new task, register the task and forward it to the executor stream
             let task_id = register_new_task(&tasks_sinks, sender_to_commander);
             info!(
                 "Sending task {} - {:?} to {}",
-                task_id, task_payload, client_id
+                task_id, execute_command, client_id
             );
             Ok(GetTaskStreamReply {
                 task_id,
-                task_payload: Some(task_payload),
+                execute_command: Some(execute_command),
             })
         });
 
@@ -270,8 +273,8 @@ impl TasksManager for TaskServer {
 
         let request = request.get_ref();
         let query = &request.predicate;
-        let payload = match request.task.as_ref().unwrap() {
-            Task::TaskPayload(payload) => payload,
+        let command = match request.task.as_ref().unwrap() {
+            Task::ExecuteCommand(command) => command,
             Task::StreamingPayload(_) => {
                 return Err(Status::new(Code::Internal, "not implemented"))
             }
@@ -284,7 +287,7 @@ impl TasksManager for TaskServer {
 
         info!(
             "Command received {:?} for {} with token {}",
-            payload,
+            command,
             query,
             token_name.unwrap()
         );
@@ -322,7 +325,7 @@ impl TasksManager for TaskServer {
             debug!("client {} matches query!", client_id);
             if let Some(executor_sender) = executor_sender {
                 match executor_sender
-                    .send((payload.clone(), sender.clone()))
+                    .send((command.clone(), sender.clone()))
                     .await
                 {
                     Err(_) => {
@@ -344,7 +347,7 @@ impl TasksManager for TaskServer {
                             })?;
                     }
                     Ok(..) => {
-                        info!("Command {:?} sent to {}", payload, client_id);
+                        info!("Command {:?} sent to {}", command, client_id);
                         sender
                             .send(TaskResponse::TaskExecutionResult(TaskExecutionResult {
                                 task_id: random_task_id(),
