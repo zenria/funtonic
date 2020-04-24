@@ -36,7 +36,9 @@ service TasksManager {
 
 message AdminRequest {
   oneof requestType {
+    /// return a map containing executor client id and metas
     Empty listConnectedExecutors = 1;
+    /// return a map containing executor client id and metas
     Empty listKnownExecutors = 2;
     Empty listRunningTasks = 3;
     Empty listTokens = 4;
@@ -46,7 +48,7 @@ message AdminRequest {
 message AdminRequestResponse {
   oneof responseKind {
     string error = 1;
-    string jsonReponse = 2;
+    string jsonResponse = 2;
   }
 }
 

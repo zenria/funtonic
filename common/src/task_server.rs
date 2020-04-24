@@ -3,6 +3,7 @@ use crate::{CLIENT_TOKEN_HEADER, PROTOCOL_VERSION};
 use futures::channel::mpsc;
 use futures::{SinkExt, StreamExt};
 use grpc_service::grpc_protocol::admin_request::RequestType;
+use grpc_service::grpc_protocol::admin_request_response::ResponseKind;
 use grpc_service::grpc_protocol::launch_task_request::Task;
 use grpc_service::grpc_protocol::launch_task_response::TaskResponse;
 use grpc_service::grpc_protocol::task_execution_result::ExecutionResult;
@@ -12,7 +13,7 @@ use query_parser::{parse, Query, QueryMatcher};
 use rand::Rng;
 use rustbreak::deser::Yaml;
 use rustbreak::{Database, FileDatabase};
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fs::File;
 use std::io::Write;
 use std::path::Path;
@@ -386,17 +387,79 @@ impl TasksManager for TaskServer {
         let token_name = self.verify_token(&request)?;
 
         let request = request.into_inner();
+        info!("{} - {:?}", token_name, request);
+
         match request
             .request_type
             .ok_or(Status::invalid_argument("Missing request type"))?
         {
-            RequestType::ListConnectedExecutors(_) => {}
-            RequestType::ListKnownExecutors(_) => {}
-            RequestType::ListRunningTasks(_) => {}
-            RequestType::ListTokens(_) => {}
+            RequestType::ListConnectedExecutors(_) => {
+                let connected_executors = self
+                    .executors
+                    .lock()
+                    .map_err(|_| Status::internal("Unable to lock"))?
+                    .iter()
+                    .map(|(client_id, _)| client_id.clone())
+                    .collect::<HashSet<_>>();
+                Ok(Response::new(AdminRequestResponse {
+                    response_kind: Some(ResponseKind::JsonResponse(
+                        self.executor_meta_database
+                            .read(|data| {
+                                serde_json::to_string(
+                                    &data
+                                        .iter()
+                                        .filter(|(client_id, _)| {
+                                            connected_executors.contains(*client_id)
+                                        })
+                                        .collect::<HashMap<_, _>>(),
+                                )
+                            })
+                            .map_err(|e| {
+                                Status::internal(format!("Unable to read database {}", e))
+                            })?
+                            .map_err(|deser| {
+                                Status::internal(format!("An error occured: {}", deser))
+                            })?,
+                    )),
+                }))
+            }
+            RequestType::ListKnownExecutors(_) => Ok(Response::new(AdminRequestResponse {
+                response_kind: Some(ResponseKind::JsonResponse(
+                    self.executor_meta_database
+                        .read(|data| serde_json::to_string(data))
+                        .map_err(|e| Status::internal(format!("Unable to read database {}", e)))?
+                        .map_err(|deser| {
+                            Status::internal(format!("An error occured: {}", deser))
+                        })?,
+                )),
+            })),
+            RequestType::ListRunningTasks(_) => Ok(Response::new(AdminRequestResponse {
+                response_kind: Some(ResponseKind::JsonResponse(
+                    serde_json::to_string(
+                        &self
+                            .tasks_sinks
+                            .lock()
+                            .map_err(|_| Status::internal("Unable to lock"))?
+                            .iter()
+                            .map(|(task_id, _)| task_id)
+                            .collect::<Vec<_>>(),
+                    )
+                    .map_err(|deser| Status::internal(format!("An error occured: {}", deser)))?,
+                )),
+            })),
+            RequestType::ListTokens(_) => Ok(Response::new(AdminRequestResponse {
+                response_kind: Some(ResponseKind::JsonResponse(
+                    serde_json::to_string(
+                        &self
+                            .authorized_client_tokens
+                            .iter()
+                            .map(|(_, token)| token)
+                            .collect::<Vec<_>>(),
+                    )
+                    .map_err(|deser| Status::internal(format!("An error occured: {}", deser)))?,
+                )),
+            })),
         }
-
-        unimplemented!()
     }
 }
 
