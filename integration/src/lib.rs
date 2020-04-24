@@ -3,7 +3,8 @@ mod test_utils;
 
 #[cfg(test)]
 mod tests {
-    use commander::{commander_main, Opt};
+    use commander::Command::Query;
+    use commander::{commander_main, Opt, QueryArgs};
     use executor::executor_main;
     use funtonic::config::Role::Commander;
     use funtonic::config::{
@@ -60,8 +61,13 @@ mod tests {
             group: false,
             no_progress: false,
             config: None,
-            query: "*".to_string(),
-            command: vec!["cat".into(), "Cargo.toml".into()],
+            command: Query(
+                QueryArgs {
+                    query: "*".to_string(),
+                    command: vec!["cat".into(), "Cargo.toml".into()],
+                }
+                .into(),
+            ),
         };
         std::thread::sleep(Duration::from_secs(1));
         commander_main(commander_opt, commander_config)
@@ -122,8 +128,13 @@ mod tests {
             group: false,
             no_progress: false,
             config: None,
-            query: "*".to_string(),
-            command: vec!["cat".into(), "Cargo.toml".into()],
+            command: Query(
+                QueryArgs {
+                    query: "*".to_string(),
+                    command: vec!["cat".into(), "Cargo.toml".into()],
+                }
+                .into(),
+            ),
         };
         std::thread::sleep(Duration::from_secs(1));
         assert!(commander_main(commander_opt, commander_config)
