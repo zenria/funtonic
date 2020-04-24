@@ -93,6 +93,15 @@ pub enum AdminArgs {
     ListRunningTasks,
     /// List all accepted tokens
     ListTokens,
+    /// Remove the executor from the taskserver
+    ///
+    /// Remove the executor from the taskserver database, close drop the communication channel if present
+    /// this should trigger a reconnect of the executor, and thus an update of the executor's metadata
+    /// If the executor is not alive it will be forgotten.
+    DropExecutor {
+        /// the client_id of the executor to drop
+        client_id: String,
+    },
 }
 #[derive(Debug)]
 pub struct QueryArgs {
@@ -383,6 +392,10 @@ async fn handle_admin_command(
         AdminArgs::ListTokens => AdminRequest {
             request_type: Some(RequestType::ListTokens(Empty {})),
         },
+
+        AdminArgs::DropExecutor { client_id } => AdminRequest {
+            request_type: Some(RequestType::DropExecutor(client_id)),
+        },
     };
 
     let mut request = tonic::Request::new(request);
@@ -393,7 +406,7 @@ async fn handle_admin_command(
 
     let response = client.admin(request).await?.into_inner();
     match response.response_kind.unwrap() {
-        ResponseKind::Error(e) => eprintln!("{}", e),
+        ResponseKind::Error(e) => eprintln!("{}", e.red()),
         ResponseKind::JsonResponse(j) => println!("{}", j),
     }
     Ok(())

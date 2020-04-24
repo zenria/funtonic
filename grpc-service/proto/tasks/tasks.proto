@@ -42,6 +42,10 @@ message AdminRequest {
     Empty listKnownExecutors = 2;
     Empty listRunningTasks = 3;
     Empty listTokens = 4;
+    // remove the executor from the database, close the communication channel if present
+    // this should trigger a reconnect of the executor, and thus an update of the executor's metadata
+    // If the executor is not alive it will be forgotten.
+    string dropExecutor = 5;
   }
 }
 

@@ -13,6 +13,7 @@ use query_parser::{parse, Query, QueryMatcher};
 use rand::Rng;
 use rustbreak::deser::Yaml;
 use rustbreak::{Database, FileDatabase};
+use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fs::File;
 use std::io::Write;
@@ -22,7 +23,6 @@ use std::sync::{Arc, Mutex};
 use thiserror::Error;
 use tonic::metadata::{Ascii, MetadataValue};
 use tonic::{Code, Request, Response, Status, Streaming};
-
 #[derive(Debug, Error)]
 #[error("Rustbreak database error {0}")]
 struct RustBreakWrappedError(rustbreak::RustbreakError);
@@ -459,6 +459,31 @@ impl TasksManager for TaskServer {
                     .map_err(|deser| Status::internal(format!("An error occured: {}", deser)))?,
                 )),
             })),
+            RequestType::DropExecutor(client_id) => {
+                // remove from database
+                let removed_from_database = self
+                    .executor_meta_database
+                    .write(|data| data.remove(&client_id).is_some())
+                    .map_err(|e| Status::internal(format!("Unable to read database {}", e)))?;
+                // remove from connected executors
+                let removed_from_connected = self
+                    .executors
+                    .lock()
+                    .map_err(|_| Status::internal("Unable to lock"))?
+                    .remove(&client_id)
+                    .is_some();
+                let ret = json!({
+                    "removed_from_connected": removed_from_connected,
+                    "removed_from_known": removed_from_database,
+                });
+                Ok(Response::new(AdminRequestResponse {
+                    response_kind: Some(ResponseKind::JsonResponse(
+                        serde_json::to_string(&ret).map_err(|deser| {
+                            Status::internal(format!("An error occured: {}", deser))
+                        })?,
+                    )),
+                }))
+            }
         }
     }
 }

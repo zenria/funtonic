@@ -58,7 +58,7 @@ pub async fn executor_main(config: Config) -> Result<(), Box<dyn std::error::Err
         let mut endpoint = Channel::builder(Uri::from_str(&executor_config.server_url)?)
             .tcp_keepalive(Some(Duration::from_secs(60)));
 
-        if let Some(tls_config) = config.tls {
+        if let Some(tls_config) = &config.tls {
             endpoint = endpoint.tls_config(tls_config.get_client_config()?);
         }
 
@@ -77,24 +77,27 @@ pub async fn executor_main(config: Config) -> Result<(), Box<dyn std::error::Err
         let (mut connection_status_sender, connection_status_receiver) =
             tokio::sync::watch::channel(LastConnectionStatus::Connecting);
 
-        while let Err(e) =
-            do_executor_main(&endpoint, &executor_meta, &mut connection_status_sender).await
-        {
-            error!("Error {}", e);
-            // increase reconnect time if connecting, reset if connected
-            match *connection_status_receiver.borrow() {
-                LastConnectionStatus::Connecting => {
-                    reconnect_time = reconnect_time + Duration::from_secs(1);
-                    if reconnect_time > max_reconnect_time {
-                        reconnect_time = max_reconnect_time;
+        // executor execution never ends
+        loop {
+            while let Err(e) =
+                do_executor_main(&endpoint, &executor_meta, &mut connection_status_sender).await
+            {
+                error!("Error {}", e);
+                // increase reconnect time if connecting, reset if connected
+                match *connection_status_receiver.borrow() {
+                    LastConnectionStatus::Connecting => {
+                        reconnect_time = reconnect_time + Duration::from_secs(1);
+                        if reconnect_time > max_reconnect_time {
+                            reconnect_time = max_reconnect_time;
+                        }
                     }
+                    LastConnectionStatus::Connected => reconnect_time = Duration::from_secs(1),
                 }
-                LastConnectionStatus::Connected => reconnect_time = Duration::from_secs(1),
+                info!("Reconnecting in {}s", reconnect_time.as_secs());
+                tokio::time::delay_for(reconnect_time).await;
             }
-            info!("Reconnecting in {}s", reconnect_time.as_secs());
-            tokio::time::delay_for(reconnect_time).await;
+            info!("Connection to task server ended gracefully, reconnecting.")
         }
-        Ok(())
     } else {
         Err(InvalidConfig)?
     }
