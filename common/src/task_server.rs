@@ -2,6 +2,7 @@ use crate::executor_meta::ExecutorMeta;
 use crate::{CLIENT_TOKEN_HEADER, PROTOCOL_VERSION};
 use futures::channel::mpsc;
 use futures::{SinkExt, StreamExt};
+use grpc_service::grpc_protocol::admin_request::RequestType;
 use grpc_service::grpc_protocol::launch_task_request::Task;
 use grpc_service::grpc_protocol::launch_task_response::TaskResponse;
 use grpc_service::grpc_protocol::task_execution_result::ExecutionResult;
@@ -18,6 +19,7 @@ use std::path::Path;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
+use tonic::metadata::{Ascii, MetadataValue};
 use tonic::{Code, Request, Response, Status, Streaming};
 
 #[derive(Debug, Error)]
@@ -260,20 +262,15 @@ impl TasksManager for TaskServer {
         &self,
         request: tonic::Request<LaunchTaskRequest>,
     ) -> Result<tonic::Response<Self::LaunchTaskStream>, tonic::Status> {
-        let metadata = request.metadata();
-        let token = metadata.get(CLIENT_TOKEN_HEADER);
-        if token.is_none() {
-            return Err(Status::new(Code::PermissionDenied, "no client token"));
-        }
-        let token = token.unwrap().to_str().unwrap();
-        let token_name = self.authorized_client_tokens.get(token);
-        if token_name.is_none() {
-            return Err(Status::new(Code::PermissionDenied, "invalid client token"));
-        }
+        let token_name = self.verify_token(&request)?;
 
         let request = request.get_ref();
         let query = &request.predicate;
-        let command = match request.task.as_ref().unwrap() {
+        let command = match request
+            .task
+            .as_ref()
+            .ok_or(Status::invalid_argument("Missing task"))?
+        {
             Task::ExecuteCommand(command) => command,
             Task::StreamingPayload(_) => {
                 return Err(Status::new(Code::Internal, "not implemented"))
@@ -287,19 +284,12 @@ impl TasksManager for TaskServer {
 
         info!(
             "Command received {:?} for {} with token {}",
-            command,
-            query,
-            token_name.unwrap()
+            command, query, token_name
         );
 
-        let query = parse(query);
-        if let Err(e) = query {
-            return Err(Status::new(
-                Code::InvalidArgument,
-                format!("invalid query: {}", e),
-            ));
-        }
-        let query = query.unwrap();
+        let query = parse(query).map_err(|parse_error| {
+            Status::invalid_argument(format!("Invalid query: {}", parse_error))
+        })?;
         debug!("Parsed query: {:#?}", query);
 
         let mut senders = self
@@ -387,6 +377,47 @@ impl TasksManager for TaskServer {
         Ok(Response::new(
             Box::pin(response_stream) as Self::LaunchTaskStream
         ))
+    }
+
+    async fn admin(
+        &self,
+        request: Request<AdminRequest>,
+    ) -> Result<Response<AdminRequestResponse>, Status> {
+        let token_name = self.verify_token(&request)?;
+
+        let request = request.into_inner();
+        match request
+            .request_type
+            .ok_or(Status::invalid_argument("Missing request type"))?
+        {
+            RequestType::ListConnectedExecutors(_) => {}
+            RequestType::ListKnownExecutors(_) => {}
+            RequestType::ListRunningTasks(_) => {}
+            RequestType::ListTokens(_) => {}
+        }
+
+        unimplemented!()
+    }
+}
+
+impl TaskServer {
+    fn verify_token<T>(&self, request: &Request<T>) -> Result<&String, Status> {
+        let metadata = request.metadata();
+        let token = metadata.get(CLIENT_TOKEN_HEADER);
+        match token {
+            None => Err(Status::new(Code::PermissionDenied, "no client token")),
+            Some(token) => {
+                let token = token.to_str().map_err(|e| {
+                    Status::new(
+                        Code::PermissionDenied,
+                        format!("invalid client token: {}", e),
+                    )
+                })?;
+                self.authorized_client_tokens
+                    .get(token)
+                    .ok_or(Status::new(Code::PermissionDenied, "invalid client token"))
+            }
+        }
     }
 }
 

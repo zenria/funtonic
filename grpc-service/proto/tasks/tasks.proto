@@ -30,6 +30,24 @@ service TasksManager {
   rpc TaskExecution (stream TaskExecutionResult) returns (Empty) {}
 
   rpc LaunchTask (LaunchTaskRequest) returns (stream LaunchTaskResponse) {}
+
+  rpc Admin (AdminRequest) returns (AdminRequestResponse) {}
+}
+
+message AdminRequest {
+  oneof requestType {
+    Empty listConnectedExecutors = 1;
+    Empty listKnownExecutors = 2;
+    Empty listRunningTasks = 3;
+    Empty listTokens = 4;
+  }
+}
+
+message AdminRequestResponse {
+  oneof responseKind {
+    string error = 1;
+    string jsonReponse = 2;
+  }
 }
 
 message GetTasksRequest {
