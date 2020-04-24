@@ -74,7 +74,7 @@ pub struct Opt {
 }
 
 #[derive(Error, Debug)]
-#[error("Missing field for server config!")]
+#[error("Missing field for commander config!")]
 struct InvalidConfig;
 
 pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std::error::Error>> {
@@ -88,6 +88,11 @@ pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std:
         let channel = channel.connect().await?;
 
         let mut client = TasksManagerClient::new(channel);
+
+        if "admin" == &opt.query {
+            // handle admin query
+            return handle_admin_command(client, opt.command).await;
+        }
 
         let command = opt.command.join(" ");
 
@@ -288,4 +293,11 @@ fn colorize<'a, T: Iterator<Item = &'a String>>(collection: T, color: Color) -> 
         ret.truncate(ret.len() - 2);
     }
     ret
+}
+
+pub async fn handle_admin_command(
+    client: TasksManagerClient<Channel>,
+    mut command: Vec<String>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    Ok(())
 }

@@ -1,9 +1,9 @@
-use thiserror::Error;
+//use thiserror::Error;
 
 pub mod grpc_protocol;
 
 pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
-
+/*
 trait IntoGrpc {
     type Output;
 
@@ -19,3 +19,4 @@ enum GrpcConstraintError {
     #[error("The field `{0}` is mandatory")]
     MandatoryField(String),
 }
+*/
