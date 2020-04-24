@@ -1,18 +1,17 @@
 #[macro_use]
 extern crate log;
 
+use crate::admin::{AdminCommand, AdminCommandOuputMode};
 use atty::Stream;
 use colored::{Color, Colorize};
-use funtonic::config::{CommanderConfig, Config, Role};
+use funtonic::config::{Config, Role};
 use funtonic::CLIENT_TOKEN_HEADER;
-use grpc_service::grpc_protocol::admin_request::RequestType;
-use grpc_service::grpc_protocol::admin_request_response::ResponseKind;
 use grpc_service::grpc_protocol::launch_task_request::Task;
 use grpc_service::grpc_protocol::launch_task_response::TaskResponse;
 use grpc_service::grpc_protocol::task_execution_result::ExecutionResult;
 use grpc_service::grpc_protocol::task_output::Output;
 use grpc_service::grpc_protocol::tasks_manager_client::TasksManagerClient;
-use grpc_service::grpc_protocol::{AdminRequest, Empty, ExecuteCommand, LaunchTaskRequest};
+use grpc_service::grpc_protocol::{ExecuteCommand, LaunchTaskRequest};
 use http::Uri;
 use indicatif::ProgressBar;
 use query_parser::parse;
@@ -26,6 +25,8 @@ use structopt::StructOpt;
 use thiserror::Error;
 use tonic::metadata::MetadataValue;
 use tonic::transport::Channel;
+
+mod admin;
 
 #[derive(Eq, Ord, PartialOrd, PartialEq, Hash)]
 enum ExecutorState {
@@ -75,34 +76,21 @@ pub struct Opt {
     #[structopt(subcommand)]
     pub command: Command,
 }
+
 #[derive(StructOpt, Debug)]
 pub enum Command {
     /// Admin commands
-    Admin(AdminArgs),
-    #[structopt(external_subcommand)]
-    Query(Vec<String>),
-}
-#[derive(StructOpt, Debug)]
-#[structopt(rename_all = "kebab")]
-pub enum AdminArgs {
-    /// Get connected executors and their meta as json
-    ListConnectedExecutors,
-    /// Get all known executors and their meta as json
-    ListKnownExecutors,
-    /// Get all running tasks as json
-    ListRunningTasks,
-    /// List all accepted tokens
-    ListTokens,
-    /// Remove the executor from the taskserver
-    ///
-    /// Remove the executor from the taskserver database, close drop the communication channel if present
-    /// this should trigger a reconnect of the executor, and thus an update of the executor's metadata
-    /// If the executor is not alive it will be forgotten.
-    DropExecutor {
-        /// the client_id of the executor to drop
-        client_id: String,
+    Admin {
+        /// json, pretty-json or human-readable
+        #[structopt(short = "o", long = "output-mode", default_value = "pretty-json")]
+        output_mode: AdminCommandOuputMode,
+        #[structopt(subcommand)]
+        command: AdminCommand,
     },
+    #[structopt(external_subcommand)]
+    Execute(Vec<String>),
 }
+
 #[derive(Debug)]
 pub struct QueryArgs {
     pub query: String,
@@ -149,10 +137,11 @@ pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std:
         let mut client = TasksManagerClient::new(channel);
 
         match opt.command {
-            Command::Admin(admin_args) => {
-                handle_admin_command(client, commander_config, admin_args).await
-            }
-            Command::Query(query_args) => {
+            Command::Admin {
+                output_mode,
+                command,
+            } => admin::handle_admin_command(client, commander_config, command, output_mode).await,
+            Command::Execute(query_args) => {
                 let QueryArgs { command, query } = query_args.try_into()?;
                 //check the query is parsable
                 parse(&query)?;
@@ -371,43 +360,4 @@ fn colorize<'a, T: Iterator<Item = &'a String>>(collection: T, color: Color) -> 
         ret.truncate(ret.len() - 2);
     }
     ret
-}
-
-async fn handle_admin_command(
-    mut client: TasksManagerClient<Channel>,
-    commander_config: &CommanderConfig,
-    admin_command: AdminArgs,
-) -> Result<(), Box<dyn std::error::Error>> {
-    // grpc prost typing is just awful piece of crap.
-    let request = match admin_command {
-        AdminArgs::ListConnectedExecutors => AdminRequest {
-            request_type: Some(RequestType::ListConnectedExecutors(Empty {})),
-        },
-        AdminArgs::ListKnownExecutors => AdminRequest {
-            request_type: Some(RequestType::ListKnownExecutors(Empty {})),
-        },
-        AdminArgs::ListRunningTasks => AdminRequest {
-            request_type: Some(RequestType::ListRunningTasks(Empty {})),
-        },
-        AdminArgs::ListTokens => AdminRequest {
-            request_type: Some(RequestType::ListTokens(Empty {})),
-        },
-
-        AdminArgs::DropExecutor { client_id } => AdminRequest {
-            request_type: Some(RequestType::DropExecutor(client_id)),
-        },
-    };
-
-    let mut request = tonic::Request::new(request);
-    request.metadata_mut().append(
-        CLIENT_TOKEN_HEADER,
-        MetadataValue::from_str(&commander_config.client_token).unwrap(),
-    );
-
-    let response = client.admin(request).await?.into_inner();
-    match response.response_kind.unwrap() {
-        ResponseKind::Error(e) => eprintln!("{}", e.red()),
-        ResponseKind::JsonResponse(j) => println!("{}", j),
-    }
-    Ok(())
 }

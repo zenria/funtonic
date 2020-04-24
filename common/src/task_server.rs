@@ -13,6 +13,8 @@ use query_parser::{parse, Query, QueryMatcher};
 use rand::Rng;
 use rustbreak::deser::Yaml;
 use rustbreak::{Database, FileDatabase};
+use serde::Deserialize;
+use serde::Serialize;
 use serde_json::json;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::fs::File;
@@ -23,6 +25,7 @@ use std::sync::{Arc, Mutex};
 use thiserror::Error;
 use tonic::metadata::{Ascii, MetadataValue};
 use tonic::{Code, Request, Response, Status, Streaming};
+
 #[derive(Debug, Error)]
 #[error("Rustbreak database error {0}")]
 struct RustBreakWrappedError(rustbreak::RustbreakError);
@@ -461,7 +464,7 @@ impl TasksManager for TaskServer {
             })),
             RequestType::DropExecutor(client_id) => {
                 // remove from database
-                let removed_from_database = self
+                let removed_from_known = self
                     .executor_meta_database
                     .write(|data| data.remove(&client_id).is_some())
                     .map_err(|e| Status::internal(format!("Unable to read database {}", e)))?;
@@ -472,10 +475,10 @@ impl TasksManager for TaskServer {
                     .map_err(|_| Status::internal("Unable to lock"))?
                     .remove(&client_id)
                     .is_some();
-                let ret = json!({
-                    "removed_from_connected": removed_from_connected,
-                    "removed_from_known": removed_from_database,
-                });
+                let ret = AdminDropExecutorJsonResponse {
+                    removed_from_connected,
+                    removed_from_known,
+                };
                 Ok(Response::new(AdminRequestResponse {
                     response_kind: Some(ResponseKind::JsonResponse(
                         serde_json::to_string(&ret).map_err(|deser| {
@@ -512,4 +515,10 @@ impl TaskServer {
 fn random_task_id() -> String {
     let id: u128 = rand::thread_rng().gen();
     format!("{:x}", id)
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct AdminDropExecutorJsonResponse {
+    pub removed_from_connected: bool,
+    pub removed_from_known: bool,
 }

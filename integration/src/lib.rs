@@ -3,7 +3,7 @@ mod test_utils;
 
 #[cfg(test)]
 mod tests {
-    use commander::Command::Query;
+    use commander::Command::Execute;
     use commander::{commander_main, Opt, QueryArgs};
     use executor::executor_main;
     use funtonic::config::Role::Commander;
@@ -61,7 +61,7 @@ mod tests {
             group: false,
             no_progress: false,
             config: None,
-            command: Query(
+            command: Execute(
                 QueryArgs {
                     query: "*".to_string(),
                     command: vec!["cat".into(), "Cargo.toml".into()],
@@ -128,7 +128,7 @@ mod tests {
             group: false,
             no_progress: false,
             config: None,
-            command: Query(
+            command: Execute(
                 QueryArgs {
                     query: "*".to_string(),
                     command: vec!["cat".into(), "Cargo.toml".into()],
