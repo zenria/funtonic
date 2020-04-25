@@ -78,26 +78,24 @@ pub async fn executor_main(config: Config) -> Result<(), Box<dyn std::error::Err
             tokio::sync::watch::channel(LastConnectionStatus::Connecting);
 
         // executor execution never ends
-        loop {
-            while let Err(e) =
-                do_executor_main(&endpoint, &executor_meta, &mut connection_status_sender).await
-            {
-                error!("Error {}", e);
-                // increase reconnect time if connecting, reset if connected
-                match *connection_status_receiver.borrow() {
-                    LastConnectionStatus::Connecting => {
-                        reconnect_time = reconnect_time + Duration::from_secs(1);
-                        if reconnect_time > max_reconnect_time {
-                            reconnect_time = max_reconnect_time;
-                        }
+        while let Err(e) =
+            do_executor_main(&endpoint, &executor_meta, &mut connection_status_sender).await
+        {
+            error!("Error {}", e);
+            // increase reconnect time if connecting, reset if connected
+            match *connection_status_receiver.borrow() {
+                LastConnectionStatus::Connecting => {
+                    reconnect_time = reconnect_time + Duration::from_secs(1);
+                    if reconnect_time > max_reconnect_time {
+                        reconnect_time = max_reconnect_time;
                     }
-                    LastConnectionStatus::Connected => reconnect_time = Duration::from_secs(1),
                 }
-                info!("Reconnecting in {}s", reconnect_time.as_secs());
-                tokio::time::delay_for(reconnect_time).await;
+                LastConnectionStatus::Connected => reconnect_time = Duration::from_secs(1),
             }
-            info!("Connection to task server ended gracefully, reconnecting.")
+            info!("Reconnecting in {}s", reconnect_time.as_secs());
+            tokio::time::delay_for(reconnect_time).await;
         }
+        Ok(())
     } else {
         Err(InvalidConfig)?
     }
