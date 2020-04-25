@@ -81,8 +81,8 @@ pub struct Opt {
 pub enum Command {
     /// Admin commands
     Admin {
-        /// json, pretty-json or human-readable
-        #[structopt(short = "o", long = "output-mode", default_value = "pretty-json")]
+        /// json (js), pretty-json (pjs) or human-readable (hr) or human-readable-long (hrl)
+        #[structopt(short = "o", long = "output-mode", default_value = "human-readable")]
         output_mode: AdminCommandOuputMode,
         #[structopt(subcommand)]
         command: AdminCommand,

@@ -1,3 +1,4 @@
+use crate::admin::AdminCommandOuputMode::HumanReadableShort;
 use colored::Colorize;
 use funtonic::config::CommanderConfig;
 use funtonic::executor_meta::ExecutorMeta;
@@ -7,6 +8,8 @@ use grpc_service::grpc_protocol::admin_request::RequestType;
 use grpc_service::grpc_protocol::admin_request_response::ResponseKind;
 use grpc_service::grpc_protocol::tasks_manager_client::TasksManagerClient;
 use grpc_service::grpc_protocol::{AdminRequest, Empty};
+use prettytable::format::consts::*;
+use prettytable::*;
 use std::collections::BTreeMap;
 use std::str::FromStr;
 use structopt::StructOpt;
@@ -39,11 +42,12 @@ pub enum AdminCommand {
 #[error("Output mode must be one of json, pretty-json or human-readable")]
 pub struct InvalidOutputMode;
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub enum AdminCommandOuputMode {
     Json,
     PrettyJson,
-    HumanReadable,
+    HumanReadableShort,
+    HumanReadableLong,
 }
 
 impl FromStr for AdminCommandOuputMode {
@@ -52,9 +56,10 @@ impl FromStr for AdminCommandOuputMode {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         use AdminCommandOuputMode::*;
         match s {
-            "json" => Ok(Json),
-            "pretty-json" => Ok(PrettyJson),
-            "human-readable" => Ok(HumanReadable),
+            "json" | "js" => Ok(Json),
+            "pretty-json" | "pjs" => Ok(PrettyJson),
+            "human-readable" | "hr" => Ok(HumanReadableShort),
+            "human-readable-long" | "hrl" => Ok(HumanReadableLong),
             _ => Err(InvalidOutputMode),
         }
     }
@@ -75,18 +80,26 @@ impl AdminCommand {
                     &raw_json
                 )?)?
             ),
-            AdminCommandOuputMode::HumanReadable => match self {
+            AdminCommandOuputMode::HumanReadableLong
+            | AdminCommandOuputMode::HumanReadableShort => match self {
                 AdminCommand::ListConnectedExecutors | AdminCommand::ListKnownExecutors => {
                     let executors: BTreeMap<String, ExecutorMeta> =
                         serde_json::from_str(&raw_json)?;
-                    for (client_id, meta) in executors {
-                        println!(
-                            "{}: v{} {}",
-                            client_id.green(),
-                            meta.version(),
-                            serde_json::to_string(&meta.tags())?
-                        );
+                    let mut table = Table::new();
+                    if output_mode == HumanReadableShort {
+                        table.set_format(*FORMAT_NO_BORDER_LINE_SEPARATOR);
                     }
+                    table.set_titles(row!["client_id", "version", "meta"]);
+                    for (client_id, meta) in executors {
+                        let version = meta.version();
+                        let meta = if output_mode == HumanReadableShort {
+                            serde_json::to_string(&meta.tags())?
+                        } else {
+                            serde_yaml::to_string(&meta.tags())?[4..].to_string()
+                        };
+                        table.add_row(row![client_id.green(), version, meta]);
+                    }
+                    table.printstd();
                 }
                 AdminCommand::ListRunningTasks => {
                     let tokens: Vec<String> = serde_json::from_str(&raw_json)?;
