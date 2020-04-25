@@ -169,7 +169,7 @@ impl TasksManager for TaskServer {
         // Strict protocol version check
         if request.client_protocol_version != PROTOCOL_VERSION {
             warn!(
-                "{} has protocol version {}, but expecting protovol version {}",
+                "{} has protocol version {}, but expecting protocol version {}",
                 request.client_id, request.client_protocol_version, PROTOCOL_VERSION
             );
             Err(tonic::Status::new(
@@ -396,7 +396,7 @@ impl TasksManager for TaskServer {
             .request_type
             .ok_or(Status::invalid_argument("Missing request type"))?
         {
-            RequestType::ListConnectedExecutors(_) => {
+            RequestType::ListConnectedExecutors(query) => {
                 let connected_executors = self
                     .executors
                     .lock()
@@ -404,35 +404,58 @@ impl TasksManager for TaskServer {
                     .iter()
                     .map(|(client_id, _)| client_id.clone())
                     .collect::<HashSet<_>>();
+
                 Ok(Response::new(AdminRequestResponse {
                     response_kind: Some(ResponseKind::JsonResponse(
-                        self.executor_meta_database
-                            .read(|data| {
-                                serde_json::to_string(
-                                    &data
-                                        .iter()
-                                        .filter(|(client_id, _)| {
-                                            connected_executors.contains(*client_id)
-                                        })
-                                        .collect::<HashMap<_, _>>(),
-                                )
+                        parse(&query)
+                            .map_err(|parse_error| {
+                                Status::invalid_argument(format!("Invalid query: {}", parse_error))
                             })
-                            .map_err(|e| {
-                                Status::internal(format!("Unable to read database {}", e))
-                            })?
-                            .map_err(|deser| {
-                                Status::internal(format!("An error occured: {}", deser))
+                            .and_then(|query| {
+                                self.executor_meta_database
+                                    .read(|data| {
+                                        serde_json::to_string(
+                                            &data
+                                                .iter()
+                                                .filter(|(client_id, meta)| {
+                                                    connected_executors.contains(*client_id)
+                                                        && meta.qmatches(&query)
+                                                })
+                                                .collect::<BTreeMap<_, _>>(),
+                                        )
+                                    })
+                                    .map_err(|e| {
+                                        Status::internal(format!("Unable to read database {}", e))
+                                    })?
+                                    .map_err(|deser| {
+                                        Status::internal(format!("An error occured: {}", deser))
+                                    })
                             })?,
                     )),
                 }))
             }
-            RequestType::ListKnownExecutors(_) => Ok(Response::new(AdminRequestResponse {
+            RequestType::ListKnownExecutors(query) => Ok(Response::new(AdminRequestResponse {
                 response_kind: Some(ResponseKind::JsonResponse(
-                    self.executor_meta_database
-                        .read(|data| serde_json::to_string(data))
-                        .map_err(|e| Status::internal(format!("Unable to read database {}", e)))?
-                        .map_err(|deser| {
-                            Status::internal(format!("An error occured: {}", deser))
+                    parse(&query)
+                        .map_err(|parse_error| {
+                            Status::invalid_argument(format!("Invalid query: {}", parse_error))
+                        })
+                        .and_then(|query| {
+                            self.executor_meta_database
+                                .read(|data| {
+                                    serde_json::to_string(
+                                        &data
+                                            .iter()
+                                            .filter(|(_, meta)| meta.qmatches(&query))
+                                            .collect::<BTreeMap<_, _>>(),
+                                    )
+                                })
+                                .map_err(|e| {
+                                    Status::internal(format!("Unable to read database {}", e))
+                                })?
+                                .map_err(|deser| {
+                                    Status::internal(format!("An error occured: {}", deser))
+                                })
                         })?,
                 )),
             })),

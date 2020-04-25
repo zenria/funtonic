@@ -20,9 +20,9 @@ use tonic::transport::Channel;
 #[structopt(rename_all = "kebab")]
 pub enum AdminCommand {
     /// Get connected executors and their meta as json
-    ListConnectedExecutors,
+    ListConnectedExecutors { query: Option<String> },
     /// Get all known executors and their meta as json
-    ListKnownExecutors,
+    ListKnownExecutors { query: Option<String> },
     /// Get all running tasks as json
     ListRunningTasks,
     /// List all accepted tokens
@@ -82,24 +82,34 @@ impl AdminCommand {
             ),
             AdminCommandOuputMode::HumanReadableLong
             | AdminCommandOuputMode::HumanReadableShort => match self {
-                AdminCommand::ListConnectedExecutors | AdminCommand::ListKnownExecutors => {
+                AdminCommand::ListConnectedExecutors { query }
+                | AdminCommand::ListKnownExecutors { query } => {
+                    println!(
+                        "Executors matching query: {}",
+                        query.as_ref().unwrap_or(&"*".to_string())
+                    );
                     let executors: BTreeMap<String, ExecutorMeta> =
                         serde_json::from_str(&raw_json)?;
-                    let mut table = Table::new();
-                    if output_mode == HumanReadableShort {
-                        table.set_format(*FORMAT_NO_BORDER_LINE_SEPARATOR);
+                    if executors.len() > 0 {
+                        let mut table = Table::new();
+                        if output_mode == HumanReadableShort {
+                            table.set_format(*FORMAT_NO_BORDER_LINE_SEPARATOR);
+                        }
+                        table.set_titles(row!["client_id", "version", "meta"]);
+                        for (client_id, meta) in &executors {
+                            let version = meta.version();
+                            let meta = if output_mode == HumanReadableShort {
+                                serde_json::to_string(&meta.tags())?
+                            } else {
+                                serde_yaml::to_string(&meta.tags())?[4..].to_string()
+                            };
+                            table.add_row(row![client_id.green(), version, meta]);
+                        }
+                        table.printstd();
+                        println!("Found {} executors", executors.len().to_string().green());
+                    } else {
+                        println!("Found {} executor", "0".red());
                     }
-                    table.set_titles(row!["client_id", "version", "meta"]);
-                    for (client_id, meta) in executors {
-                        let version = meta.version();
-                        let meta = if output_mode == HumanReadableShort {
-                            serde_json::to_string(&meta.tags())?
-                        } else {
-                            serde_yaml::to_string(&meta.tags())?[4..].to_string()
-                        };
-                        table.add_row(row![client_id.green(), version, meta]);
-                    }
-                    table.printstd();
                 }
                 AdminCommand::ListRunningTasks => {
                     let tokens: Vec<String> = serde_json::from_str(&raw_json)?;
@@ -146,12 +156,16 @@ pub async fn handle_admin_command(
     output_mode: AdminCommandOuputMode,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // grpc prost typing is just awful piece of crap.
-    let request = match admin_command {
-        AdminCommand::ListConnectedExecutors => AdminRequest {
-            request_type: Some(RequestType::ListConnectedExecutors(Empty {})),
+    let request = match &admin_command {
+        AdminCommand::ListConnectedExecutors { query } => AdminRequest {
+            request_type: Some(RequestType::ListConnectedExecutors(
+                query.clone().unwrap_or("*".into()),
+            )),
         },
-        AdminCommand::ListKnownExecutors => AdminRequest {
-            request_type: Some(RequestType::ListKnownExecutors(Empty {})),
+        AdminCommand::ListKnownExecutors { query } => AdminRequest {
+            request_type: Some(RequestType::ListKnownExecutors(
+                query.clone().unwrap_or("*".into()),
+            )),
         },
         AdminCommand::ListRunningTasks => AdminRequest {
             request_type: Some(RequestType::ListRunningTasks(Empty {})),

@@ -37,9 +37,11 @@ service TasksManager {
 message AdminRequest {
   oneof requestType {
     /// return a map containing executor client id and metas
-    Empty listConnectedExecutors = 1;
+    /// (optionnally filtered by query)
+    string listConnectedExecutors = 1;
     /// return a map containing executor client id and metas
-    Empty listKnownExecutors = 2;
+    /// (optionnally filtered by query)
+    string listKnownExecutors = 2;
     Empty listRunningTasks = 3;
     Empty listTokens = 4;
     // remove the executor from the database, close the communication channel if present
