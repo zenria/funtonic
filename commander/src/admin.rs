@@ -2,7 +2,7 @@ use crate::admin::AdminCommandOuputMode::HumanReadableShort;
 use colored::Colorize;
 use funtonic::config::CommanderConfig;
 use funtonic::executor_meta::ExecutorMeta;
-use funtonic::task_server::AdminDropExecutorJsonResponse;
+use funtonic::task_server::AdminDroppedExecutorJsonResponse;
 use funtonic::CLIENT_TOKEN_HEADER;
 use grpc_service::grpc_protocol::admin_request::RequestType;
 use grpc_service::grpc_protocol::admin_request_response::ResponseKind;
@@ -34,7 +34,7 @@ pub enum AdminCommand {
     /// If the executor is not alive it will be forgotten.
     DropExecutor {
         /// the client_id of the executor to drop
-        client_id: String,
+        query: String,
     },
 }
 
@@ -123,17 +123,31 @@ impl AdminCommand {
                         println!("{}", token);
                     }
                 }
-                AdminCommand::DropExecutor { .. } => {
-                    let drop_response: AdminDropExecutorJsonResponse =
+                AdminCommand::DropExecutor { query } => {
+                    let dropped_executors: BTreeMap<String, AdminDroppedExecutorJsonResponse> =
                         serde_json::from_str(&raw_json)?;
-                    println!(
-                        "removed_from_known: {}",
-                        colored_bool(drop_response.removed_from_known)
-                    );
-                    println!(
-                        "removed_from_connected: {}",
-                        colored_bool(drop_response.removed_from_connected)
-                    );
+                    println!("Executors matching query: {}", query);
+                    if dropped_executors.len() > 0 {
+                        let mut table = Table::new();
+                        if output_mode == HumanReadableShort {
+                            table.set_format(*FORMAT_NO_BORDER_LINE_SEPARATOR);
+                        }
+                        table.set_titles(row!["client_id", "known", "connected"]);
+                        for (client_id, dropped_status) in &dropped_executors {
+                            table.add_row(row![
+                                client_id.green(),
+                                colored_bool(dropped_status.removed_from_known),
+                                colored_bool(dropped_status.removed_from_connected)
+                            ]);
+                        }
+                        table.printstd();
+                        println!(
+                            "Dropped {} executors",
+                            dropped_executors.len().to_string().green()
+                        );
+                    } else {
+                        println!("Found {} executor, none dropped!", "0".red());
+                    }
                 }
             },
         }
@@ -174,8 +188,8 @@ pub async fn handle_admin_command(
             request_type: Some(RequestType::ListTokens(Empty {})),
         },
 
-        AdminCommand::DropExecutor { ref client_id } => AdminRequest {
-            request_type: Some(RequestType::DropExecutor(client_id.clone())),
+        AdminCommand::DropExecutor { ref query } => AdminRequest {
+            request_type: Some(RequestType::DropExecutor(query.clone())),
         },
     };
 

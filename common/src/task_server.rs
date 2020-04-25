@@ -485,26 +485,66 @@ impl TasksManager for TaskServer {
                     .map_err(|deser| Status::internal(format!("An error occured: {}", deser)))?,
                 )),
             })),
-            RequestType::DropExecutor(client_id) => {
-                // remove from database
-                let removed_from_known = self
-                    .executor_meta_database
-                    .write(|data| data.remove(&client_id).is_some())
-                    .map_err(|e| Status::internal(format!("Unable to read database {}", e)))?;
-                // remove from connected executors
-                let removed_from_connected = self
-                    .executors
-                    .lock()
-                    .map_err(|_| Status::internal("Unable to lock"))?
-                    .remove(&client_id)
-                    .is_some();
-                let ret = AdminDropExecutorJsonResponse {
-                    removed_from_connected,
-                    removed_from_known,
-                };
+            RequestType::DropExecutor(query) => {
                 Ok(Response::new(AdminRequestResponse {
                     response_kind: Some(ResponseKind::JsonResponse(
-                        serde_json::to_string(&ret).map_err(|deser| {
+                        serde_json::to_string(
+                            &parse(&query)
+                                .map_err(|parse_error| {
+                                    Status::invalid_argument(format!(
+                                        "Invalid query: {}",
+                                        parse_error
+                                    ))
+                                })
+                                .and_then(|query| {
+                                    self.executor_meta_database
+                                        .read(|data| {
+                                            data.iter()
+                                                .filter(|(_, meta)| meta.qmatches(&query))
+                                                .map(|(client_id, _)| client_id.clone())
+                                                .collect::<Vec<_>>()
+                                        })
+                                        .map_err(|e| {
+                                            Status::internal(format!(
+                                                "Unable to read database {}",
+                                                e
+                                            ))
+                                        })
+                                })
+                                .and_then(|client_ids| {
+                                    client_ids.into_iter().try_fold(
+                                        BTreeMap::new(),
+                                        |mut acc, client_id| {
+                                            // remove from database
+                                            let removed_from_known = self
+                                                .executor_meta_database
+                                                .write(|data| data.remove(&client_id).is_some())
+                                                .map_err(|e| {
+                                                    Status::internal(format!(
+                                                        "Unable to read database {}",
+                                                        e
+                                                    ))
+                                                })?;
+                                            // remove from connected executors
+                                            let removed_from_connected = self
+                                                .executors
+                                                .lock()
+                                                .map_err(|_| Status::internal("Unable to lock"))?
+                                                .remove(&client_id)
+                                                .is_some();
+                                            acc.insert(
+                                                client_id,
+                                                AdminDroppedExecutorJsonResponse {
+                                                    removed_from_connected,
+                                                    removed_from_known,
+                                                },
+                                            );
+                                            Ok(acc)
+                                        },
+                                    )
+                                })?,
+                        )
+                        .map_err(|deser| {
                             Status::internal(format!("An error occured: {}", deser))
                         })?,
                     )),
@@ -541,7 +581,7 @@ fn random_task_id() -> String {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct AdminDropExecutorJsonResponse {
+pub struct AdminDroppedExecutorJsonResponse {
     pub removed_from_connected: bool,
     pub removed_from_known: bool,
 }
