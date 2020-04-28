@@ -573,7 +573,7 @@ dependencies = [
 
 [[package]]
 name = "commander"
-version = "0.16.1"
+version = "0.16.2"
 dependencies = [
  "anyhow 1.0.28 (registry+https://github.com/rust-lang/crates.io-index)",
  "atty 0.2.14 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -846,7 +846,7 @@ dependencies = [
 
 [[package]]
 name = "executor"
-version = "0.16.0"
+version = "0.16.2"
 dependencies = [
  "anyhow 1.0.28 (registry+https://github.com/rust-lang/crates.io-index)",
  "exec 0.4.0",
@@ -1234,13 +1234,13 @@ dependencies = [
 name = "integration"
 version = "0.1.0"
 dependencies = [
- "commander 0.16.1",
+ "commander 0.16.2",
  "env_logger 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "executor 0.16.0",
+ "executor 0.16.2",
  "funtonic 0.16.0",
  "futures 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
- "taskserver 0.16.0",
+ "taskserver 0.16.2",
  "tokio 0.2.19 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
@@ -2313,7 +2313,7 @@ dependencies = [
 
 [[package]]
 name = "taskserver"
-version = "0.16.0"
+version = "0.16.2"
 dependencies = [
  "anyhow 1.0.28 (registry+https://github.com/rust-lang/crates.io-index)",
  "funtonic 0.16.0",

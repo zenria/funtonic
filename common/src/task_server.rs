@@ -79,7 +79,7 @@ impl TaskServer {
 }
 
 async fn heartbeat(
-    executors: Arc<
+    _executors: Arc<
         Mutex<
             HashMap<
                 String,
@@ -90,7 +90,7 @@ async fn heartbeat(
 ) {
     loop {
         tokio::time::delay_for(Duration::from_secs(5)).await;
-        info!("Checking connected executor health");
+        debug!("Checking connected executor health");
     }
 }
 
