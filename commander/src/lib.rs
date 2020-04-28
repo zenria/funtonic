@@ -16,7 +16,6 @@ use http::Uri;
 use indicatif::ProgressBar;
 use query_parser::parse;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
-use std::convert::{TryFrom, TryInto};
 use std::fmt::{Display, Error, Formatter};
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -27,6 +26,7 @@ use tonic::metadata::MetadataValue;
 use tonic::transport::Channel;
 
 mod admin;
+mod cmd;
 
 #[derive(Eq, Ord, PartialOrd, PartialEq, Hash)]
 enum ExecutorState {
@@ -65,15 +65,6 @@ impl ExecutorState {
 #[derive(StructOpt, Debug)]
 #[structopt(name = "Funtonic commander")]
 pub struct Opt {
-    /// Raw output, remote stderr/out will be printed as soon at they arrive without any other information
-    #[structopt(short = "r", long = "raw")]
-    pub raw: bool,
-    /// Group output by executor instead displaying a live stream of all executor outputs
-    #[structopt(short = "g", long = "group")]
-    pub group: bool,
-    /// Do not display the progress bar, note that is will be hidden if stderr is not a tty
-    #[structopt(short = "n", long = "no-progress")]
-    pub no_progress: bool,
     #[structopt(short, long, parse(from_os_str))]
     pub config: Option<PathBuf>,
     #[structopt(subcommand)]
@@ -90,38 +81,24 @@ pub enum Command {
         #[structopt(subcommand)]
         command: AdminCommand,
     },
-    #[structopt(external_subcommand)]
-    Execute(Vec<String>),
+    /// Run command line programs
+    #[structopt(name = "cmd")]
+    Cmd(Cmd),
 }
-
-#[derive(Debug)]
-pub struct QueryArgs {
+#[derive(StructOpt, Debug)]
+pub struct Cmd {
+    /// Raw output, remote stderr/out will be printed as soon at they arrive without any other information
+    #[structopt(short = "r", long = "raw")]
+    pub raw: bool,
+    /// Group output by executor instead displaying a live stream of all executor outputs
+    #[structopt(short = "g", long = "group")]
+    pub group: bool,
+    /// Do not display the progress bar, note that is will be hidden if stderr is not a tty
+    #[structopt(short = "n", long = "no-progress")]
+    pub no_progress: bool,
     pub query: String,
     pub command: Vec<String>,
 }
-impl TryFrom<Vec<String>> for QueryArgs {
-    type Error = MissingQueryError;
-
-    fn try_from(mut value: Vec<String>) -> Result<Self, Self::Error> {
-        if value.len() == 0 {
-            return Err(MissingQueryError);
-        }
-        Ok(Self {
-            query: value.remove(0),
-            command: value,
-        })
-    }
-}
-impl Into<Vec<String>> for QueryArgs {
-    fn into(self) -> Vec<String> {
-        let QueryArgs { command, query } = self;
-        vec![query].into_iter().chain(command.into_iter()).collect()
-    }
-}
-
-#[derive(thiserror::Error, Debug)]
-#[error("Missing query!")]
-pub struct MissingQueryError;
 
 #[derive(Error, Debug)]
 #[error("Missing field for commander config!")]
@@ -144,8 +121,14 @@ pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std:
                 output_mode,
                 command,
             } => admin::handle_admin_command(client, commander_config, command, output_mode).await,
-            Command::Execute(query_args) => {
-                let QueryArgs { command, query } = query_args.try_into()?;
+            Command::Cmd(cmd) => {
+                let Cmd {
+                    raw,
+                    group,
+                    no_progress,
+                    query,
+                    command,
+                } = cmd;
                 //check the query is parsable
                 parse(&query)?;
                 let command = command.join(" ");
@@ -175,9 +158,9 @@ pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std:
                     match task_response {
                         TaskResponse::MatchingExecutors(mut e) => {
                             e.client_id.sort();
-                            if !opt.raw {
+                            if !raw {
                                 let executors_string = e.client_id.join(", ");
-                                if opt.no_progress || !atty::is(Stream::Stdout) {
+                                if no_progress || !atty::is(Stream::Stdout) {
                                     println!("Matching executors: {}", executors_string);
                                 } else {
                                     let progress = ProgressBar::new(e.client_id.len() as u64);
@@ -203,7 +186,7 @@ pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std:
                                     if let Some(pb) = &pb {
                                         pb.inc(1);
                                     }
-                                    if opt.group && !opt.raw {
+                                    if group && !raw {
                                         if let Some(lines) = executors_output.remove(client_id) {
                                             match &pb {
                                                 None => {
@@ -246,11 +229,11 @@ pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std:
                                             .or_insert(ExecutorState::Matching) =
                                             ExecutorState::Error;
                                     }
-                                    if !opt.raw {
+                                    if !raw {
                                         if let Some(pb) = &pb {
                                             pb.inc(1);
                                         }
-                                        if opt.group {
+                                        if group {
                                             if let Some(lines) = executors_output.remove(client_id)
                                             {
                                                 match &pb {
@@ -281,12 +264,12 @@ pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std:
                                 }
                                 ExecutionResult::TaskOutput(output) => {
                                     if let Some(output) = output.output.as_ref() {
-                                        if opt.raw {
+                                        if raw {
                                             match output {
                                                 Output::Stdout(o) => println!("{}", o),
                                                 Output::Stderr(e) => eprintln!("{}", e),
                                             }
-                                        } else if opt.group {
+                                        } else if group {
                                             (*executors_output
                                                 .entry(client_id.clone())
                                                 .or_insert(Vec::new()))
@@ -354,7 +337,7 @@ pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std:
                     }
                     (*states.entry(state).or_insert(BTreeSet::new())).insert(client_id);
                 }
-                if !opt.raw {
+                if !raw {
                     for (state, client_ids) in states {
                         println!("{}: {}", state, colorize(client_ids.iter(), state.color()));
                     }

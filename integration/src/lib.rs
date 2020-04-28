@@ -3,8 +3,7 @@ mod test_utils;
 
 #[cfg(test)]
 mod tests {
-    use commander::Command::Execute;
-    use commander::{commander_main, Opt, QueryArgs};
+    use commander::{commander_main, Cmd, Command, Opt};
     use executor::executor_main;
     use funtonic::config::Role::Commander;
     use funtonic::config::{
@@ -58,17 +57,14 @@ mod tests {
         };
 
         let commander_opt = Opt {
-            raw: false,
-            group: false,
-            no_progress: false,
             config: None,
-            command: Execute(
-                QueryArgs {
-                    query: "*".to_string(),
-                    command: vec!["cat".into(), "Cargo.toml".into()],
-                }
-                .into(),
-            ),
+            command: Command::Cmd(Cmd {
+                raw: false,
+                group: false,
+                no_progress: false,
+                query: "*".to_string(),
+                command: vec!["cat".into(), "Cargo.toml".into()],
+            }),
         };
         std::thread::sleep(Duration::from_secs(1));
         commander_main(commander_opt, commander_config)
@@ -126,17 +122,14 @@ mod tests {
         };
 
         let commander_opt = Opt {
-            raw: false,
-            group: false,
-            no_progress: false,
             config: None,
-            command: Execute(
-                QueryArgs {
-                    query: "*".to_string(),
-                    command: vec!["cat".into(), "Cargo.toml".into()],
-                }
-                .into(),
-            ),
+            command: Command::Cmd(Cmd {
+                raw: false,
+                group: false,
+                no_progress: false,
+                query: "*".to_string(),
+                command: vec!["cat".into(), "Cargo.toml".into()],
+            }),
         };
         std::thread::sleep(Duration::from_secs(1));
         assert!(commander_main(commander_opt, commander_config)
