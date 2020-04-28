@@ -3,7 +3,7 @@ mod test_utils;
 
 #[cfg(test)]
 mod tests {
-    use commander::{commander_main, Cmd, Command, Opt};
+    use commander::{cmd::Cmd, commander_main, Command, Opt};
     use executor::executor_main;
     use funtonic::config::Role::Commander;
     use funtonic::config::{
