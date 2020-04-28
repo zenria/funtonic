@@ -58,6 +58,7 @@ mod tests {
         };
 
         let commander_opt = Opt {
+            raw: false,
             group: false,
             no_progress: false,
             config: None,
@@ -125,6 +126,7 @@ mod tests {
         };
 
         let commander_opt = Opt {
+            raw: false,
             group: false,
             no_progress: false,
             config: None,
