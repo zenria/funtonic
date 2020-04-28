@@ -71,8 +71,8 @@ pub enum Command {
         command: AdminCommand,
     },
     /// Run command line programs
-    #[structopt(name = "cmd")]
-    Cmd(cmd::Cmd),
+    #[structopt(name = "run")]
+    Run(cmd::Cmd),
 }
 
 #[derive(Error, Debug)]
@@ -96,7 +96,7 @@ pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std:
                 output_mode,
                 command,
             } => admin::handle_admin_command(client, commander_config, command, output_mode).await,
-            Command::Cmd(cmd) => cmd::handle_cmd(client, commander_config, cmd).await,
+            Command::Run(cmd) => cmd::handle_cmd(client, commander_config, cmd).await,
         }
     } else {
         Err(InvalidConfig)?

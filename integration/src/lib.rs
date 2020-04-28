@@ -58,7 +58,7 @@ mod tests {
 
         let commander_opt = Opt {
             config: None,
-            command: Command::Cmd(Cmd {
+            command: Command::Run(Cmd {
                 raw: false,
                 group: false,
                 no_progress: false,
@@ -123,7 +123,7 @@ mod tests {
 
         let commander_opt = Opt {
             config: None,
-            command: Command::Cmd(Cmd {
+            command: Command::Run(Cmd {
                 raw: false,
                 group: false,
                 no_progress: false,
