@@ -23,6 +23,7 @@ use std::path::Path;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use thiserror::Error;
+use tokio::time::Duration;
 use tonic::metadata::{Ascii, MetadataValue};
 use tonic::{Code, Request, Response, Status, Streaming};
 
@@ -33,10 +34,12 @@ struct RustBreakWrappedError(rustbreak::RustbreakError);
 pub struct TaskServer {
     /// executors by id: when a task must be submited to an executor,
     /// a Sender is sent to each matching executor
-    executors: Mutex<
-        HashMap<
-            String,
-            mpsc::UnboundedSender<(ExecuteCommand, mpsc::UnboundedSender<TaskResponse>)>,
+    executors: Arc<
+        Mutex<
+            HashMap<
+                String,
+                mpsc::UnboundedSender<(ExecuteCommand, mpsc::UnboundedSender<TaskResponse>)>,
+            >,
         >,
     >,
 
@@ -63,11 +66,31 @@ impl TaskServer {
             .map_err(|e| RustBreakWrappedError(e))?;
         db.load().map_err(|e| RustBreakWrappedError(e))?;
         Ok(TaskServer {
-            executors: Mutex::new(HashMap::new()),
+            executors: Arc::new(Mutex::new(HashMap::new())),
             tasks_sinks: Arc::new(Mutex::new(HashMap::new())),
             executor_meta_database: Arc::new(db),
             authorized_client_tokens,
         })
+    }
+
+    pub fn start_heartbeat(&self) {
+        tokio::spawn(heartbeat(self.executors.clone()));
+    }
+}
+
+async fn heartbeat(
+    executors: Arc<
+        Mutex<
+            HashMap<
+                String,
+                mpsc::UnboundedSender<(ExecuteCommand, mpsc::UnboundedSender<TaskResponse>)>,
+            >,
+        >,
+    >,
+) {
+    loop {
+        tokio::time::delay_for(Duration::from_secs(5)).await;
+        info!("Checking connected executor health");
     }
 }
 

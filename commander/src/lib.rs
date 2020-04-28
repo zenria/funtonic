@@ -65,6 +65,9 @@ impl ExecutorState {
 #[derive(StructOpt, Debug)]
 #[structopt(name = "Funtonic commander")]
 pub struct Opt {
+    /// Raw output, remote stderr/out will be printed as soon at they arrive without any other information
+    #[structopt(short = "r", long = "raw")]
+    pub raw: bool,
     /// Group output by executor instead displaying a live stream of all executor outputs
     #[structopt(short = "g", long = "group")]
     pub group: bool,
@@ -172,17 +175,21 @@ pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std:
                     match task_response {
                         TaskResponse::MatchingExecutors(mut e) => {
                             e.client_id.sort();
-                            let executors_string = e.client_id.join(", ");
-                            if opt.no_progress || !atty::is(Stream::Stdout) {
-                                println!("Matching executors: {}", executors_string);
-                            } else {
-                                let progress = ProgressBar::new(e.client_id.len() as u64);
-                                progress
-                                    .println(format!("Matching executors: {}", executors_string));
-                                pb = Some(progress);
-                            }
-                            for id in e.client_id {
-                                executors.insert(id, ExecutorState::Matching);
+                            if !opt.raw {
+                                let executors_string = e.client_id.join(", ");
+                                if opt.no_progress || !atty::is(Stream::Stdout) {
+                                    println!("Matching executors: {}", executors_string);
+                                } else {
+                                    let progress = ProgressBar::new(e.client_id.len() as u64);
+                                    progress.println(format!(
+                                        "Matching executors: {}",
+                                        executors_string
+                                    ));
+                                    pb = Some(progress);
+                                }
+                                for id in e.client_id {
+                                    executors.insert(id, ExecutorState::Matching);
+                                }
                             }
                         }
                         TaskResponse::TaskExecutionResult(task_execution_result) => {
@@ -196,7 +203,7 @@ pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std:
                                     if let Some(pb) = &pb {
                                         pb.inc(1);
                                     }
-                                    if opt.group {
+                                    if opt.group && !opt.raw {
                                         if let Some(lines) = executors_output.remove(client_id) {
                                             match &pb {
                                                 None => {
@@ -239,30 +246,33 @@ pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std:
                                             .or_insert(ExecutorState::Matching) =
                                             ExecutorState::Error;
                                     }
-                                    if let Some(pb) = &pb {
-                                        pb.inc(1);
-                                    }
-                                    if opt.group {
-                                        if let Some(lines) = executors_output.remove(client_id) {
-                                            match &pb {
-                                                None => {
-                                                    println!(
-                                                        "{} {}:",
-                                                        "########".green(),
-                                                        client_id
-                                                    );
-                                                    for line in lines {
-                                                        println!("{}", line);
+                                    if !opt.raw {
+                                        if let Some(pb) = &pb {
+                                            pb.inc(1);
+                                        }
+                                        if opt.group {
+                                            if let Some(lines) = executors_output.remove(client_id)
+                                            {
+                                                match &pb {
+                                                    None => {
+                                                        println!(
+                                                            "{} {}:",
+                                                            "########".green(),
+                                                            client_id
+                                                        );
+                                                        for line in lines {
+                                                            println!("{}", line);
+                                                        }
                                                     }
-                                                }
-                                                Some(pb) => {
-                                                    pb.println(format!(
-                                                        "{} {}:",
-                                                        "########".green(),
-                                                        client_id
-                                                    ));
-                                                    for line in lines {
-                                                        pb.println(line);
+                                                    Some(pb) => {
+                                                        pb.println(format!(
+                                                            "{} {}:",
+                                                            "########".green(),
+                                                            client_id
+                                                        ));
+                                                        for line in lines {
+                                                            pb.println(line);
+                                                        }
                                                     }
                                                 }
                                             }
@@ -271,7 +281,12 @@ pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std:
                                 }
                                 ExecutionResult::TaskOutput(output) => {
                                     if let Some(output) = output.output.as_ref() {
-                                        if opt.group {
+                                        if opt.raw {
+                                            match output {
+                                                Output::Stdout(o) => println!("{}", o),
+                                                Output::Stderr(e) => eprintln!("{}", e),
+                                            }
+                                        } else if opt.group {
                                             (*executors_output
                                                 .entry(client_id.clone())
                                                 .or_insert(Vec::new()))
@@ -339,9 +354,10 @@ pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std:
                     }
                     (*states.entry(state).or_insert(BTreeSet::new())).insert(client_id);
                 }
-
-                for (state, client_ids) in states {
-                    println!("{}: {}", state, colorize(client_ids.iter(), state.color()));
+                if !opt.raw {
+                    for (state, client_ids) in states {
+                        println!("{}: {}", state, colorize(client_ids.iter(), state.color()));
+                    }
                 }
                 std::process::exit(if success { 0 } else { 1 });
             }

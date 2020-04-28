@@ -48,6 +48,8 @@ pub async fn taskserver_main(config: Config) -> Result<(), Box<dyn std::error::E
             server_config.authorized_client_tokens.clone(),
         )?;
 
+        task_server.start_heartbeat();
+
         server
             .add_service(TasksManagerServer::new(task_server))
             .serve(addr)
