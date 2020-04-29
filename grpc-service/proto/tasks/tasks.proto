@@ -48,7 +48,16 @@ message AdminRequest {
     // this should trigger a reconnect of the executor, and thus an update of the executor's metadata
     // If the executor is not alive it will be forgotten.
     string dropExecutor = 5;
+    /// Revoke the token, it will not be usable again.
+    string revokeToken = 6;
+    /// Add a new token
+    Token grantToken = 7;
   }
+}
+
+message Token {
+  string name = 1;
+  string secret = 2;
 }
 
 message AdminRequestResponse {

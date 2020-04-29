@@ -573,6 +573,8 @@ impl TasksManager for TaskServer {
                     )),
                 }))
             }
+            RequestType::RevokeToken(_) => Err(Status::unimplemented("not implemented yet")),
+            RequestType::GrantToken(_) => Err(Status::unimplemented("not implemented yet")),
         }
     }
 }
