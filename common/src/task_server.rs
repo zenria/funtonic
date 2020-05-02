@@ -4,10 +4,11 @@ use futures::channel::mpsc;
 use futures::{SinkExt, StreamExt};
 use grpc_service::grpc_protocol::admin_request::RequestType;
 use grpc_service::grpc_protocol::admin_request_response::ResponseKind;
+use grpc_service::grpc_protocol::commander_service_server::*;
+use grpc_service::grpc_protocol::executor_service_server::*;
 use grpc_service::grpc_protocol::launch_task_request::Task;
 use grpc_service::grpc_protocol::launch_task_response::TaskResponse;
 use grpc_service::grpc_protocol::task_execution_result::ExecutionResult;
-use grpc_service::grpc_protocol::tasks_manager_server::*;
 use grpc_service::grpc_protocol::*;
 use query_parser::{parse, Query, QueryMatcher};
 use rand::Rng;
@@ -31,6 +32,7 @@ use tonic::{Code, Request, Response, Status, Streaming};
 #[error("Rustbreak database error {0}")]
 struct RustBreakWrappedError(rustbreak::RustbreakError);
 
+#[derive(Clone)]
 pub struct TaskServer {
     /// executors by id: when a task must be submited to an executor,
     /// a Sender is sent to each matching executor
@@ -49,7 +51,7 @@ pub struct TaskServer {
     executor_meta_database: Arc<FileDatabase<HashMap<String, ExecutorMeta>, Yaml>>,
 
     /// map<token, name> the name is used for logging purpose
-    authorized_client_tokens: BTreeMap<String, String>,
+    authorized_client_tokens: Arc<BTreeMap<String, String>>,
 }
 
 impl TaskServer {
@@ -69,7 +71,7 @@ impl TaskServer {
             executors: Arc::new(Mutex::new(HashMap::new())),
             tasks_sinks: Arc::new(Mutex::new(HashMap::new())),
             executor_meta_database: Arc::new(db),
-            authorized_client_tokens,
+            authorized_client_tokens: Arc::new(authorized_client_tokens),
         })
     }
 
@@ -180,7 +182,7 @@ type Stream<T> =
     Pin<Box<dyn futures::Stream<Item = std::result::Result<T, Status>> + Send + Sync + 'static>>;
 
 #[tonic::async_trait]
-impl TasksManager for TaskServer {
+impl ExecutorService for TaskServer {
     type GetTasksStream = Stream<GetTaskStreamReply>;
     async fn get_tasks(
         &self,
@@ -283,6 +285,10 @@ impl TasksManager for TaskServer {
             Err(tonic::Status::new(Code::NotFound, "task_id not found"))
         }
     }
+}
+
+#[tonic::async_trait]
+impl CommanderService for TaskServer {
     type LaunchTaskStream = Stream<LaunchTaskResponse>;
 
     async fn launch_task(

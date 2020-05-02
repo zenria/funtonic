@@ -4,7 +4,7 @@ extern crate log;
 use crate::admin::{AdminCommand, AdminCommandOuputMode};
 use colored::{Color, Colorize};
 use funtonic::config::{Config, Role};
-use grpc_service::grpc_protocol::tasks_manager_client::TasksManagerClient;
+use grpc_service::grpc_protocol::commander_service_client::CommanderServiceClient;
 use http::Uri;
 use std::fmt::{Display, Error, Formatter};
 use std::path::PathBuf;
@@ -89,7 +89,7 @@ pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std:
         }
         let channel = channel.connect().await?;
 
-        let client = TasksManagerClient::new(channel);
+        let client = CommanderServiceClient::new(channel);
 
         match opt.command {
             Command::Admin {

@@ -4,7 +4,8 @@ extern crate log;
 use funtonic::config::{Config, Role};
 use funtonic::file_utils::{mkdirs, path_concat2};
 use funtonic::task_server::TaskServer;
-use grpc_service::grpc_protocol::tasks_manager_server::TasksManagerServer;
+use grpc_service::grpc_protocol::commander_service_server::CommanderServiceServer;
+use grpc_service::grpc_protocol::executor_service_server::ExecutorServiceServer;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use structopt::StructOpt;
@@ -51,7 +52,8 @@ pub async fn taskserver_main(config: Config) -> Result<(), Box<dyn std::error::E
         task_server.start_heartbeat();
 
         server
-            .add_service(TasksManagerServer::new(task_server))
+            .add_service(ExecutorServiceServer::new(task_server.clone()))
+            .add_service(CommanderServiceServer::new(task_server))
             .serve(addr)
             .await?;
 

@@ -6,7 +6,7 @@ use funtonic::task_server::AdminDroppedExecutorJsonResponse;
 use funtonic::CLIENT_TOKEN_HEADER;
 use grpc_service::grpc_protocol::admin_request::RequestType;
 use grpc_service::grpc_protocol::admin_request_response::ResponseKind;
-use grpc_service::grpc_protocol::tasks_manager_client::TasksManagerClient;
+use grpc_service::grpc_protocol::commander_service_client::CommanderServiceClient;
 use grpc_service::grpc_protocol::{AdminRequest, Empty};
 use prettytable::format::consts::*;
 use prettytable::*;
@@ -164,7 +164,7 @@ fn colored_bool(b: bool) -> String {
 }
 
 pub async fn handle_admin_command(
-    mut client: TasksManagerClient<Channel>,
+    mut client: CommanderServiceClient<Channel>,
     commander_config: &CommanderConfig,
     admin_command: AdminCommand,
     output_mode: AdminCommandOuputMode,

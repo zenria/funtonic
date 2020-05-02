@@ -7,9 +7,9 @@ use funtonic::config::{Config, Role};
 use funtonic::executor_meta::{ExecutorMeta, Tag};
 use funtonic::PROTOCOL_VERSION;
 use futures::StreamExt;
+use grpc_service::grpc_protocol::executor_service_client::ExecutorServiceClient;
 use grpc_service::grpc_protocol::task_execution_result::ExecutionResult;
 use grpc_service::grpc_protocol::task_output::Output;
-use grpc_service::grpc_protocol::tasks_manager_client::TasksManagerClient;
 use grpc_service::grpc_protocol::{
     Empty, ExecuteCommand, TaskCompleted, TaskExecutionResult, TaskOutput,
 };
@@ -110,7 +110,7 @@ async fn do_executor_main(
     let channel = endpoint.connect().await?;
     last_connection_status_sender.broadcast(LastConnectionStatus::Connected)?;
 
-    let mut client = TasksManagerClient::new(channel);
+    let mut client = ExecutorServiceClient::new(channel);
 
     info!("Connected");
 
@@ -142,7 +142,7 @@ async fn execute_task(
     task_payload: ExecuteCommand,
     task_id: String,
     client_id: String,
-    client: TasksManagerClient<Channel>,
+    client: ExecutorServiceClient<Channel>,
 ) {
     match do_execute_task(task_payload, task_id, client_id, client).await {
         Ok(_) => (),
@@ -154,7 +154,7 @@ async fn do_execute_task(
     execute_command: ExecuteCommand,
     task_id: String,
     client_id: String,
-    mut client: TasksManagerClient<Channel>,
+    mut client: ExecutorServiceClient<Channel>,
 ) -> Result<(), Box<dyn Error>> {
     let cloned_task_id = task_id.clone();
     let cloned_client_id = client_id.clone();

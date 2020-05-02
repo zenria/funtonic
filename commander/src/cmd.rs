@@ -3,11 +3,11 @@ use atty::Stream;
 use colored::{Color, Colorize};
 use funtonic::config::CommanderConfig;
 use funtonic::CLIENT_TOKEN_HEADER;
+use grpc_service::grpc_protocol::commander_service_client::CommanderServiceClient;
 use grpc_service::grpc_protocol::launch_task_request::Task;
 use grpc_service::grpc_protocol::launch_task_response::TaskResponse;
 use grpc_service::grpc_protocol::task_execution_result::ExecutionResult;
 use grpc_service::grpc_protocol::task_output::Output;
-use grpc_service::grpc_protocol::tasks_manager_client::TasksManagerClient;
 use grpc_service::grpc_protocol::{ExecuteCommand, LaunchTaskRequest};
 use indicatif::ProgressBar;
 use query_parser::parse;
@@ -33,7 +33,7 @@ pub struct Cmd {
 }
 
 pub async fn handle_cmd(
-    mut client: TasksManagerClient<Channel>,
+    mut client: CommanderServiceClient<Channel>,
     commander_config: &CommanderConfig,
     cmd: Cmd,
 ) -> Result<(), Box<dyn Error>> {
