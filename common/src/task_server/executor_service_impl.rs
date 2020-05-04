@@ -62,10 +62,7 @@ impl ExecutorService for TaskServer {
         let (sender, receiver) = mpsc::unbounded();
         if let Err(e) = self.register_executor(request.into(), sender) {
             error!("Unable to register executor {}", e);
-            Err(tonic::Status::new(
-                Code::Internal,
-                "internal storage error!",
-            ))?;
+            Err(e)?;
         }
 
         let tasks_sinks = self.tasks_sinks.clone();

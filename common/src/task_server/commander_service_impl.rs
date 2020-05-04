@@ -67,9 +67,7 @@ impl CommanderService for TaskServer {
         })?;
         debug!("Parsed query: {:#?}", query);
 
-        let mut senders = self
-            .get_channels_to_matching_executors(&query)
-            .map_err(|e| tonic::Status::new(Code::Internal, format!("Unexpected Error {}", e)))?;
+        let mut senders = self.get_channels_to_matching_executors(&query)?;
 
         let matching_clients: Vec<String> = senders
             .iter()
@@ -183,24 +181,20 @@ impl CommanderService for TaskServer {
                                 Status::invalid_argument(format!("Invalid query: {}", parse_error))
                             })
                             .and_then(|query| {
-                                self.executor_meta_database
-                                    .read(|data| {
-                                        serde_json::to_string(
-                                            &data
-                                                .iter()
-                                                .filter(|(client_id, meta)| {
-                                                    connected_executors.contains(*client_id)
-                                                        && meta.qmatches(&query)
-                                                })
-                                                .collect::<BTreeMap<_, _>>(),
-                                        )
-                                    })
-                                    .map_err(|e| {
-                                        Status::internal(format!("Unable to read database {}", e))
-                                    })?
-                                    .map_err(|deser| {
-                                        Status::internal(format!("An error occured: {}", deser))
-                                    })
+                                self.read_executor_meta_database(|data| {
+                                    serde_json::to_string(
+                                        &data
+                                            .iter()
+                                            .filter(|(client_id, meta)| {
+                                                connected_executors.contains(*client_id)
+                                                    && meta.qmatches(&query)
+                                            })
+                                            .collect::<BTreeMap<_, _>>(),
+                                    )
+                                })?
+                                .map_err(|deser| {
+                                    Status::internal(format!("An error occured: {}", deser))
+                                })
                             })?,
                     )),
                 }))
@@ -212,21 +206,17 @@ impl CommanderService for TaskServer {
                             Status::invalid_argument(format!("Invalid query: {}", parse_error))
                         })
                         .and_then(|query| {
-                            self.executor_meta_database
-                                .read(|data| {
-                                    serde_json::to_string(
-                                        &data
-                                            .iter()
-                                            .filter(|(_, meta)| meta.qmatches(&query))
-                                            .collect::<BTreeMap<_, _>>(),
-                                    )
-                                })
-                                .map_err(|e| {
-                                    Status::internal(format!("Unable to read database {}", e))
-                                })?
-                                .map_err(|deser| {
-                                    Status::internal(format!("An error occured: {}", deser))
-                                })
+                            self.read_executor_meta_database(|data| {
+                                serde_json::to_string(
+                                    &data
+                                        .iter()
+                                        .filter(|(_, meta)| meta.qmatches(&query))
+                                        .collect::<BTreeMap<_, _>>(),
+                                )
+                            })?
+                            .map_err(|deser| {
+                                Status::internal(format!("An error occured: {}", deser))
+                            })
                         })?,
                 )),
             })),
@@ -234,26 +224,17 @@ impl CommanderService for TaskServer {
                 response_kind: Some(ResponseKind::JsonResponse(
                     serde_json::to_string(
                         &self
-                            .tasks_sinks
-                            .lock()
-                            .map_err(|_| Status::internal("Unable to lock"))?
-                            .iter()
-                            .map(|(task_id, _)| task_id)
-                            .collect::<Vec<_>>(),
+                            .get_running_tasks()
+                            .map_err(|e| Status::internal(e.to_string()))?,
                     )
                     .map_err(|deser| Status::internal(format!("An error occured: {}", deser)))?,
                 )),
             })),
             RequestType::ListTokens(_) => Ok(Response::new(AdminRequestResponse {
                 response_kind: Some(ResponseKind::JsonResponse(
-                    serde_json::to_string(
-                        &self
-                            .authorized_client_tokens
-                            .iter()
-                            .map(|(_, token)| token)
-                            .collect::<Vec<_>>(),
-                    )
-                    .map_err(|deser| Status::internal(format!("An error occured: {}", deser)))?,
+                    serde_json::to_string(&self.get_token_names()).map_err(|deser| {
+                        Status::internal(format!("An error occured: {}", deser))
+                    })?,
                 )),
             })),
             RequestType::DropExecutor(query) => {
@@ -268,19 +249,12 @@ impl CommanderService for TaskServer {
                                     ))
                                 })
                                 .and_then(|query| {
-                                    self.executor_meta_database
-                                        .read(|data| {
-                                            data.iter()
-                                                .filter(|(_, meta)| meta.qmatches(&query))
-                                                .map(|(client_id, _)| client_id.clone())
-                                                .collect::<Vec<_>>()
-                                        })
-                                        .map_err(|e| {
-                                            Status::internal(format!(
-                                                "Unable to read database {}",
-                                                e
-                                            ))
-                                        })
+                                    Ok(self.read_executor_meta_database(|data| {
+                                        data.iter()
+                                            .filter(|(_, meta)| meta.qmatches(&query))
+                                            .map(|(client_id, _)| client_id.clone())
+                                            .collect::<Vec<_>>()
+                                    })?)
                                 })
                                 .and_then(|client_ids| {
                                     client_ids.into_iter().try_fold(
@@ -288,13 +262,8 @@ impl CommanderService for TaskServer {
                                         |mut acc, client_id| {
                                             // remove from database
                                             let removed_from_known = self
-                                                .executor_meta_database
-                                                .write(|data| data.remove(&client_id).is_some())
-                                                .map_err(|e| {
-                                                    Status::internal(format!(
-                                                        "Unable to read database {}",
-                                                        e
-                                                    ))
+                                                .write_executor_meta_database(|data| {
+                                                    data.remove(&client_id).is_some()
                                                 })?;
                                             // remove from connected executors
                                             let removed_from_connected = self
