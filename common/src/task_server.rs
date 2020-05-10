@@ -25,6 +25,7 @@ use tonic::{Code, Request, Response, Status, Streaming};
 mod commander_service_impl;
 mod executor_service_impl;
 
+use crate::signed_payload::KeyStore;
 pub use commander_service_impl::AdminDroppedExecutorJsonResponse;
 
 #[derive(Debug, Error)]
@@ -63,12 +64,18 @@ pub struct TaskServer {
 
     /// map<token, name> the name is used for logging purpose
     authorized_client_tokens: Arc<BTreeMap<String, String>>,
+
+    authorized_keys: Arc<KeyStore>,
+
+    authorized_admin_keys: Arc<KeyStore>,
 }
 
 impl TaskServer {
     pub fn new(
         database_path: &Path,
         authorized_client_tokens: BTreeMap<String, String>,
+        authorized_keys: &BTreeMap<String, String>,
+        admin_authorized_keys: &BTreeMap<String, String>,
     ) -> Result<Self, anyhow::Error> {
         if !database_path.exists() {
             let mut empty = File::create(database_path)?;
@@ -83,6 +90,8 @@ impl TaskServer {
             tasks_sinks: Arc::new(Mutex::new(HashMap::new())),
             executor_meta_database: Arc::new(db),
             authorized_client_tokens: Arc::new(authorized_client_tokens),
+            authorized_keys: Arc::new(KeyStore::from_map(authorized_keys)?),
+            authorized_admin_keys: Arc::new(KeyStore::from_map(admin_authorized_keys)?),
         })
     }
 

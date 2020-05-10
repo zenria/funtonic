@@ -11,6 +11,7 @@ use grpc_service::grpc_protocol::launch_task_request::Task;
 use grpc_service::grpc_protocol::launch_task_response::TaskResponse;
 use grpc_service::grpc_protocol::task_execution_result::ExecutionResult;
 use grpc_service::grpc_protocol::*;
+use grpc_service::payload::SignedPayload;
 use query_parser::{parse, Query, QueryMatcher};
 use rand::Rng;
 use rustbreak::deser::Yaml;
@@ -154,12 +155,14 @@ impl CommanderService for TaskServer {
 
     async fn admin(
         &self,
-        request: Request<AdminRequest>,
+        request: Request<SignedPayload>,
     ) -> Result<Response<AdminRequestResponse>, Status> {
         let token_name = self.verify_token(&request)?;
 
         let request = request.into_inner();
         info!("{} - {:?}", token_name, request);
+
+        let request: AdminRequest = self.authorized_admin_keys.decode_payload(&request)?;
 
         match request
             .request_type

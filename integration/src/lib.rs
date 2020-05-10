@@ -3,12 +3,13 @@ mod test_utils;
 
 #[cfg(test)]
 mod tests {
-    use commander::{cmd::Cmd, commander_main, Command, Opt};
+    use commander::{cmd::Cmd, commander_main, AdminCommand, AdminCommandOuputMode, Command, Opt};
     use executor::executor_main;
     use funtonic::config::Role::Commander;
     use funtonic::config::{
-        CommanderConfig, Config, ExecutorConfig, Role, ServerConfig, TlsConfig,
+        CommanderConfig, Config, ED25519Key, ExecutorConfig, Role, ServerConfig, TlsConfig,
     };
+    use funtonic::signed_payload::generate_ed25519_key_pair;
     use log::LevelFilter;
     use std::collections::BTreeMap;
     use std::sync::Once;
@@ -33,6 +34,8 @@ mod tests {
                 bind_address: "127.0.0.1:54010".to_string(),
                 data_directory: "/tmp/taskserver".to_string(),
                 authorized_client_tokens,
+                authorized_keys: Default::default(),
+                admin_authorized_keys: Default::default(),
             }),
         };
 
@@ -53,6 +56,7 @@ mod tests {
             role: Commander(CommanderConfig {
                 server_url: "http://127.0.0.1:54010".to_string(),
                 client_token: "coucou".to_string(),
+                ed25519_key: ("abcd", "1234".as_bytes()).into(),
             }),
         };
 
@@ -64,6 +68,7 @@ mod tests {
                 no_progress: false,
                 query: "*".to_string(),
                 command: vec!["cat".into(), "Cargo.toml".into()],
+                no_std_process_return: true,
             }),
         };
         std::thread::sleep(Duration::from_secs(1));
@@ -75,6 +80,12 @@ mod tests {
     #[tokio::test]
     async fn tls_test() {
         init_logger();
+
+        let (priv_key, pub_key) = generate_ed25519_key_pair().unwrap();
+        let authorized_keys = vec![("foo_key".to_string(), base64::encode(&pub_key))]
+            .into_iter()
+            .collect::<BTreeMap<_, _>>();
+
         let mut authorized_client_tokens = BTreeMap::new();
         authorized_client_tokens.insert("coucou".into(), "test client".into());
         let taskserver_config = Config {
@@ -87,6 +98,8 @@ mod tests {
             role: Role::Server(ServerConfig {
                 bind_address: "127.0.0.1:54011".to_string(),
                 data_directory: "/tmp/taskserver".to_string(),
+                authorized_keys: authorized_keys.clone(),
+                admin_authorized_keys: authorized_keys.clone(),
                 authorized_client_tokens,
             }),
         };
@@ -108,7 +121,7 @@ mod tests {
         };
         super::test_utils::spawn_future_on_new_thread(|| executor_main(executor_config));
 
-        let commander_config = Config {
+        let commander_config = || Config {
             tls: Some(TlsConfig {
                 ca_cert: "tls/funtonic-ca.pem".to_string(),
                 key: "tls/commander-key.pem".to_string(),
@@ -118,6 +131,10 @@ mod tests {
             role: Commander(CommanderConfig {
                 server_url: "http://127.0.0.1:54011".to_string(),
                 client_token: "coucou".to_string(),
+                ed25519_key: ED25519Key {
+                    id: "foo_key".to_string(),
+                    pkcs8: base64::encode(&priv_key),
+                },
             }),
         };
 
@@ -129,11 +146,24 @@ mod tests {
                 no_progress: false,
                 query: "*".to_string(),
                 command: vec!["cat".into(), "Cargo.toml".into()],
+                no_std_process_return: true,
             }),
         };
         std::thread::sleep(Duration::from_secs(1));
-        assert!(commander_main(commander_opt, commander_config)
+        commander_main(commander_opt, commander_config())
             .await
-            .is_ok());
+            .unwrap();
+
+        let commander_opt = Opt {
+            config: None,
+            command: Command::Admin {
+                output_mode: AdminCommandOuputMode::Json,
+                command: AdminCommand::ListConnectedExecutors { query: None },
+            },
+        };
+        std::thread::sleep(Duration::from_secs(1));
+        commander_main(commander_opt, commander_config())
+            .await
+            .unwrap();
     }
 }

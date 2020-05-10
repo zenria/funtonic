@@ -47,6 +47,8 @@ pub async fn taskserver_main(config: Config) -> Result<(), Box<dyn std::error::E
         let task_server = TaskServer::new(
             Path::new(&database_path),
             server_config.authorized_client_tokens.clone(),
+            &server_config.authorized_keys,
+            &server_config.admin_authorized_keys,
         )?;
 
         task_server.start_heartbeat();

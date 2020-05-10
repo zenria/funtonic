@@ -28,6 +28,9 @@ pub struct Cmd {
     /// Do not display the progress bar, note that is will be hidden if stderr is not a tty
     #[structopt(short = "n", long = "no-progress")]
     pub no_progress: bool,
+    /// testing opt
+    #[structopt(long = "no_std_process_return")]
+    pub no_std_process_return: bool,
     pub query: String,
     pub command: Vec<String>,
 }
@@ -43,6 +46,7 @@ pub async fn handle_cmd(
         no_progress,
         query,
         command,
+        no_std_process_return,
     } = cmd;
     //check the query is parsable
     parse(&query)?;
@@ -237,7 +241,11 @@ pub async fn handle_cmd(
             println!("{}: {}", state, colorize(client_ids.iter(), state.color()));
         }
     }
-    std::process::exit(if success { 0 } else { 1 });
+    if no_std_process_return {
+        Ok(())
+    } else {
+        std::process::exit(if success { 0 } else { 1 });
+    }
 }
 
 fn colorize<'a, T: Iterator<Item = &'a String>>(collection: T, color: Color) -> String {

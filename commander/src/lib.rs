@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate log;
 
-use crate::admin::{AdminCommand, AdminCommandOuputMode};
+pub use crate::admin::{AdminCommand, AdminCommandOuputMode};
 use colored::{Color, Colorize};
 use funtonic::config::{Config, Role};
 use grpc_service::grpc_protocol::commander_service_client::CommanderServiceClient;

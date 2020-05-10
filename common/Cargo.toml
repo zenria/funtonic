@@ -32,3 +32,4 @@ exec={path="../exec"}
 ring="0.16"
 prost="0.6"
 chrono = "0.4"
+base64="0.12"

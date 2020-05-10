@@ -1,3 +1,4 @@
+use crate::config::ED25519Key;
 use crate::signed_payload::DecodePayloadError::KeyNotFound;
 use bytes::BytesMut;
 use chrono::{DateTime, Local};
@@ -7,9 +8,12 @@ use prost::bytes;
 use rand::random;
 use ring::signature;
 use ring::signature::KeyPair;
+use std::collections::hash_map::RandomState;
 use std::collections::HashMap;
+use std::convert::TryFrom;
 use std::time::{Duration, Instant, SystemTime};
 use thiserror::Error;
+use tonic::Status;
 
 #[derive(Error, Debug)]
 pub enum DecodePayloadError {
@@ -21,6 +25,12 @@ pub enum DecodePayloadError {
     ExpiredSignature(String, String),
     #[error("Cannot decode payload: {0}")]
     PayloadDecodeError(String),
+}
+
+impl From<DecodePayloadError> for Status {
+    fn from(e: DecodePayloadError) -> Self {
+        Status::internal(e.to_string())
+    }
 }
 
 /// Store ED25519 public key
@@ -35,13 +45,25 @@ impl KeyStore {
         }
     }
 
-    pub fn register_key<S: Into<String>>(&mut self, key_id: S, key_bytes: &[u8]) {
-        self.keys.insert(key_id.into(), key_bytes.to_vec());
+    pub fn from_map<'a, T: IntoIterator<Item = (&'a String, &'a String)>>(
+        map: T,
+    ) -> Result<Self, base64::DecodeError> {
+        map.into_iter().try_fold(
+            KeyStore::new(),
+            |mut store, (key, base64_encoded_bytes): (&String, &String)| {
+                store.register_key(key, base64::decode(base64_encoded_bytes)?);
+                Ok(store)
+            },
+        )
+    }
+
+    pub fn register_key<S: Into<String>>(&mut self, key_id: S, key_bytes: Vec<u8>) {
+        self.keys.insert(key_id.into(), key_bytes);
     }
 
     pub fn decode_payload<P: prost::Message + Default>(
         &self,
-        payload: SignedPayload,
+        payload: &SignedPayload,
     ) -> Result<P, DecodePayloadError> {
         // validate time limit
         let valid_until = SystemTime::UNIX_EPOCH + Duration::from_secs(payload.valid_until_secs);
@@ -96,8 +118,7 @@ pub enum EncodePayloadError {
 
 pub fn encode_and_sign<P: prost::Message>(
     payload: P,
-    key_id: &str,
-    pkcs8_key: &[u8],
+    key: &ED25519Key,
     validity: Duration,
 ) -> Result<SignedPayload, EncodePayloadError> {
     let valid_until_secs = (SystemTime::now() + validity)
@@ -106,8 +127,11 @@ pub fn encode_and_sign<P: prost::Message>(
         .as_secs();
     let nonce = random();
 
-    let key_pair = signature::Ed25519KeyPair::from_pkcs8(pkcs8_key)
-        .map_err(|e| EncodePayloadError::KeyRejected(e.to_string()))?;
+    let key_pair = signature::Ed25519KeyPair::from_pkcs8(
+        &key.to_bytes()
+            .map_err(|e| EncodePayloadError::KeyRejected(e.to_string()))?,
+    )
+    .map_err(|e| EncodePayloadError::KeyRejected(e.to_string()))?;
 
     let mut buf = BytesMut::with_capacity(BUFFER_SIZE);
     payload
@@ -129,7 +153,7 @@ pub fn encode_and_sign<P: prost::Message>(
         nonce,
         valid_until_secs,
         signature,
-        key_id: key_id.to_string(),
+        key_id: key.id().to_string(),
     })
 }
 
@@ -162,17 +186,21 @@ mod test {
         let (private_key, public_key) = generate_ed25519_key_pair().unwrap();
 
         let mut key_store = KeyStore::new();
-        key_store.register_key("abcd", &public_key);
+        key_store.register_key("abcd", public_key.to_vec());
 
         let payload = TestPayload {
             some_stuff: "foo // bar".into(),
         };
 
-        let signed_payload =
-            encode_and_sign(payload, "abcd", &private_key, Duration::from_secs(5)).unwrap();
+        let signed_payload = encode_and_sign(
+            payload,
+            &("abcd", private_key.as_slice()).into(),
+            Duration::from_secs(5),
+        )
+        .unwrap();
 
         let decoded = key_store
-            .decode_payload::<TestPayload>(signed_payload)
+            .decode_payload::<TestPayload>(&signed_payload)
             .unwrap();
         assert_eq!(&decoded.some_stuff, "foo // bar");
     }

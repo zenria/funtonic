@@ -2,6 +2,7 @@ use crate::admin::AdminCommandOuputMode::HumanReadableShort;
 use colored::Colorize;
 use funtonic::config::CommanderConfig;
 use funtonic::executor_meta::ExecutorMeta;
+use funtonic::signed_payload::encode_and_sign;
 use funtonic::task_server::AdminDroppedExecutorJsonResponse;
 use funtonic::CLIENT_TOKEN_HEADER;
 use grpc_service::grpc_protocol::admin_request::RequestType;
@@ -13,6 +14,7 @@ use prettytable::*;
 use std::collections::BTreeMap;
 use std::str::FromStr;
 use structopt::StructOpt;
+use tokio::time::Duration;
 use tonic::metadata::MetadataValue;
 use tonic::transport::Channel;
 
@@ -193,7 +195,11 @@ pub async fn handle_admin_command(
         },
     };
 
-    let mut request = tonic::Request::new(request);
+    let mut request = tonic::Request::new(encode_and_sign(
+        request,
+        &commander_config.ed25519_key,
+        Duration::from_secs(60),
+    )?);
     request.metadata_mut().append(
         CLIENT_TOKEN_HEADER,
         MetadataValue::from_str(&commander_config.client_token).unwrap(),

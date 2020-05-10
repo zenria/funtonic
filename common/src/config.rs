@@ -67,11 +67,22 @@ pub struct ServerConfig {
     ///
     /// map of <token, name>
     pub authorized_client_tokens: BTreeMap<String, String>,
+    /// List of "authorized" public keys
+    pub authorized_keys: BTreeMap<String, String>,
+    /// List of admin related keys
+    pub admin_authorized_keys: BTreeMap<String, String>,
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CommanderConfig {
     pub server_url: String,
     pub client_token: String,
+    /// map<key name, base64 encoded pkcs8 ed25519 private key>
+    pub ed25519_key: ED25519Key,
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ED25519Key {
+    pub id: String,
+    pub pkcs8: String,
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ExecutorConfig {
@@ -134,5 +145,24 @@ impl Config {
         name: T,
     ) -> Result<Config, Error> {
         resolve_config(provided_config, name)
+    }
+}
+
+impl From<(&str, &[u8])> for ED25519Key {
+    fn from((id, bytes): (&str, &[u8])) -> Self {
+        Self {
+            id: id.to_string(),
+            pkcs8: base64::encode(bytes),
+        }
+    }
+}
+
+impl ED25519Key {
+    pub fn to_bytes(&self) -> Result<Vec<u8>, base64::DecodeError> {
+        base64::decode(&self.pkcs8)
+    }
+
+    pub fn id(&self) -> &str {
+        &self.id
     }
 }

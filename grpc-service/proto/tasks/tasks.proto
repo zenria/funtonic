@@ -1,20 +1,3 @@
-//
-//  Command Execution:
-//    -> predicate
-//    -> command payload
-//  => stream tasks
-//
-//  File Upload:
-//    -> predicate
-//    -> file path
-//  => matching+streamId
-//  => clients acks (path creation etc...)
-//    -> data stream
-//
-//
-//
-//
-
 syntax = "proto3";
 
 import "payload.proto";
@@ -32,7 +15,7 @@ service CommanderService {
 
   rpc LaunchTask (LaunchTaskRequest) returns (stream LaunchTaskResponse) {}
 
-  rpc Admin (AdminRequest) returns (AdminRequestResponse) {}
+  rpc Admin (payload.SignedPayload) returns (AdminRequestResponse) {}
 }
 
 message AdminRequest {
