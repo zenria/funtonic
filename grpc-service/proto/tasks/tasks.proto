@@ -17,9 +17,7 @@
 
 syntax = "proto3";
 
-option java_multiple_files = true;
-option java_package = "fr.gassmann.funtonic";
-option java_outer_classname = "TasksProto";
+import "payload.proto";
 
 package grpc_protocol;
 

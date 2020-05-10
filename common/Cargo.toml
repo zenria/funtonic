@@ -31,4 +31,8 @@ rustbreak = {version="2.0.0-rc3", features=["yaml_enc"]}
 query-parser = {path="../query-parser"}
 grpc-service = {path="../grpc-service"}
 exec={path="../exec"}
-
+ring="0.16"
+prost="0.6"
+chrono = "0.4"
+byteorder="1.3"
+bytes = "0.5"

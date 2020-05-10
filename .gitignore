@@ -2,11 +2,11 @@
 **/*.rs.bk
 *.iml
 .idea
-/common/src/generated/tasks.rs
 /common/tls/*.pem
 /common/tls/*.csr
 /common/tls/*.json
 /grpc-service/src/tasks.rs
+/grpc-service/src/payload.rs
 /director/front/node_modules
 /director/front/build
 

@@ -1,0 +1,17 @@
+
+syntax = "proto3";
+
+package payload;
+
+message SignedPayload {
+    // A protocol buffer encoded payload
+    bytes payload = 1;
+    // avoid replay attack
+    uint64 nonce = 2;
+    // validity date (in seconds from unix epoch)
+    uint64 validUntilSecs = 3;
+    // the cryptographic signature of the payload payload +
+    // nonce(little endian) + validUntilSecs(little endian)
+    bytes signature = 4;
+    string keyId = 5;
+}
