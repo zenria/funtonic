@@ -3,9 +3,12 @@ extern crate log;
 
 pub use crate::admin::{AdminCommand, AdminCommandOuputMode};
 use colored::{Color, Colorize};
-use funtonic::config::{Config, Role};
+use funtonic::config::{Config, ED25519Key, Role};
+use funtonic::signed_payload::generate_ed25519_key_pair;
 use grpc_service::grpc_protocol::commander_service_client::CommanderServiceClient;
 use http::Uri;
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::fmt::{Display, Error, Formatter};
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -73,6 +76,19 @@ pub enum Command {
     /// Run command line programs
     #[structopt(name = "run")]
     Run(cmd::Cmd),
+    /// Utilities
+    #[structopt(name = "utils")]
+    Utils(Utils),
+}
+
+#[derive(StructOpt, Debug)]
+pub enum Utils {
+    /// Generate an ED25519 key pair to be used in various configuration places
+    #[structopt(name = "genkey")]
+    GenerateED25519KeyPair {
+        /// name of the key.
+        name: String,
+    },
 }
 
 #[derive(Error, Debug)]
@@ -97,8 +113,33 @@ pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std:
                 command,
             } => admin::handle_admin_command(client, commander_config, command, output_mode).await,
             Command::Run(cmd) => cmd::handle_cmd(client, commander_config, cmd).await,
+
+            Command::Utils(cmd) => handle_utils_cmd(cmd),
         }
     } else {
         Err(InvalidConfig)?
     }
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct GenerateKeyPairOutput {
+    ed25519_key: ED25519Key,
+    authorized_keys: BTreeMap<String, String>,
+}
+
+fn handle_utils_cmd(cmd: Utils) -> Result<(), Box<dyn std::error::Error>> {
+    match cmd {
+        Utils::GenerateED25519KeyPair { name } => {
+            let (priv_key, pub_key) = generate_ed25519_key_pair().unwrap();
+            let out = GenerateKeyPairOutput {
+                ed25519_key: ED25519Key {
+                    id: name.clone(),
+                    pkcs8: base64::encode(&priv_key),
+                },
+                authorized_keys: vec![(name, base64::encode(&pub_key))].into_iter().collect(),
+            };
+            println!("Generated Keys:\n{}", serde_yaml::to_string(&out)?);
+        }
+    }
+    Ok(())
 }
