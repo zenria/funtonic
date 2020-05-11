@@ -1,5 +1,5 @@
 use crate::executor_meta::ExecutorMeta;
-use crate::{CLIENT_TOKEN_HEADER, PROTOCOL_VERSION};
+use crate::PROTOCOL_VERSION;
 use futures::channel::mpsc;
 use futures::{SinkExt, StreamExt};
 use grpc_service::grpc_protocol::launch_task_response::TaskResponse;
@@ -63,9 +63,6 @@ pub struct TaskServer {
 
     executor_meta_database: Arc<FileDatabase<ExecutorMetaDatabase, Yaml>>,
 
-    /// map<token, name> the name is used for logging purpose
-    authorized_client_tokens: Arc<BTreeMap<String, String>>,
-
     authorized_keys: Arc<KeyStore>,
 
     authorized_admin_keys: Arc<KeyStore>,
@@ -74,7 +71,6 @@ pub struct TaskServer {
 impl TaskServer {
     pub fn new(
         database_path: &Path,
-        authorized_client_tokens: BTreeMap<String, String>,
         authorized_keys: &BTreeMap<String, String>,
         admin_authorized_keys: &BTreeMap<String, String>,
     ) -> Result<Self, anyhow::Error> {
@@ -90,7 +86,6 @@ impl TaskServer {
             executors: Arc::new(Mutex::new(HashMap::new())),
             tasks_sinks: Arc::new(Mutex::new(HashMap::new())),
             executor_meta_database: Arc::new(db),
-            authorized_client_tokens: Arc::new(authorized_client_tokens),
             authorized_keys: Arc::new(KeyStore::from_map(authorized_keys)?),
             authorized_admin_keys: Arc::new(KeyStore::from_map(admin_authorized_keys)?),
         })
@@ -159,31 +154,6 @@ impl TaskServer {
         self.executor_meta_database
             .save()
             .map_err(|e| TaskServerError::DatabaseError(e))
-    }
-    fn verify_token<T>(&self, request: &Request<T>) -> Result<&String, Status> {
-        let metadata = request.metadata();
-        let token = metadata.get(CLIENT_TOKEN_HEADER);
-        match token {
-            None => Err(Status::new(Code::PermissionDenied, "no client token")),
-            Some(token) => {
-                let token = token.to_str().map_err(|e| {
-                    Status::new(
-                        Code::PermissionDenied,
-                        format!("invalid client token: {}", e),
-                    )
-                })?;
-                self.authorized_client_tokens
-                    .get(token)
-                    .ok_or(Status::new(Code::PermissionDenied, "invalid client token"))
-            }
-        }
-    }
-
-    fn get_token_names(&self) -> Vec<&str> {
-        self.authorized_client_tokens
-            .iter()
-            .map(|(_, name)| name.as_str())
-            .collect()
     }
 
     fn get_running_tasks(&self) -> Result<Vec<String>, TaskServerError> {

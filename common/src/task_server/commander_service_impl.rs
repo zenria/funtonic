@@ -1,6 +1,6 @@
 use crate::executor_meta::ExecutorMeta;
 use crate::task_server::{random_task_id, Stream, TaskServer};
-use crate::{CLIENT_TOKEN_HEADER, PROTOCOL_VERSION};
+use crate::PROTOCOL_VERSION;
 use futures::channel::mpsc;
 use futures::{SinkExt, StreamExt};
 use grpc_service::grpc_protocol::admin_request::RequestType;
@@ -38,8 +38,6 @@ impl CommanderService for TaskServer {
         &self,
         request: tonic::Request<LaunchTaskRequest>,
     ) -> Result<tonic::Response<Self::LaunchTaskStream>, tonic::Status> {
-        let token_name = self.verify_token(&request)?;
-
         let request = request.get_ref();
         let query = &request.predicate;
 
@@ -65,8 +63,8 @@ impl CommanderService for TaskServer {
         let (mut sender, receiver) = mpsc::unbounded::<TaskResponse>();
 
         info!(
-            "Command received {:?} for {} with token {}",
-            command, query, token_name
+            "Command received {:?} for {} signed by  {}",
+            command, query, signed_payload.key_id
         );
 
         let query = parse(query).map_err(|parse_error| {
@@ -163,12 +161,10 @@ impl CommanderService for TaskServer {
         &self,
         request: Request<SignedPayload>,
     ) -> Result<Response<AdminRequestResponse>, Status> {
-        let token_name = self.verify_token(&request)?;
+        let signed_payload = request.into_inner();
+        let request: AdminRequest = self.authorized_admin_keys.decode_payload(&signed_payload)?;
 
-        let request = request.into_inner();
-        info!("{} - {:?}", token_name, request);
-
-        let request: AdminRequest = self.authorized_admin_keys.decode_payload(&request)?;
+        info!("{}: {:?}", signed_payload.key_id, request);
 
         match request
             .request_type
@@ -239,13 +235,6 @@ impl CommanderService for TaskServer {
                     .map_err(|deser| Status::internal(format!("An error occured: {}", deser)))?,
                 )),
             })),
-            RequestType::ListTokens(_) => Ok(Response::new(AdminRequestResponse {
-                response_kind: Some(ResponseKind::JsonResponse(
-                    serde_json::to_string(&self.get_token_names()).map_err(|deser| {
-                        Status::internal(format!("An error occured: {}", deser))
-                    })?,
-                )),
-            })),
             RequestType::DropExecutor(query) => {
                 Ok(Response::new(AdminRequestResponse {
                     response_kind: Some(ResponseKind::JsonResponse(
@@ -299,8 +288,6 @@ impl CommanderService for TaskServer {
                     )),
                 }))
             }
-            RequestType::RevokeToken(_) => Err(Status::unimplemented("not implemented yet")),
-            RequestType::GrantToken(_) => Err(Status::unimplemented("not implemented yet")),
         }
     }
 }

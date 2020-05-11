@@ -4,7 +4,6 @@ use funtonic::config::CommanderConfig;
 use funtonic::executor_meta::ExecutorMeta;
 use funtonic::signed_payload::encode_and_sign;
 use funtonic::task_server::AdminDroppedExecutorJsonResponse;
-use funtonic::CLIENT_TOKEN_HEADER;
 use grpc_service::grpc_protocol::admin_request::RequestType;
 use grpc_service::grpc_protocol::admin_request_response::ResponseKind;
 use grpc_service::grpc_protocol::commander_service_client::CommanderServiceClient;
@@ -15,7 +14,6 @@ use std::collections::BTreeMap;
 use std::str::FromStr;
 use structopt::StructOpt;
 use tokio::time::Duration;
-use tonic::metadata::MetadataValue;
 use tonic::transport::Channel;
 
 #[derive(StructOpt, Debug)]
@@ -27,8 +25,6 @@ pub enum AdminCommand {
     ListKnownExecutors { query: Option<String> },
     /// Get all running tasks as json
     ListRunningTasks,
-    /// List all accepted tokens
-    ListTokens,
     /// Remove the executor from the taskserver
     ///
     /// Remove the executor from the taskserver database, close drop the communication channel if present
@@ -119,12 +115,6 @@ impl AdminCommand {
                         println!("{}", token);
                     }
                 }
-                AdminCommand::ListTokens => {
-                    let tokens: Vec<String> = serde_json::from_str(&raw_json)?;
-                    for token in tokens {
-                        println!("{}", token);
-                    }
-                }
                 AdminCommand::DropExecutor { query } => {
                     let dropped_executors: BTreeMap<String, AdminDroppedExecutorJsonResponse> =
                         serde_json::from_str(&raw_json)?;
@@ -186,24 +176,17 @@ pub async fn handle_admin_command(
         AdminCommand::ListRunningTasks => AdminRequest {
             request_type: Some(RequestType::ListRunningTasks(Empty {})),
         },
-        AdminCommand::ListTokens => AdminRequest {
-            request_type: Some(RequestType::ListTokens(Empty {})),
-        },
 
         AdminCommand::DropExecutor { ref query } => AdminRequest {
             request_type: Some(RequestType::DropExecutor(query.clone())),
         },
     };
 
-    let mut request = tonic::Request::new(encode_and_sign(
+    let request = tonic::Request::new(encode_and_sign(
         request,
         &commander_config.ed25519_key,
         Duration::from_secs(60),
     )?);
-    request.metadata_mut().append(
-        CLIENT_TOKEN_HEADER,
-        MetadataValue::from_str(&commander_config.client_token).unwrap(),
-    );
 
     let response = client.admin(request).await?.into_inner();
     match response.response_kind.unwrap() {

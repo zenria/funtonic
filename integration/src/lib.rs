@@ -29,14 +29,11 @@ mod tests {
 
         let (priv_key, authorized_keys) = generate_valid_keys();
 
-        let mut authorized_client_tokens = BTreeMap::new();
-        authorized_client_tokens.insert("coucou".into(), "test client".into());
         let taskserver_config = Config {
             tls: None,
             role: Role::Server(ServerConfig {
                 bind_address: "127.0.0.1:54010".to_string(),
                 data_directory: "/tmp/taskserver".to_string(),
-                authorized_client_tokens,
                 authorized_keys: authorized_keys.clone(),
                 admin_authorized_keys: Default::default(),
             }),
@@ -59,7 +56,6 @@ mod tests {
             tls: None,
             role: Commander(CommanderConfig {
                 server_url: "http://127.0.0.1:54010".to_string(),
-                client_token: "coucou".to_string(),
                 ed25519_key: priv_key,
             }),
         };
@@ -90,8 +86,6 @@ mod tests {
             .into_iter()
             .collect::<BTreeMap<_, _>>();
 
-        let mut authorized_client_tokens = BTreeMap::new();
-        authorized_client_tokens.insert("coucou".into(), "test client".into());
         let taskserver_config = Config {
             tls: Some(TlsConfig {
                 ca_cert: "tls/funtonic-ca.pem".to_string(),
@@ -104,7 +98,6 @@ mod tests {
                 data_directory: "/tmp/taskserver".to_string(),
                 authorized_keys: authorized_keys.clone(),
                 admin_authorized_keys: authorized_keys.clone(),
-                authorized_client_tokens,
             }),
         };
 
@@ -135,7 +128,6 @@ mod tests {
             }),
             role: Commander(CommanderConfig {
                 server_url: "http://127.0.0.1:54011".to_string(),
-                client_token: "coucou".to_string(),
                 ed25519_key: ED25519Key {
                     id: "foo_key".to_string(),
                     pkcs8: base64::encode(&priv_key),

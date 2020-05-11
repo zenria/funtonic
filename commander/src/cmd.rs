@@ -3,7 +3,6 @@ use atty::Stream;
 use colored::{Color, Colorize};
 use funtonic::config::CommanderConfig;
 use funtonic::signed_payload::encode_and_sign;
-use funtonic::CLIENT_TOKEN_HEADER;
 use grpc_service::grpc_protocol::commander_service_client::CommanderServiceClient;
 use grpc_service::grpc_protocol::launch_task_request_payload::Task;
 use grpc_service::grpc_protocol::launch_task_response::TaskResponse;
@@ -16,7 +15,6 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::time::Duration;
 use structopt::StructOpt;
-use tonic::metadata::MetadataValue;
 use tonic::transport::Channel;
 
 #[derive(StructOpt, Debug)]
@@ -54,7 +52,7 @@ pub async fn handle_cmd(
     parse(&query)?;
     let command = command.join(" ");
 
-    let mut request = tonic::Request::new(LaunchTaskRequest {
+    let request = tonic::Request::new(LaunchTaskRequest {
         payload: Some(encode_and_sign(
             LaunchTaskRequestPayload {
                 task: Some(Task::ExecuteCommand(ExecuteCommand { command })),
@@ -65,10 +63,6 @@ pub async fn handle_cmd(
 
         predicate: query.clone(),
     });
-    request.metadata_mut().append(
-        CLIENT_TOKEN_HEADER,
-        MetadataValue::from_str(&commander_config.client_token).unwrap(),
-    );
 
     let mut response = client.launch_task(request).await?.into_inner();
 

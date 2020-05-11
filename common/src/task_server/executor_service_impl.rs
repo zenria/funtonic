@@ -1,7 +1,7 @@
 use super::Stream;
 use crate::executor_meta::ExecutorMeta;
 use crate::task_server::{get_task_sink, register_new_task, TaskServer};
-use crate::{CLIENT_TOKEN_HEADER, PROTOCOL_VERSION};
+use crate::PROTOCOL_VERSION;
 use futures::channel::mpsc;
 use futures::{SinkExt, StreamExt};
 use grpc_service::grpc_protocol::admin_request::RequestType;

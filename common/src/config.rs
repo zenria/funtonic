@@ -63,10 +63,6 @@ pub struct ServerConfig {
     pub bind_address: String,
     /// Where the server stores its data
     pub data_directory: String,
-    /// Authorized tokens
-    ///
-    /// map of <token, name>
-    pub authorized_client_tokens: BTreeMap<String, String>,
     /// List of "authorized" public keys
     pub authorized_keys: BTreeMap<String, String>,
     /// List of admin related keys
@@ -75,8 +71,6 @@ pub struct ServerConfig {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CommanderConfig {
     pub server_url: String,
-    pub client_token: String,
-    /// map<key name, base64 encoded pkcs8 ed25519 private key>
     pub ed25519_key: ED25519Key,
 }
 #[derive(Serialize, Deserialize, Debug)]
