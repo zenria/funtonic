@@ -27,6 +27,7 @@ mod executor_service_impl;
 
 use crate::signed_payload::KeyStore;
 pub use commander_service_impl::AdminDroppedExecutorJsonResponse;
+use grpc_service::payload::SignedPayload;
 
 #[derive(Debug, Error)]
 pub enum TaskServerError {
@@ -52,7 +53,7 @@ pub struct TaskServer {
         Mutex<
             HashMap<
                 String,
-                mpsc::UnboundedSender<(ExecuteCommand, mpsc::UnboundedSender<TaskResponse>)>,
+                mpsc::UnboundedSender<(SignedPayload, mpsc::UnboundedSender<TaskResponse>)>,
             >,
         >,
     >,
@@ -105,7 +106,7 @@ impl TaskServer {
     ) -> Result<
         Vec<(
             String,
-            Option<mpsc::UnboundedSender<(ExecuteCommand, mpsc::UnboundedSender<TaskResponse>)>>,
+            Option<mpsc::UnboundedSender<(SignedPayload, mpsc::UnboundedSender<TaskResponse>)>>,
         )>,
         TaskServerError,
     > {
@@ -137,7 +138,7 @@ impl TaskServer {
         &self,
         executor_meta: ExecutorMeta,
         sender_to_get_task_response: mpsc::UnboundedSender<(
-            ExecuteCommand,
+            SignedPayload,
             mpsc::UnboundedSender<TaskResponse>,
         )>,
     ) -> Result<(), TaskServerError> {
@@ -219,7 +220,7 @@ async fn heartbeat(
         Mutex<
             HashMap<
                 String,
-                mpsc::UnboundedSender<(ExecuteCommand, mpsc::UnboundedSender<TaskResponse>)>,
+                mpsc::UnboundedSender<(SignedPayload, mpsc::UnboundedSender<TaskResponse>)>,
             >,
         >,
     >,

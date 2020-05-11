@@ -5,13 +5,15 @@ use exec::a_sync;
 use exec::*;
 use funtonic::config::{Config, Role};
 use funtonic::executor_meta::{ExecutorMeta, Tag};
+use funtonic::signed_payload::KeyStore;
 use funtonic::PROTOCOL_VERSION;
 use futures::StreamExt;
 use grpc_service::grpc_protocol::executor_service_client::ExecutorServiceClient;
+use grpc_service::grpc_protocol::launch_task_request_payload::Task;
 use grpc_service::grpc_protocol::task_execution_result::ExecutionResult;
 use grpc_service::grpc_protocol::task_output::Output;
 use grpc_service::grpc_protocol::{
-    Empty, ExecuteCommand, TaskCompleted, TaskExecutionResult, TaskOutput,
+    Empty, ExecuteCommand, LaunchTaskRequestPayload, TaskCompleted, TaskExecutionResult, TaskOutput,
 };
 use http::Uri;
 use std::collections::HashMap;
@@ -65,6 +67,8 @@ pub async fn executor_main(config: Config) -> Result<(), Box<dyn std::error::Err
         let max_reconnect_time = Duration::from_secs(10);
         let mut reconnect_time = Duration::from_millis(100);
 
+        let key_store = KeyStore::from_map(&executor_config.authorized_keys)?;
+
         let mut executor_meta = ExecutorMeta::from(executor_config);
         // add some generic meta about system
         let info = os_info::get();
@@ -78,8 +82,13 @@ pub async fn executor_main(config: Config) -> Result<(), Box<dyn std::error::Err
             tokio::sync::watch::channel(LastConnectionStatus::Connecting);
 
         // executor execution never ends
-        while let Err(e) =
-            do_executor_main(&endpoint, &executor_meta, &mut connection_status_sender).await
+        while let Err(e) = do_executor_main(
+            &endpoint,
+            &executor_meta,
+            &mut connection_status_sender,
+            &key_store,
+        )
+        .await
         {
             error!("Error {}", e);
             // increase reconnect time if connecting, reset if connected
@@ -105,6 +114,7 @@ async fn do_executor_main(
     endpoint: &Endpoint,
     executor_metas: &ExecutorMeta,
     last_connection_status_sender: &mut Sender<LastConnectionStatus>,
+    key_store: &KeyStore,
 ) -> Result<(), Box<dyn std::error::Error>> {
     last_connection_status_sender.broadcast(LastConnectionStatus::Connecting)?;
     let channel = endpoint.connect().await?;
@@ -123,15 +133,35 @@ async fn do_executor_main(
     while let Some(task) = response.message().await? {
         // by convention this field is always here, so we can "safely" unwrap
         let task_id = task.task_id;
-        let task_payload = task.execute_command.unwrap();
-        info!("Received task {} - {}", task_id, task_payload.command);
 
-        tokio::spawn(execute_task(
-            task_payload,
-            task_id,
-            client_id.clone(),
-            client.clone(),
-        ));
+        let task_payload = task.payload;
+        match task_payload {
+            Some(signed_payload) => {
+                match key_store.decode_payload::<LaunchTaskRequestPayload>(&signed_payload) {
+                    Ok(task) => match task.task {
+                        Some(task) => match task {
+                            Task::ExecuteCommand(cmd) => {
+                                info!("Received task {} - {}", task_id, cmd.command);
+
+                                tokio::spawn(execute_task(
+                                    cmd,
+                                    task_id,
+                                    client_id.clone(),
+                                    client.clone(),
+                                ));
+                            }
+                            Task::StreamingPayload(_) => {
+                                error!("Streaming not yet implemented!");
+                            }
+                        },
+                        None => error!("No task inside LauchTaskRequest"),
+                    },
+                    Err(e) => error!("Unable to decode received payload for {}: {}", task_id, e),
+                }
+            }
+            None => error!("No payload in {}, ignoring it!", task_id),
+        }
+
         info!("Waiting for next task")
     }
 

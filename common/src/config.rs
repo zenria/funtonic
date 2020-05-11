@@ -91,6 +91,7 @@ pub struct ExecutorConfig {
     pub client_id: String,
     pub tags: HashMap<String, Tag>,
     pub server_url: String,
+    pub authorized_keys: BTreeMap<String, String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

@@ -8,7 +8,6 @@ use grpc_service::grpc_protocol::admin_request::RequestType;
 use grpc_service::grpc_protocol::admin_request_response::ResponseKind;
 use grpc_service::grpc_protocol::commander_service_server::*;
 use grpc_service::grpc_protocol::executor_service_server::*;
-use grpc_service::grpc_protocol::launch_task_request::Task;
 use grpc_service::grpc_protocol::launch_task_response::TaskResponse;
 use grpc_service::grpc_protocol::task_execution_result::ExecutionResult;
 use grpc_service::grpc_protocol::*;
@@ -67,16 +66,13 @@ impl ExecutorService for TaskServer {
 
         let tasks_sinks = self.tasks_sinks.clone();
 
-        let response_stream = receiver.map(move |(execute_command, sender_to_commander)| {
+        let response_stream = receiver.map(move |(payload, sender_to_commander)| {
             // for each new task, register the task and forward it to the executor stream
             let task_id = register_new_task(&tasks_sinks, sender_to_commander);
-            info!(
-                "Sending task {} - {:?} to {}",
-                task_id, execute_command, client_id
-            );
+            info!("Sending task {} - {:?} to {}", task_id, payload, client_id);
             Ok(GetTaskStreamReply {
                 task_id,
-                execute_command: Some(execute_command),
+                payload: Some(payload),
             })
         });
 

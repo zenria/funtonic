@@ -7,7 +7,7 @@ use grpc_service::grpc_protocol::admin_request::RequestType;
 use grpc_service::grpc_protocol::admin_request_response::ResponseKind;
 use grpc_service::grpc_protocol::commander_service_server::*;
 use grpc_service::grpc_protocol::executor_service_server::*;
-use grpc_service::grpc_protocol::launch_task_request::Task;
+use grpc_service::grpc_protocol::launch_task_request_payload::Task;
 use grpc_service::grpc_protocol::launch_task_response::TaskResponse;
 use grpc_service::grpc_protocol::task_execution_result::ExecutionResult;
 use grpc_service::grpc_protocol::*;
@@ -42,7 +42,15 @@ impl CommanderService for TaskServer {
 
         let request = request.get_ref();
         let query = &request.predicate;
-        let command = match request
+
+        let signed_payload = request
+            .payload
+            .as_ref()
+            .ok_or(Status::invalid_argument("Missing signed payload"))?;
+        let payload: LaunchTaskRequestPayload =
+            self.authorized_keys.decode_payload(signed_payload)?;
+
+        let command = match payload
             .task
             .as_ref()
             .ok_or(Status::invalid_argument("Missing task"))?
@@ -52,8 +60,6 @@ impl CommanderService for TaskServer {
                 return Err(Status::new(Code::Internal, "not implemented"))
             }
         };
-        //let payload = request.task_payload.as_ref().unwrap();
-
         // this channel will be sent to the matching executors. the executors will then register it so
         // further task progression reporting could be sent o
         let (mut sender, receiver) = mpsc::unbounded::<TaskResponse>();
@@ -89,7 +95,7 @@ impl CommanderService for TaskServer {
             debug!("client {} matches query!", client_id);
             if let Some(executor_sender) = executor_sender {
                 match executor_sender
-                    .send((command.clone(), sender.clone()))
+                    .send((signed_payload.clone(), sender.clone()))
                     .await
                 {
                     Err(_) => {

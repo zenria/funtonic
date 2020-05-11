@@ -3,6 +3,7 @@ mod test_utils;
 
 #[cfg(test)]
 mod tests {
+    use crate::test_utils::generate_valid_keys;
     use commander::{cmd::Cmd, commander_main, AdminCommand, AdminCommandOuputMode, Command, Opt};
     use executor::executor_main;
     use funtonic::config::Role::Commander;
@@ -26,6 +27,8 @@ mod tests {
     async fn no_tls_test() {
         init_logger();
 
+        let (priv_key, authorized_keys) = generate_valid_keys();
+
         let mut authorized_client_tokens = BTreeMap::new();
         authorized_client_tokens.insert("coucou".into(), "test client".into());
         let taskserver_config = Config {
@@ -34,7 +37,7 @@ mod tests {
                 bind_address: "127.0.0.1:54010".to_string(),
                 data_directory: "/tmp/taskserver".to_string(),
                 authorized_client_tokens,
-                authorized_keys: Default::default(),
+                authorized_keys: authorized_keys.clone(),
                 admin_authorized_keys: Default::default(),
             }),
         };
@@ -47,6 +50,7 @@ mod tests {
                 client_id: "exec".to_string(),
                 tags: Default::default(),
                 server_url: "http://127.0.0.1:54010".to_string(),
+                authorized_keys,
             }),
         };
         super::test_utils::spawn_future_on_new_thread(|| executor_main(executor_config));
@@ -56,7 +60,7 @@ mod tests {
             role: Commander(CommanderConfig {
                 server_url: "http://127.0.0.1:54010".to_string(),
                 client_token: "coucou".to_string(),
-                ed25519_key: ("abcd", "1234".as_bytes()).into(),
+                ed25519_key: priv_key,
             }),
         };
 
@@ -74,7 +78,7 @@ mod tests {
         std::thread::sleep(Duration::from_secs(1));
         commander_main(commander_opt, commander_config)
             .await
-            .expect("This must not throw errors");
+            .expect("cat Cargo.toml failed");
     }
 
     #[tokio::test]
@@ -117,6 +121,7 @@ mod tests {
                 client_id: "exec".to_string(),
                 tags: Default::default(),
                 server_url: "http://127.0.0.1:54011".to_string(),
+                authorized_keys,
             }),
         };
         super::test_utils::spawn_future_on_new_thread(|| executor_main(executor_config));
@@ -153,7 +158,7 @@ mod tests {
         std::thread::sleep(Duration::from_secs(1));
         commander_main(commander_opt, commander_config())
             .await
-            .unwrap();
+            .expect("cat Cargo.toml failed");
 
         let commander_opt = Opt {
             config: None,
