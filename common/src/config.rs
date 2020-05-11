@@ -83,6 +83,8 @@ pub struct CommanderConfig {
 pub struct ED25519Key {
     pub id: String,
     pub pkcs8: String,
+    // useful for retrieving the public key from the config ;)
+    pub public_key: Option<String>,
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ExecutorConfig {
@@ -153,6 +155,7 @@ impl From<(&str, &[u8])> for ED25519Key {
         Self {
             id: id.to_string(),
             pkcs8: base64::encode(bytes),
+            public_key: None,
         }
     }
 }

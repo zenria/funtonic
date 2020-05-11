@@ -134,6 +134,7 @@ mod tests {
                 ed25519_key: ED25519Key {
                     id: "foo_key".to_string(),
                     pkcs8: base64::encode(&priv_key),
+                    public_key: None,
                 },
             }),
         };

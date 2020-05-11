@@ -135,6 +135,7 @@ fn handle_utils_cmd(cmd: Utils) -> Result<(), Box<dyn std::error::Error>> {
                 ed25519_key: ED25519Key {
                     id: name.clone(),
                     pkcs8: base64::encode(&priv_key),
+                    public_key: Some(base64::encode(&pub_key)),
                 },
                 authorized_keys: vec![(name, base64::encode(&pub_key))].into_iter().collect(),
             };
