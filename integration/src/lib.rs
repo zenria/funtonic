@@ -81,6 +81,19 @@ mod tests {
         commander_main(admin_cmd(), commander_config(54011, true, priv_key))
             .await
             .unwrap();
+
+        // low level tls connection checks
+        reqwest::get("https://127.0.0.1:54011")
+            .await
+            .expect_err("This must fail (unknown remote certificate, invalid host)");
+        reqwest::ClientBuilder::new()
+            .danger_accept_invalid_certs(true)
+            .build()
+            .unwrap()
+            .get("https://127.0.0.1:54011")
+            .send()
+            .await
+            .expect_err("Accepting invalid certificate still must fail (the server will not accept a connection without a specific certificate)");
     }
 
     #[tokio::test]
