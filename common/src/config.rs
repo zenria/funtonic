@@ -73,7 +73,7 @@ pub struct CommanderConfig {
     pub server_url: String,
     pub ed25519_key: ED25519Key,
 }
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ED25519Key {
     pub id: String,
     pub pkcs8: String,
