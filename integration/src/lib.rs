@@ -4,9 +4,10 @@ mod test_utils;
 #[cfg(test)]
 mod tests {
     use crate::test_utils::{
-        commander_config, executor_config, generate_valid_keys, run_cmd_opt, taskserver_config,
+        admin_cmd, commander_config, executor_config, generate_valid_keys, run_cmd_opt,
+        taskserver_config,
     };
-    use commander::{commander_main, AdminCommand, AdminCommandOuputMode, Command, Opt};
+    use commander::commander_main;
     use executor::executor_main;
     use log::LevelFilter;
     use std::sync::Once;
@@ -23,7 +24,7 @@ mod tests {
     async fn no_tls_test() {
         init_logger();
 
-        let (priv_key, authorized_keys) = generate_valid_keys();
+        let (priv_key, authorized_keys) = generate_valid_keys("tests");
 
         let taskserver_config = taskserver_config(
             54010,
@@ -46,7 +47,7 @@ mod tests {
     async fn tls_test() {
         init_logger();
 
-        let (priv_key, authorized_keys) = generate_valid_keys();
+        let (priv_key, authorized_keys) = generate_valid_keys("tests");
 
         let taskserver_config = taskserver_config(
             54011,
@@ -59,25 +60,107 @@ mod tests {
         let executor_config = executor_config(54011, true, authorized_keys.clone());
         super::test_utils::spawn_future_on_new_thread(|| executor_main(executor_config));
 
-        let commander_opt = run_cmd_opt("*", "cat Cargo.toml");
         std::thread::sleep(Duration::from_secs(1));
+
+        // accessing the taskserver without tls is an error
         commander_main(
-            commander_opt,
+            run_cmd_opt("*", "cat Cargo.toml"),
+            commander_config(54011, false, priv_key.clone()),
+        )
+        .await
+        .expect_err("Accessing tls server without tls must fail");
+
+        // nominal case
+        commander_main(
+            run_cmd_opt("*", "cat Cargo.toml"),
             commander_config(54011, true, priv_key.clone()),
         )
         .await
         .expect("cat Cargo.toml failed");
 
-        let commander_opt = Opt {
-            config: None,
-            command: Command::Admin {
-                output_mode: AdminCommandOuputMode::Json,
-                command: AdminCommand::ListConnectedExecutors { query: None },
-            },
-        };
-        std::thread::sleep(Duration::from_secs(1));
-        commander_main(commander_opt, commander_config(54011, true, priv_key))
+        commander_main(admin_cmd(), commander_config(54011, true, priv_key))
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn keys_test() {
+        init_logger();
+        // valid keys
+        let (regular_key, authorized_keys) = generate_valid_keys("regular");
+        let (admin_key, admin_authorized_keys) = generate_valid_keys("admin");
+        // unknown or unauthorized keys
+        let (unauthorized_regular_key, _) = generate_valid_keys("regular");
+        let (unauthorized_unknown_key, _) = generate_valid_keys("unknown");
+        let (unauthorized_admin_key, _) = generate_valid_keys("admin");
+
+        let taskserver_config =
+            taskserver_config(54012, false, authorized_keys.clone(), admin_authorized_keys);
+        super::test_utils::spawn_future_on_new_thread(|| taskserver_main(taskserver_config));
+        let executor_config = executor_config(54012, false, authorized_keys.clone());
+        super::test_utils::spawn_future_on_new_thread(|| executor_main(executor_config));
+
+        std::thread::sleep(Duration::from_secs(1));
+        /////// ------------- Regular command forwarded to executors
+
+        // executing a command with regular key must succeed
+        commander_main(
+            run_cmd_opt("*", "cat Cargo.toml"),
+            commander_config(54012, false, regular_key.clone()),
+        )
+        .await
+        .expect("cat Cargo.toml failed");
+
+        // executing a command with unauthorized keys must fail
+        commander_main(
+            run_cmd_opt("*", "cat Cargo.toml"),
+            commander_config(54012, false, unauthorized_regular_key.clone()),
+        )
+        .await
+        .expect_err("Execution with unauth key must fail");
+        commander_main(
+            run_cmd_opt("*", "cat Cargo.toml"),
+            commander_config(54012, false, unauthorized_unknown_key.clone()),
+        )
+        .await
+        .expect_err("Execution with unauth key must fail");
+        // even with admin key, it must fail: the admin key is only registered on admin ops
+        commander_main(
+            run_cmd_opt("*", "cat Cargo.toml"),
+            commander_config(54012, false, admin_key.clone()),
+        )
+        .await
+        .expect_err("Execution with unauth key must fail");
+
+        /////// ------------- ADMIN
+
+        commander_main(admin_cmd(), commander_config(54012, false, admin_key))
+            .await
+            .expect("This must not fail (admin command with admin key ;))");
+
+        commander_main(admin_cmd(), commander_config(54012, false, regular_key))
+            .await
+            .expect_err("Non admin keys are not authorized");
+
+        commander_main(
+            admin_cmd(),
+            commander_config(54012, false, unauthorized_regular_key),
+        )
+        .await
+        .expect_err("Invalid non admin keys are not authorized");
+
+        commander_main(
+            admin_cmd(),
+            commander_config(54012, false, unauthorized_admin_key),
+        )
+        .await
+        .expect_err("Invalid admin keys are not authorized");
+
+        commander_main(
+            admin_cmd(),
+            commander_config(54012, false, unauthorized_unknown_key),
+        )
+        .await
+        .expect_err("unknown keys are not authorized");
     }
 }

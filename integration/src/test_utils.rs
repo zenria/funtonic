@@ -1,3 +1,4 @@
+use commander::AdminCommandOuputMode;
 use funtonic::config::Role::Commander;
 use funtonic::config::{
     CommanderConfig, Config, ED25519Key, ExecutorConfig, Role, ServerConfig, TlsConfig,
@@ -23,14 +24,14 @@ pub fn spawn_future_on_new_thread<
     });
 }
 
-pub fn generate_valid_keys() -> (ED25519Key, BTreeMap<String, String>) {
+pub fn generate_valid_keys(key_name: &str) -> (ED25519Key, BTreeMap<String, String>) {
     let (priv_key, pub_key) = generate_ed25519_key_pair().unwrap();
-    let authorized_keys = vec![("foobar_id".to_string(), base64::encode(&pub_key))]
+    let authorized_keys = vec![(key_name.to_string(), base64::encode(&pub_key))]
         .into_iter()
         .collect();
     (
         ED25519Key {
-            id: "foobar_id".to_string(),
+            id: key_name.to_string(),
             pkcs8: base64::encode(&priv_key),
             public_key: None,
         },
@@ -49,6 +50,16 @@ pub fn run_cmd_opt(query: &str, command: &str) -> commander::Opt {
             command: vec![command.into()],
             no_std_process_return: true,
         }),
+    }
+}
+
+pub fn admin_cmd() -> commander::Opt {
+    commander::Opt {
+        config: None,
+        command: commander::Command::Admin {
+            output_mode: AdminCommandOuputMode::Json,
+            command: commander::AdminCommand::ListConnectedExecutors { query: None },
+        },
     }
 }
 
