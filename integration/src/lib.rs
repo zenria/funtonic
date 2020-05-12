@@ -100,12 +100,23 @@ mod tests {
     async fn keys_test() {
         init_logger();
         // valid keys
-        let (regular_key, authorized_keys) = generate_valid_keys("regular");
-        let (admin_key, admin_authorized_keys) = generate_valid_keys("admin");
+        let (regular_key, mut authorized_keys) = generate_valid_keys("regular");
+        let (admin_key, mut admin_authorized_keys) = generate_valid_keys("admin");
         // unknown or unauthorized keys
         let (unauthorized_regular_key, _) = generate_valid_keys("regular");
         let (unauthorized_unknown_key, _) = generate_valid_keys("unknown");
         let (unauthorized_admin_key, _) = generate_valid_keys("admin");
+
+        // register an "ultimate" key both in normal & admin authorized key stores
+        let (ultimate_key, ultimate_authorired_key) = generate_valid_keys("ultimate");
+        authorized_keys.insert(
+            "ultimate".into(),
+            ultimate_authorired_key.get("ultimate").unwrap().clone(),
+        );
+        admin_authorized_keys.insert(
+            "ultimate".into(),
+            ultimate_authorired_key.get("ultimate").unwrap().clone(),
+        );
 
         let taskserver_config =
             taskserver_config(54012, false, authorized_keys.clone(), admin_authorized_keys);
@@ -175,5 +186,19 @@ mod tests {
         )
         .await
         .expect_err("unknown keys are not authorized");
+
+        // check the ultimate key can do both regular cmd && admin cmd
+        commander_main(
+            admin_cmd(),
+            commander_config(54012, false, ultimate_key.clone()),
+        )
+        .await
+        .expect("This must not fail (admin command with admin key ;))");
+        commander_main(
+            run_cmd_opt("*", "cat Cargo.toml"),
+            commander_config(54012, false, ultimate_key.clone()),
+        )
+        .await
+        .expect("cat Cargo.toml failed");
     }
 }
