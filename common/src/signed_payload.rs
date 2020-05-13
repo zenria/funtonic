@@ -33,23 +33,40 @@ impl From<DecodePayloadError> for Status {
     }
 }
 
-/// Store ED25519 public key
-pub struct KeyStore {
-    keys: HashMap<String, Vec<u8>>,
+pub trait KeyStoreBackend: Sized {
+    fn insert_key<S: Into<String>>(&mut self, key_id: S, key_bytes: Vec<u8>);
+
+    fn get_key(&self, key_id: &str) -> Option<&[u8]>;
 }
 
-impl KeyStore {
-    pub fn new() -> Self {
-        Self {
-            keys: Default::default(),
-        }
+impl KeyStoreBackend for HashMap<String, Vec<u8>> {
+    fn insert_key<S: Into<String>>(&mut self, key_id: S, key_bytes: Vec<u8>) {
+        self.insert(key_id.into(), key_bytes);
     }
 
-    pub fn from_map<'a, T: IntoIterator<Item = (&'a String, &'a String)>>(
+    fn get_key(&self, key_id: &str) -> Option<&[u8]> {
+        self.get(key_id).map(|v| v.as_ref())
+    }
+}
+
+/// Store ED25519 public key
+pub struct KeyStore<B: KeyStoreBackend> {
+    keys: B,
+}
+
+pub fn memory_keystore() -> KeyStore<HashMap<String, Vec<u8>>> {
+    KeyStore {
+        keys: Default::default(),
+    }
+}
+
+impl<B: KeyStoreBackend> KeyStore<B> {
+    pub fn init_from_map<'a, T: IntoIterator<Item = (&'a String, &'a String)>>(
+        self,
         map: T,
     ) -> Result<Self, base64::DecodeError> {
         map.into_iter().try_fold(
-            KeyStore::new(),
+            self,
             |mut store, (key, base64_encoded_bytes): (&String, &String)| {
                 store.register_key(key, base64::decode(base64_encoded_bytes)?);
                 Ok(store)
@@ -58,7 +75,7 @@ impl KeyStore {
     }
 
     pub fn register_key<S: Into<String>>(&mut self, key_id: S, key_bytes: Vec<u8>) {
-        self.keys.insert(key_id.into(), key_bytes);
+        self.keys.insert_key(key_id.into(), key_bytes);
     }
 
     pub fn decode_payload<P: prost::Message + Default>(
@@ -77,7 +94,7 @@ impl KeyStore {
         // find key
         let key_bytes = self
             .keys
-            .get(&payload.key_id)
+            .get_key(&payload.key_id)
             .ok_or(KeyNotFound(payload.key_id.clone()))?;
 
         // check signature
@@ -185,7 +202,9 @@ pub fn generate_base64_encoded_keys(key_name: &str) -> (ED25519Key, BTreeMap<Str
 
 #[cfg(test)]
 mod test {
-    use crate::signed_payload::{encode_and_sign, generate_ed25519_key_pair, KeyStore};
+    use crate::signed_payload::{
+        encode_and_sign, generate_ed25519_key_pair, memory_keystore, KeyStore,
+    };
     use prost::Message;
     use ring::signature;
     use ring::signature::KeyPair;
@@ -200,7 +219,7 @@ mod test {
     fn test() {
         let (private_key, public_key) = generate_ed25519_key_pair().unwrap();
 
-        let mut key_store = KeyStore::new();
+        let mut key_store = memory_keystore();
         key_store.register_key("abcd", public_key.to_vec());
 
         let payload = TestPayload {

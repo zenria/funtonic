@@ -25,7 +25,7 @@ use tonic::{Code, Request, Response, Status, Streaming};
 mod commander_service_impl;
 mod executor_service_impl;
 
-use crate::signed_payload::KeyStore;
+use crate::signed_payload::{memory_keystore, KeyStore};
 pub use commander_service_impl::AdminDroppedExecutorJsonResponse;
 use grpc_service::payload::SignedPayload;
 
@@ -63,9 +63,9 @@ pub struct TaskServer {
 
     executor_meta_database: Arc<FileDatabase<ExecutorMetaDatabase, Yaml>>,
 
-    authorized_keys: Arc<KeyStore>,
+    authorized_keys: Arc<KeyStore<HashMap<String, Vec<u8>>>>,
 
-    authorized_admin_keys: Arc<KeyStore>,
+    authorized_admin_keys: Arc<KeyStore<HashMap<String, Vec<u8>>>>,
 }
 
 impl TaskServer {
@@ -86,8 +86,10 @@ impl TaskServer {
             executors: Arc::new(Mutex::new(HashMap::new())),
             tasks_sinks: Arc::new(Mutex::new(HashMap::new())),
             executor_meta_database: Arc::new(db),
-            authorized_keys: Arc::new(KeyStore::from_map(authorized_keys)?),
-            authorized_admin_keys: Arc::new(KeyStore::from_map(admin_authorized_keys)?),
+            authorized_keys: Arc::new(memory_keystore().init_from_map(authorized_keys)?),
+            authorized_admin_keys: Arc::new(
+                memory_keystore().init_from_map(admin_authorized_keys)?,
+            ),
         })
     }
 
