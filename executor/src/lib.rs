@@ -3,7 +3,7 @@ extern crate log;
 
 use exec::a_sync;
 use exec::*;
-use funtonic::config::{Config, Role};
+use funtonic::config::{Config, ED25519Key, Role};
 use funtonic::executor_meta::{ExecutorMeta, Tag};
 use funtonic::signed_payload::KeyStore;
 use funtonic::PROTOCOL_VERSION;
@@ -47,7 +47,10 @@ enum LastConnectionStatus {
     Connected,
 }
 
-pub async fn executor_main(config: Config) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn executor_main(
+    config: Config,
+    signing_key: ED25519Key,
+) -> Result<(), Box<dyn std::error::Error>> {
     info!(
         "Executor v{}, core v{},  protocol v{}",
         VERSION,

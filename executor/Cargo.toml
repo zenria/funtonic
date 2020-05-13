@@ -22,3 +22,4 @@ http="0.2"
 log4rs-gelf = "0.1.4"
 native-tls = { version = "0.2", features=["vendored"] }
 exec={path="../exec"}
+serde_yaml="0.8"

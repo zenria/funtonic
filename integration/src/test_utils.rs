@@ -3,7 +3,6 @@ use funtonic::config::Role::Commander;
 use funtonic::config::{
     CommanderConfig, Config, ED25519Key, ExecutorConfig, Role, ServerConfig, TlsConfig,
 };
-use funtonic::signed_payload::generate_ed25519_key_pair;
 use futures::Future;
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -22,21 +21,6 @@ pub fn spawn_future_on_new_thread<
             .unwrap();
         rt.block_on(f()).unwrap();
     });
-}
-
-pub fn generate_valid_keys(key_name: &str) -> (ED25519Key, BTreeMap<String, String>) {
-    let (priv_key, pub_key) = generate_ed25519_key_pair().unwrap();
-    let authorized_keys = vec![(key_name.to_string(), base64::encode(&pub_key))]
-        .into_iter()
-        .collect();
-    (
-        ED25519Key {
-            id: key_name.to_string(),
-            pkcs8: base64::encode(&priv_key),
-            public_key: None,
-        },
-        authorized_keys,
-    )
 }
 
 pub fn run_cmd_opt(query: &str, command: &str) -> commander::Opt {

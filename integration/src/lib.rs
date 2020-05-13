@@ -4,11 +4,11 @@ mod test_utils;
 #[cfg(test)]
 mod tests {
     use crate::test_utils::{
-        admin_cmd, commander_config, executor_config, generate_valid_keys, run_cmd_opt,
-        taskserver_config,
+        admin_cmd, commander_config, executor_config, run_cmd_opt, taskserver_config,
     };
     use commander::commander_main;
     use executor::executor_main;
+    use funtonic::signed_payload::generate_base64_encoded_keys;
     use log::LevelFilter;
     use std::sync::Once;
     use std::time::Duration;
@@ -24,7 +24,9 @@ mod tests {
     async fn no_tls_test() {
         init_logger();
 
-        let (priv_key, authorized_keys) = generate_valid_keys("tests");
+        let (priv_key, authorized_keys) = generate_base64_encoded_keys("tests");
+
+        let (executor_private_key, _) = generate_base64_encoded_keys("local_executor");
 
         let taskserver_config = taskserver_config(
             54010,
@@ -34,7 +36,9 @@ mod tests {
         );
         super::test_utils::spawn_future_on_new_thread(|| taskserver_main(taskserver_config));
         let executor_config = executor_config(54010, false, authorized_keys.clone());
-        super::test_utils::spawn_future_on_new_thread(|| executor_main(executor_config));
+        super::test_utils::spawn_future_on_new_thread(|| {
+            executor_main(executor_config, executor_private_key)
+        });
 
         let commander_opt = run_cmd_opt("*", "cat Cargo.toml");
         std::thread::sleep(Duration::from_secs(1));
@@ -47,7 +51,8 @@ mod tests {
     async fn tls_test() {
         init_logger();
 
-        let (priv_key, authorized_keys) = generate_valid_keys("tests");
+        let (priv_key, authorized_keys) = generate_base64_encoded_keys("tests");
+        let (executor_private_key, _) = generate_base64_encoded_keys("local_executor");
 
         let taskserver_config = taskserver_config(
             54011,
@@ -58,7 +63,9 @@ mod tests {
         super::test_utils::spawn_future_on_new_thread(|| taskserver_main(taskserver_config));
 
         let executor_config = executor_config(54011, true, authorized_keys.clone());
-        super::test_utils::spawn_future_on_new_thread(|| executor_main(executor_config));
+        super::test_utils::spawn_future_on_new_thread(|| {
+            executor_main(executor_config, executor_private_key)
+        });
 
         std::thread::sleep(Duration::from_secs(1));
 
@@ -100,15 +107,18 @@ mod tests {
     async fn keys_test() {
         init_logger();
         // valid keys
-        let (regular_key, mut authorized_keys) = generate_valid_keys("regular");
-        let (admin_key, mut admin_authorized_keys) = generate_valid_keys("admin");
+        let (regular_key, mut authorized_keys) = generate_base64_encoded_keys("regular");
+        let (admin_key, mut admin_authorized_keys) = generate_base64_encoded_keys("admin");
         // unknown or unauthorized keys
-        let (unauthorized_regular_key, _) = generate_valid_keys("regular");
-        let (unauthorized_unknown_key, _) = generate_valid_keys("unknown");
-        let (unauthorized_admin_key, _) = generate_valid_keys("admin");
+        let (unauthorized_regular_key, _) = generate_base64_encoded_keys("regular");
+        let (unauthorized_unknown_key, _) = generate_base64_encoded_keys("unknown");
+        let (unauthorized_admin_key, _) = generate_base64_encoded_keys("admin");
 
         // register an "ultimate" key both in normal & admin authorized key stores
-        let (ultimate_key, ultimate_authorired_key) = generate_valid_keys("ultimate");
+        let (ultimate_key, ultimate_authorired_key) = generate_base64_encoded_keys("ultimate");
+
+        let (executor_private_key, _) = generate_base64_encoded_keys("local_executor");
+
         authorized_keys.insert(
             "ultimate".into(),
             ultimate_authorired_key.get("ultimate").unwrap().clone(),
@@ -122,7 +132,9 @@ mod tests {
             taskserver_config(54012, false, authorized_keys.clone(), admin_authorized_keys);
         super::test_utils::spawn_future_on_new_thread(|| taskserver_main(taskserver_config));
         let executor_config = executor_config(54012, false, authorized_keys.clone());
-        super::test_utils::spawn_future_on_new_thread(|| executor_main(executor_config));
+        super::test_utils::spawn_future_on_new_thread(|| {
+            executor_main(executor_config, executor_private_key)
+        });
 
         std::thread::sleep(Duration::from_secs(1));
         /////// ------------- Regular command forwarded to executors

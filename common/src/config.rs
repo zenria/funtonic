@@ -117,6 +117,16 @@ fn resolve_config<P: AsRef<Path>, T: AsRef<Path>, D: DeserializeOwned>(
     provided_config: &Option<P>,
     name: T,
 ) -> Result<D, Error> {
+    Ok(parse_yaml_from_file(resolve_config_path(
+        provided_config,
+        name,
+    )?)?)
+}
+
+fn resolve_config_path<P: AsRef<Path>, T: AsRef<Path>>(
+    provided_config: &Option<P>,
+    name: T,
+) -> Result<PathBuf, NoConfigFileError> {
     provided_config
         .as_ref()
         .map(|path| PathBuf::from(path.as_ref()))
@@ -129,11 +139,7 @@ fn resolve_config<P: AsRef<Path>, T: AsRef<Path>, D: DeserializeOwned>(
         )
         .filter(|loc| loc.exists())
         .nth(0)
-        .map(|loc| parse_yaml_from_file(loc))
-        .unwrap_or(Err(NoConfigFileError(
-            name.as_ref().to_string_lossy().into(),
-        )
-        .into()))
+        .ok_or(NoConfigFileError(name.as_ref().to_string_lossy().into()))
 }
 
 impl Config {
@@ -142,6 +148,15 @@ impl Config {
         name: T,
     ) -> Result<Config, Error> {
         resolve_config(provided_config, name)
+    }
+
+    pub fn get_config_directory<P: AsRef<Path>, T: AsRef<Path>>(
+        provided_config: &Option<P>,
+        name: T,
+    ) -> Result<PathBuf, Error> {
+        let mut config_file = resolve_config_path(provided_config, name)?;
+        config_file.pop();
+        Ok(config_file)
     }
 }
 
