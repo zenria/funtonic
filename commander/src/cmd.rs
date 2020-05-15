@@ -2,7 +2,7 @@ use crate::ExecutorState;
 use atty::Stream;
 use colored::{Color, Colorize};
 use funtonic::config::CommanderConfig;
-use funtonic::signed_payload::encode_and_sign;
+use funtonic::crypto::signed_payload::encode_and_sign;
 use grpc_service::grpc_protocol::commander_service_client::CommanderServiceClient;
 use grpc_service::grpc_protocol::launch_task_request_payload::Task;
 use grpc_service::grpc_protocol::launch_task_response::TaskResponse;

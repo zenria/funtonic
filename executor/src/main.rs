@@ -1,6 +1,6 @@
 use executor::{executor_main, Opt};
 use funtonic::config::Config;
-use funtonic::signed_payload::generate_base64_encoded_keys;
+use funtonic::crypto::keygen::generate_base64_encoded_keys;
 use log::{error, info, warn};
 use std::fs::File;
 use std::path::{Path, PathBuf};

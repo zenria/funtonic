@@ -8,7 +8,7 @@ mod tests {
     };
     use commander::commander_main;
     use executor::executor_main;
-    use funtonic::signed_payload::generate_base64_encoded_keys;
+    use funtonic::crypto::keygen::generate_base64_encoded_keys;
     use log::LevelFilter;
     use std::sync::Once;
     use std::time::Duration;

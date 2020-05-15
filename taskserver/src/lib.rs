@@ -2,11 +2,11 @@
 extern crate log;
 
 use funtonic::config::{Config, Role};
-use funtonic::file_utils::{mkdirs, path_concat2};
+use funtonic::file_utils::mkdirs;
 use funtonic::task_server::TaskServer;
 use grpc_service::grpc_protocol::commander_service_server::CommanderServiceServer;
 use grpc_service::grpc_protocol::executor_service_server::ExecutorServiceServer;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Duration;
 use structopt::StructOpt;
 use thiserror::Error;
@@ -43,9 +43,8 @@ pub async fn taskserver_main(config: Config) -> Result<(), Box<dyn std::error::E
 
         let addr = server_config.bind_address.parse().unwrap();
         let database_directory = mkdirs(&server_config.data_directory)?;
-        let database_path = path_concat2(database_directory, "known_executors.yml");
         let task_server = TaskServer::new(
-            Path::new(&database_path),
+            &database_directory,
             &server_config.authorized_keys,
             &server_config.admin_authorized_keys,
         )?;

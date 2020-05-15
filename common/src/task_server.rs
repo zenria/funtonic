@@ -25,7 +25,8 @@ use tonic::{Code, Request, Response, Status, Streaming};
 mod commander_service_impl;
 mod executor_service_impl;
 
-use crate::signed_payload::{memory_keystore, KeyStore};
+use crate::crypto::keystore::{file_keystore, memory_keystore, FileKeyStoreBackend, KeyStore};
+use crate::file_utils::path_concat2;
 pub use commander_service_impl::AdminDroppedExecutorJsonResponse;
 use grpc_service::payload::SignedPayload;
 
@@ -66,16 +67,21 @@ pub struct TaskServer {
     authorized_keys: Arc<KeyStore<HashMap<String, Vec<u8>>>>,
 
     authorized_admin_keys: Arc<KeyStore<HashMap<String, Vec<u8>>>>,
+
+    trusted_executor_keystore: Arc<KeyStore<FileKeyStoreBackend>>,
+
+    unapproved_executor_keystore: Arc<KeyStore<FileKeyStoreBackend>>,
 }
 
 impl TaskServer {
-    pub fn new(
-        database_path: &Path,
+    pub fn new<P: AsRef<Path>>(
+        database_dir: P,
         authorized_keys: &BTreeMap<String, String>,
         admin_authorized_keys: &BTreeMap<String, String>,
     ) -> Result<Self, anyhow::Error> {
+        let database_path = path_concat2(&database_dir, "known_executors.yml");
         if !database_path.exists() {
-            let mut empty = File::create(database_path)?;
+            let mut empty = File::create(&database_path)?;
             empty.write("---\n{}".as_bytes())?;
         }
 
@@ -89,6 +95,14 @@ impl TaskServer {
             authorized_admin_keys: Arc::new(
                 memory_keystore().init_from_map(admin_authorized_keys)?,
             ),
+            trusted_executor_keystore: Arc::new(file_keystore(path_concat2(
+                &database_dir,
+                "trusted_executors_keys.yml",
+            ))?),
+            unapproved_executor_keystore: Arc::new(file_keystore(path_concat2(
+                &database_dir,
+                "unapproved_executors_keys.yml",
+            ))?),
         })
     }
 
