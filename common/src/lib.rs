@@ -9,6 +9,7 @@ extern crate log;
 pub mod config;
 pub mod executor_meta;
 pub mod file_utils;
+pub mod path_builder;
 pub mod signed_payload;
 pub mod task_server;
 

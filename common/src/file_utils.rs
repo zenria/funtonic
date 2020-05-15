@@ -1,3 +1,4 @@
+use crate::path_builder::PathBuilder;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::borrow::Borrow;
@@ -7,9 +8,7 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 pub fn path_concat2<T: AsRef<Path>, U: AsRef<Path>>(p1: T, p2: U) -> PathBuf {
-    [p1.as_ref(), p2.as_ref().into()]
-        .iter()
-        .collect::<PathBuf>()
+    PathBuilder::from_path(p1).push(p2).build()
 }
 
 pub fn parse_yaml_from_file<P: AsRef<Path>, D: DeserializeOwned>(

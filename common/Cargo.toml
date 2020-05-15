@@ -17,7 +17,7 @@ crossbeam="0.7.2"
 itertools = "0.8.0"
 log="0.4"
 serde = { version = "1.0", features = ["derive"] }
-serde_yaml="0.8.11"
+serde_yaml="0.8"
 serde_json="1.0"
 structopt = "0.3"
 shellexpand = "1.0.0"
@@ -25,7 +25,7 @@ thiserror = "1.0"
 anyhow = "1.0"
 http="0.2"
 os_info = "1.1"
-rustbreak = {version="2.0.0-rc3", features=["yaml_enc"]}
+rustbreak = {git="https://github.com/zenria/rustbreak.git", branch="remove_failure", features=["yaml_enc", "ron_enc"]}
 query-parser = {path="../query-parser"}
 grpc-service = {path="../grpc-service"}
 exec={path="../exec"}
@@ -33,3 +33,6 @@ ring="0.16"
 prost="0.6"
 chrono = "0.4"
 base64="0.12"
+
+[dev-dependencies]
+tempfile = "3"

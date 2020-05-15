@@ -34,7 +34,7 @@ pub enum TaskServerError {
     #[error("Unable to get lock")]
     LockError,
     #[error("Rustbreak database error {0}")]
-    DatabaseError(rustbreak::RustbreakError),
+    DatabaseError(#[from] rustbreak::RustbreakError),
 }
 
 impl From<TaskServerError> for Status {
@@ -79,9 +79,8 @@ impl TaskServer {
             empty.write("---\n{}".as_bytes())?;
         }
 
-        let db = FileDatabase::from_path(database_path, Default::default())
-            .map_err(|e| TaskServerError::DatabaseError(e))?;
-        db.load().map_err(|e| TaskServerError::DatabaseError(e))?;
+        let db = FileDatabase::from_path(database_path, Default::default())?;
+        db.load()?;
         Ok(TaskServer {
             executors: Arc::new(Mutex::new(HashMap::new())),
             tasks_sinks: Arc::new(Mutex::new(HashMap::new())),
@@ -107,16 +106,13 @@ impl TaskServer {
         )>,
         TaskServerError,
     > {
-        let client_ids: Vec<String> = self
-            .executor_meta_database
-            .read(|executors| {
-                executors
-                    .iter()
-                    .filter(|(_client_id, meta)| meta.qmatches(query))
-                    .map(|(client_id, _meta)| client_id.clone())
-                    .collect()
-            })
-            .map_err(|e| TaskServerError::DatabaseError(e))?;
+        let client_ids: Vec<String> = self.executor_meta_database.read(|executors| {
+            executors
+                .iter()
+                .filter(|(_client_id, meta)| meta.qmatches(query))
+                .map(|(client_id, _meta)| client_id.clone())
+                .collect()
+        })?;
 
         let executor_senders = self.executors.lock().unwrap();
         // find matching senders, clone them
@@ -144,18 +140,14 @@ impl TaskServer {
             sender_to_get_task_response,
         );
 
-        self.executor_meta_database
-            .write(move |executors| {
-                info!(
-                    "Registered {}",
-                    serde_yaml::to_string(&executor_meta).unwrap_or("???".to_string())
-                );
-                executors.insert(executor_meta.client_id().to_string(), executor_meta);
-            })
-            .map_err(|e| TaskServerError::DatabaseError(e))?;
-        self.executor_meta_database
-            .save()
-            .map_err(|e| TaskServerError::DatabaseError(e))
+        self.executor_meta_database.write(move |executors| {
+            info!(
+                "Registered {}",
+                serde_yaml::to_string(&executor_meta).unwrap_or("???".to_string())
+            );
+            executors.insert(executor_meta.client_id().to_string(), executor_meta);
+        })?;
+        Ok(self.executor_meta_database.save()?)
     }
 
     fn get_running_tasks(&self) -> Result<Vec<String>, TaskServerError> {
@@ -172,18 +164,14 @@ impl TaskServer {
         &self,
         read_function: F,
     ) -> Result<R, TaskServerError> {
-        self.executor_meta_database
-            .read(read_function)
-            .map_err(|e| TaskServerError::DatabaseError(e))
+        Ok(self.executor_meta_database.read(read_function)?)
     }
 
     fn write_executor_meta_database<F: FnOnce(&mut ExecutorMetaDatabase) -> R, R>(
         &self,
         write_function: F,
     ) -> Result<R, TaskServerError> {
-        self.executor_meta_database
-            .write(write_function)
-            .map_err(|e| TaskServerError::DatabaseError(e))
+        Ok(self.executor_meta_database.write(write_function)?)
     }
 }
 

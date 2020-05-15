@@ -1,5 +1,4 @@
 use crate::config::ED25519Key;
-use crate::signed_payload::DecodePayloadError::KeyNotFound;
 use bytes::BytesMut;
 use chrono::{DateTime, Local};
 use grpc_service::grpc_protocol::streaming_payload::Payload;
@@ -8,15 +7,21 @@ use prost::bytes;
 use rand::random;
 use ring::signature;
 use ring::signature::KeyPair;
+use rustbreak::deser::Yaml;
+use rustbreak::FileDatabase;
 use std::collections::hash_map::RandomState;
 use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
+use std::fs::File;
+use std::io;
+use std::io::Write;
+use std::path::Path;
 use std::time::{Duration, Instant, SystemTime};
 use thiserror::Error;
 use tonic::Status;
 
 #[derive(Error, Debug)]
-pub enum DecodePayloadError {
+pub enum KeyStoreError {
     #[error("Key {0} does not exists")]
     KeyNotFound(String),
     #[error("Provided signature cannot be verified with key {0}")]
@@ -25,27 +30,65 @@ pub enum DecodePayloadError {
     ExpiredSignature(String, String),
     #[error("Cannot decode payload: {0}")]
     PayloadDecodeError(String),
+    #[error("Wrong key encoding {0}")]
+    KeyEncodingError(#[from] base64::DecodeError),
+    #[error("IOError {0}")]
+    IOError(#[from] io::Error),
+    #[error("Internal storage error {0}")]
+    InternalStorage(#[from] rustbreak::RustbreakError),
 }
 
-impl From<DecodePayloadError> for Status {
-    fn from(e: DecodePayloadError) -> Self {
+impl From<KeyStoreError> for Status {
+    fn from(e: KeyStoreError) -> Self {
         Status::internal(e.to_string())
     }
 }
 
 pub trait KeyStoreBackend: Sized {
-    fn insert_key<S: Into<String>>(&mut self, key_id: S, key_bytes: Vec<u8>);
+    fn insert_key<S: Into<String>>(
+        &mut self,
+        key_id: S,
+        key_bytes: Vec<u8>,
+    ) -> Result<(), KeyStoreError>;
 
-    fn get_key(&self, key_id: &str) -> Option<&[u8]>;
+    fn verify(&self, key_id: &str, payload: &[u8], signature: &[u8]) -> Result<(), KeyStoreError>;
 }
 
 impl KeyStoreBackend for HashMap<String, Vec<u8>> {
-    fn insert_key<S: Into<String>>(&mut self, key_id: S, key_bytes: Vec<u8>) {
+    fn insert_key<S: Into<String>>(
+        &mut self,
+        key_id: S,
+        key_bytes: Vec<u8>,
+    ) -> Result<(), KeyStoreError> {
         self.insert(key_id.into(), key_bytes);
+        Ok(())
     }
 
-    fn get_key(&self, key_id: &str) -> Option<&[u8]> {
-        self.get(key_id).map(|v| v.as_ref())
+    fn verify(&self, key_id: &str, payload: &[u8], signature: &[u8]) -> Result<(), KeyStoreError> {
+        self.get(key_id)
+            .ok_or(KeyStoreError::KeyNotFound(key_id.to_string()))
+            .and_then(|key_bytes| {
+                signature::UnparsedPublicKey::new(&signature::ED25519, key_bytes)
+                    .verify(&payload, &signature)
+                    .map_err(|_| KeyStoreError::WrongSignature(key_id.to_string()))
+            })
+    }
+}
+
+impl KeyStoreBackend for FileDatabase<HashMap<String, Vec<u8>>, Yaml> {
+    fn insert_key<S: Into<String>>(
+        &mut self,
+        key_id: S,
+        key_bytes: Vec<u8>,
+    ) -> Result<(), KeyStoreError> {
+        self.write(|db| {
+            db.insert(key_id.into(), key_bytes);
+        })?;
+        Ok(self.save()?)
+    }
+
+    fn verify(&self, key_id: &str, payload: &[u8], signature: &[u8]) -> Result<(), KeyStoreError> {
+        self.read(|db| db.verify(key_id, payload, signature))?
     }
 }
 
@@ -60,51 +103,65 @@ pub fn memory_keystore() -> KeyStore<HashMap<String, Vec<u8>>> {
     }
 }
 
+pub fn file_keystore<P: AsRef<Path>>(
+    path: P,
+) -> Result<KeyStore<FileDatabase<HashMap<String, Vec<u8>>, Yaml>>, KeyStoreError> {
+    let path: &Path = path.as_ref();
+    let initialize_db = !path.exists();
+    let db = FileDatabase::<_, Yaml>::from_path(path, Default::default())?;
+    if initialize_db {
+        db.save()?;
+    } else {
+        db.load()?;
+    }
+    Ok(KeyStore { keys: db })
+}
+
 impl<B: KeyStoreBackend> KeyStore<B> {
     pub fn init_from_map<'a, T: IntoIterator<Item = (&'a String, &'a String)>>(
         self,
         map: T,
-    ) -> Result<Self, base64::DecodeError> {
+    ) -> Result<Self, KeyStoreError> {
         map.into_iter().try_fold(
             self,
             |mut store, (key, base64_encoded_bytes): (&String, &String)| {
-                store.register_key(key, base64::decode(base64_encoded_bytes)?);
+                store.register_key(key, base64::decode(base64_encoded_bytes)?)?;
                 Ok(store)
             },
         )
     }
 
-    pub fn register_key<S: Into<String>>(&mut self, key_id: S, key_bytes: Vec<u8>) {
-        self.keys.insert_key(key_id.into(), key_bytes);
+    pub fn register_key<S: Into<String>>(
+        &mut self,
+        key_id: S,
+        key_bytes: Vec<u8>,
+    ) -> Result<(), KeyStoreError> {
+        self.keys.insert_key(key_id.into(), key_bytes)
     }
 
     pub fn decode_payload<P: prost::Message + Default>(
         &self,
         payload: &SignedPayload,
-    ) -> Result<P, DecodePayloadError> {
+    ) -> Result<P, KeyStoreError> {
         // validate time limit
         let valid_until = SystemTime::UNIX_EPOCH + Duration::from_secs(payload.valid_until_secs);
         if valid_until < SystemTime::now() {
-            Err(DecodePayloadError::ExpiredSignature(
+            Err(KeyStoreError::ExpiredSignature(
                 DateTime::<Local>::from(valid_until).to_string(),
                 DateTime::<Local>::from(SystemTime::now()).to_string(),
             ))?;
         }
 
-        // find key
-        let key_bytes = self
-            .keys
-            .get_key(&payload.key_id)
-            .ok_or(KeyNotFound(payload.key_id.clone()))?;
-
         // check signature
-        let public_key = signature::UnparsedPublicKey::new(&signature::ED25519, key_bytes);
-        public_key
-            .verify(&payload_bytes_to_sign(&payload), &payload.signature)
-            .map_err(|_| DecodePayloadError::WrongSignature(payload.key_id.clone()))?;
+        self.keys.verify(
+            &payload.key_id,
+            &payload_bytes_to_sign(&payload),
+            &payload.signature,
+        )?;
 
+        // decode payload
         P::decode(payload.payload.as_slice())
-            .map_err(|decode_err| DecodePayloadError::PayloadDecodeError(decode_err.to_string()))
+            .map_err(|decode_err| KeyStoreError::PayloadDecodeError(decode_err.to_string()))
     }
 }
 
@@ -202,12 +259,15 @@ pub fn generate_base64_encoded_keys(key_name: &str) -> (ED25519Key, BTreeMap<Str
 
 #[cfg(test)]
 mod test {
+    use crate::path_builder::PathBuilder;
     use crate::signed_payload::{
-        encode_and_sign, generate_ed25519_key_pair, memory_keystore, KeyStore,
+        encode_and_sign, file_keystore, generate_ed25519_key_pair, memory_keystore, KeyStore,
     };
     use prost::Message;
     use ring::signature;
     use ring::signature::KeyPair;
+    use std::fs::{read_to_string, File};
+    use std::path::PathBuf;
     use tokio::time::Duration;
 
     #[derive(Clone, PartialEq, Message)]
@@ -220,7 +280,7 @@ mod test {
         let (private_key, public_key) = generate_ed25519_key_pair().unwrap();
 
         let mut key_store = memory_keystore();
-        key_store.register_key("abcd", public_key.to_vec());
+        key_store.register_key("abcd", public_key.to_vec()).unwrap();
 
         let payload = TestPayload {
             some_stuff: "foo // bar".into(),
@@ -237,5 +297,42 @@ mod test {
             .decode_payload::<TestPayload>(&signed_payload)
             .unwrap();
         assert_eq!(&decoded.some_stuff, "foo // bar");
+    }
+    #[test]
+    fn test_filebacked_keystore() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = PathBuilder::from_path(&dir).push("keystore.yaml").build();
+        assert!(!file.exists());
+
+        let (private_key, public_key) = generate_ed25519_key_pair().unwrap();
+
+        let payload = TestPayload {
+            some_stuff: "foo // bar".into(),
+        };
+
+        let signed_payload = encode_and_sign(
+            payload,
+            &("abcd", private_key.as_slice()).into(),
+            Duration::from_secs(5),
+        )
+        .unwrap();
+
+        {
+            let mut ks = file_keystore(&file).unwrap();
+            assert!(file.exists());
+            ks.register_key("abcd", public_key.to_vec()).unwrap();
+
+            let decoded = ks.decode_payload::<TestPayload>(&signed_payload).unwrap();
+            assert_eq!(&decoded.some_stuff, "foo // bar");
+        }
+        {
+            // the keystore should be persisted on the filesystem: no need to register a key anymore
+            assert!(file.exists());
+            println!("{}", read_to_string(&file).unwrap());
+            let ks = file_keystore(&file).unwrap();
+
+            let decoded = ks.decode_payload::<TestPayload>(&signed_payload).unwrap();
+            assert_eq!(&decoded.some_stuff, "foo // bar");
+        }
     }
 }
