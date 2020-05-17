@@ -5,6 +5,7 @@ use exec::a_sync;
 use exec::*;
 use funtonic::config::{Config, ED25519Key, Role};
 use funtonic::crypto::keystore::{memory_keystore, KeyStore, KeyStoreBackend};
+use funtonic::crypto::signed_payload::{encode_and_sign, EncodePayloadError};
 use funtonic::executor_meta::{ExecutorMeta, Tag};
 use funtonic::PROTOCOL_VERSION;
 use futures::StreamExt;
@@ -13,8 +14,10 @@ use grpc_service::grpc_protocol::launch_task_request_payload::Task;
 use grpc_service::grpc_protocol::task_execution_result::ExecutionResult;
 use grpc_service::grpc_protocol::task_output::Output;
 use grpc_service::grpc_protocol::{
-    Empty, ExecuteCommand, LaunchTaskRequestPayload, TaskCompleted, TaskExecutionResult, TaskOutput,
+    Empty, ExecuteCommand, GetTasksRequest, LaunchTaskRequestPayload, RegisterExecutorRequest,
+    TaskCompleted, TaskExecutionResult, TaskOutput,
 };
+use grpc_service::payload::SignedPayload;
 use http::Uri;
 use std::collections::HashMap;
 use std::error::Error;
@@ -49,7 +52,7 @@ enum LastConnectionStatus {
 
 pub async fn executor_main(
     config: Config,
-    signing_key: ED25519Key,
+    mut signing_key: ED25519Key,
 ) -> Result<(), Box<dyn std::error::Error>> {
     info!(
         "Executor v{}, core v{},  protocol v{}",
@@ -60,6 +63,8 @@ pub async fn executor_main(
     info!("{:#?}", config);
 
     if let Role::Executor(executor_config) = config.role {
+        // force the is of the key to match the executor client_id
+        signing_key.id = executor_config.client_id.clone();
         let mut endpoint = Channel::builder(Uri::from_str(&executor_config.server_url)?)
             .tcp_keepalive(Some(Duration::from_secs(60)));
 
@@ -90,6 +95,7 @@ pub async fn executor_main(
             &executor_meta,
             &mut connection_status_sender,
             &key_store,
+            signing_key.clone(),
         )
         .await
         {
@@ -118,6 +124,7 @@ async fn do_executor_main<B: KeyStoreBackend>(
     executor_metas: &ExecutorMeta,
     last_connection_status_sender: &mut Sender<LastConnectionStatus>,
     key_store: &KeyStore<B>,
+    signing_key: ED25519Key,
 ) -> Result<(), Box<dyn std::error::Error>> {
     last_connection_status_sender.broadcast(LastConnectionStatus::Connecting)?;
     let channel = endpoint.connect().await?;
@@ -129,7 +136,18 @@ async fn do_executor_main<B: KeyStoreBackend>(
 
     let client_id = executor_metas.client_id().to_string();
 
-    let request = tonic::Request::new(executor_metas.into());
+    let request = tonic::Request::new(
+        RegisterExecutorRequest {
+            public_key: base64::decode(signing_key.public_key.as_ref().unwrap())?,
+            client_id: client_id.clone(),
+            get_tasks_request: Some(encode_and_sign(
+                GetTasksRequest::from(executor_metas),
+                &signing_key,
+                Duration::from_secs(60),
+            )?),
+        }
+        .into(),
+    );
 
     let mut response = client.get_tasks(request).await?.into_inner();
 
@@ -145,12 +163,12 @@ async fn do_executor_main<B: KeyStoreBackend>(
                         Some(task) => match task {
                             Task::ExecuteCommand(cmd) => {
                                 info!("Received task {} - {}", task_id, cmd.command);
-
                                 tokio::spawn(execute_task(
                                     cmd,
                                     task_id,
                                     client_id.clone(),
                                     client.clone(),
+                                    signing_key.clone(),
                                 ));
                             }
                             Task::StreamingPayload(_) => {
@@ -176,8 +194,9 @@ async fn execute_task(
     task_id: String,
     client_id: String,
     client: ExecutorServiceClient<Channel>,
+    signing_key: ED25519Key,
 ) {
-    match do_execute_task(task_payload, task_id, client_id, client).await {
+    match do_execute_task(task_payload, task_id, client_id, client, signing_key).await {
         Ok(_) => (),
         Err(e) => error!("Something wrong happened while executing task {}", e),
     }
@@ -188,6 +207,7 @@ async fn do_execute_task(
     task_id: String,
     client_id: String,
     mut client: ExecutorServiceClient<Channel>,
+    signing_key: ED25519Key,
 ) -> Result<(), Box<dyn Error>> {
     let cloned_task_id = task_id.clone();
     let cloned_client_id = client_id.clone();
@@ -212,7 +232,19 @@ async fn do_execute_task(
             task_id: task_id.clone(),
             client_id: cloned_client_id.clone(),
             execution_result: Some(execution_result),
-        });
+        })
+        .map(move |execution_result| {
+            encode_and_sign(execution_result, &signing_key, Duration::from_secs(60))
+        })
+        .filter(|result| match result {
+            // filter out signing error
+            Ok(_) => futures::future::ready(true),
+            Err(e) => {
+                error!("Unable to sign task execution result {}", e);
+                futures::future::ready(false)
+            }
+        })
+        .map(|result| result.unwrap());
 
     let mut request = Request::new(stream);
     request.metadata_mut().insert(

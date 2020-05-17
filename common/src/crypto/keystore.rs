@@ -9,6 +9,7 @@ use ring::signature;
 use ring::signature::KeyPair;
 use rustbreak::deser::Yaml;
 use rustbreak::FileDatabase;
+use std::borrow::Borrow;
 use std::collections::hash_map::RandomState;
 use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
@@ -16,6 +17,7 @@ use std::fs::File;
 use std::io;
 use std::io::Write;
 use std::path::Path;
+use std::sync::RwLock;
 use std::time::{Duration, Instant, SystemTime};
 use thiserror::Error;
 use tonic::Status;
@@ -36,6 +38,8 @@ pub enum KeyStoreError {
     IOError(#[from] io::Error),
     #[error("Internal storage error {0}")]
     InternalStorage(#[from] rustbreak::RustbreakError),
+    #[error("Poisonned lock (not possible AFAIK)")]
+    Poison,
 }
 
 impl From<KeyStoreError> for Status {
@@ -46,40 +50,83 @@ impl From<KeyStoreError> for Status {
 
 pub trait KeyStoreBackend: Sized {
     fn insert_key<S: Into<String>>(
-        &mut self,
+        &self,
         key_id: S,
         key_bytes: Vec<u8>,
     ) -> Result<(), KeyStoreError>;
 
     fn verify(&self, key_id: &str, payload: &[u8], signature: &[u8]) -> Result<(), KeyStoreError>;
+
+    fn list_all(&self) -> Result<HashMap<String, Vec<u8>>, KeyStoreError>;
+
+    fn remove_key(&self, key_id: &str) -> Result<Vec<u8>, KeyStoreError>;
+
+    fn has_key(&self, key_id: &str, key_bytes: &[u8]) -> Result<bool, KeyStoreError>;
 }
 
-impl KeyStoreBackend for HashMap<String, Vec<u8>> {
+pub type FileKeyStoreBackend = FileDatabase<HashMap<String, Vec<u8>>, Yaml>;
+pub type MemoryKeyStoreBackend = RwLock<HashMap<String, Vec<u8>>>;
+
+fn verify_signature(
+    db: &HashMap<String, Vec<u8>>,
+    key_id: &str,
+    payload: &[u8],
+    signature: &[u8],
+) -> Result<(), KeyStoreError> {
+    db.get(key_id)
+        .ok_or(KeyStoreError::KeyNotFound(key_id.to_string()))
+        .and_then(|key_bytes| {
+            signature::UnparsedPublicKey::new(&signature::ED25519, key_bytes)
+                .verify(&payload, &signature)
+                .map_err(|_| KeyStoreError::WrongSignature(key_id.to_string()))
+        })
+}
+
+impl KeyStoreBackend for MemoryKeyStoreBackend {
     fn insert_key<S: Into<String>>(
-        &mut self,
+        &self,
         key_id: S,
         key_bytes: Vec<u8>,
     ) -> Result<(), KeyStoreError> {
-        self.insert(key_id.into(), key_bytes);
+        self.write()
+            .map_err(|_| KeyStoreError::Poison)?
+            .insert(key_id.into(), key_bytes);
         Ok(())
     }
 
     fn verify(&self, key_id: &str, payload: &[u8], signature: &[u8]) -> Result<(), KeyStoreError> {
-        self.get(key_id)
+        verify_signature(
+            self.read().map_err(|_| KeyStoreError::Poison)?.borrow(),
+            key_id,
+            payload,
+            signature,
+        )
+    }
+
+    fn list_all(&self) -> Result<HashMap<String, Vec<u8>, RandomState>, KeyStoreError> {
+        Ok(self.read().map_err(|_| KeyStoreError::Poison)?.clone())
+    }
+
+    fn remove_key(&self, key_id: &str) -> Result<Vec<u8>, KeyStoreError> {
+        self.write()
+            .map_err(|_| KeyStoreError::Poison)?
+            .remove(key_id)
             .ok_or(KeyStoreError::KeyNotFound(key_id.to_string()))
-            .and_then(|key_bytes| {
-                signature::UnparsedPublicKey::new(&signature::ED25519, key_bytes)
-                    .verify(&payload, &signature)
-                    .map_err(|_| KeyStoreError::WrongSignature(key_id.to_string()))
-            })
+    }
+
+    fn has_key(&self, key_id: &str, key_bytes: &[u8]) -> Result<bool, KeyStoreError> {
+        Ok(self
+            .read()
+            .map_err(|_| KeyStoreError::Poison)?
+            .get(key_id)
+            .filter(|bytes| bytes.as_slice() == key_bytes)
+            .is_some())
     }
 }
 
-pub type FileKeyStoreBackend = FileDatabase<HashMap<String, Vec<u8>>, Yaml>;
-
 impl KeyStoreBackend for FileKeyStoreBackend {
     fn insert_key<S: Into<String>>(
-        &mut self,
+        &self,
         key_id: S,
         key_bytes: Vec<u8>,
     ) -> Result<(), KeyStoreError> {
@@ -90,7 +137,30 @@ impl KeyStoreBackend for FileKeyStoreBackend {
     }
 
     fn verify(&self, key_id: &str, payload: &[u8], signature: &[u8]) -> Result<(), KeyStoreError> {
-        self.read(|db| db.verify(key_id, payload, signature))?
+        self.read(|db| verify_signature(db, key_id, payload, signature))?
+    }
+
+    fn list_all(&self) -> Result<HashMap<String, Vec<u8>>, KeyStoreError> {
+        Ok(self.read(|db| db.clone())?)
+    }
+
+    fn remove_key(&self, key_id: &str) -> Result<Vec<u8>, KeyStoreError> {
+        self.write(|db| {
+            db.remove(key_id)
+                .ok_or(KeyStoreError::KeyNotFound(key_id.to_string()))
+        })?
+        .and_then(|removed| {
+            self.save()?;
+            Ok(removed)
+        })
+    }
+
+    fn has_key(&self, key_id: &str, key_bytes: &[u8]) -> Result<bool, KeyStoreError> {
+        Ok(self.read(|db| {
+            db.get(key_id)
+                .filter(|bytes| bytes.as_slice() == key_bytes)
+                .is_some()
+        })?)
     }
 }
 
@@ -99,7 +169,7 @@ pub struct KeyStore<B: KeyStoreBackend> {
     keys: B,
 }
 
-pub fn memory_keystore() -> KeyStore<HashMap<String, Vec<u8>>> {
+pub fn memory_keystore() -> KeyStore<MemoryKeyStoreBackend> {
     KeyStore {
         keys: Default::default(),
     }
@@ -134,11 +204,19 @@ impl<B: KeyStoreBackend> KeyStore<B> {
     }
 
     pub fn register_key<S: Into<String>>(
-        &mut self,
+        &self,
         key_id: S,
         key_bytes: Vec<u8>,
     ) -> Result<(), KeyStoreError> {
         self.keys.insert_key(key_id.into(), key_bytes)
+    }
+
+    pub fn remove_key(&self, key_id: &str) -> Result<Vec<u8>, KeyStoreError> {
+        self.keys.remove_key(key_id)
+    }
+
+    pub fn has_key(&self, key_id: &str, key_bytes: &[u8]) -> Result<bool, KeyStoreError> {
+        self.keys.has_key(key_id, key_bytes)
     }
 
     pub fn decode_payload<P: prost::Message + Default>(
@@ -164,5 +242,13 @@ impl<B: KeyStoreBackend> KeyStore<B> {
         // decode payload
         P::decode(payload.payload.as_slice())
             .map_err(|decode_err| KeyStoreError::PayloadDecodeError(decode_err.to_string()))
+    }
+
+    pub fn list_all(&self) -> Result<HashMap<String, String>, KeyStoreError> {
+        self.keys.list_all().map(|keys| {
+            keys.into_iter()
+                .map(|(id, bytes)| (id, base64::encode(bytes)))
+                .collect()
+        })
     }
 }

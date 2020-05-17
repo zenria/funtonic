@@ -11,6 +11,7 @@ use grpc_service::grpc_protocol::executor_service_server::*;
 use grpc_service::grpc_protocol::launch_task_response::TaskResponse;
 use grpc_service::grpc_protocol::task_execution_result::ExecutionResult;
 use grpc_service::grpc_protocol::*;
+use grpc_service::payload::SignedPayload;
 use query_parser::{parse, Query, QueryMatcher};
 use rand::Rng;
 use rustbreak::deser::Yaml;
@@ -34,10 +35,21 @@ impl ExecutorService for TaskServer {
     type GetTasksStream = Stream<GetTaskStreamReply>;
     async fn get_tasks(
         &self,
-        request: tonic::Request<GetTasksRequest>,
+        request: tonic::Request<RegisterExecutorRequest>,
     ) -> Result<tonic::Response<Self::GetTasksStream>, tonic::Status> {
         let metadata = request.metadata();
         let request = request.get_ref();
+
+        // check the public key of the executor
+        self.handle_executor_key(&request.client_id, &request.public_key)?;
+
+        // decode the payload
+        let request: GetTasksRequest = self.trusted_executor_keystore.decode_payload(
+            request
+                .get_tasks_request
+                .as_ref()
+                .ok_or(Status::invalid_argument("Missing getTasksRequest"))?,
+        )?;
 
         // Strict protocol version check
         if request.client_protocol_version != PROTOCOL_VERSION {
@@ -54,12 +66,15 @@ impl ExecutorService for TaskServer {
             ))?;
         }
 
+        // TODO check executor key before registering it
+        //self.handle_executor_key(&client_id, request.)
+
         let client_id = request.client_id.clone();
         info!("{} connected with meta {:?}", client_id, metadata);
         // register the client and wait for new tasks to come, forward them
         // to the response
         let (sender, receiver) = mpsc::unbounded();
-        if let Err(e) = self.register_executor(request.into(), sender) {
+        if let Err(e) = self.register_executor((&request).into(), sender) {
             error!("Unable to register executor {}", e);
             Err(e)?;
         }
@@ -82,16 +97,21 @@ impl ExecutorService for TaskServer {
     }
     async fn task_execution(
         &self,
-        request: tonic::Request<tonic::Streaming<TaskExecutionResult>>,
+        request: tonic::Request<tonic::Streaming<SignedPayload>>,
     ) -> Result<tonic::Response<Empty>, tonic::Status> {
         let task_id =
             String::from_utf8_lossy(request.metadata().get("task_id").unwrap().as_bytes())
                 .into_owned();
+
         let mut request_stream = request.into_inner();
         if let Some(sender) = get_task_sink(&self.tasks_sinks, &task_id) {
             let mut sender = sender;
             while let Some(task_execution_stream) = request_stream.next().await {
-                let task_execution_stream = task_execution_stream?;
+                let signed_payload = task_execution_stream?;
+                let task_execution_stream: TaskExecutionResult = self
+                    .trusted_executor_keystore
+                    .decode_payload(&signed_payload)?;
+
                 debug!(
                     "Received task_execution_report {} - {}",
                     task_execution_stream.client_id, task_id

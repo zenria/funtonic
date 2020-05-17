@@ -5,9 +5,9 @@ import "payload.proto";
 package grpc_protocol;
 
 service ExecutorService {
-  rpc GetTasks (GetTasksRequest) returns (stream GetTaskStreamReply) {}
+  rpc GetTasks (RegisterExecutorRequest) returns (stream GetTaskStreamReply) {}
 
-  rpc TaskExecution (stream TaskExecutionResult) returns (Empty) {}
+  rpc TaskExecution (stream payload.SignedPayload) returns (Empty) {}
 
 }
 
@@ -31,6 +31,9 @@ message AdminRequest {
     // this should trigger a reconnect of the executor, and thus an update of the executor's metadata
     // If the executor is not alive it will be forgotten.
     string dropExecutor = 5;
+
+    Empty listExecutorKeys = 6;
+    string approveExecutorKey = 7;
   }
 }
 
@@ -44,6 +47,18 @@ message AdminRequestResponse {
     string error = 1;
     string jsonResponse = 2;
   }
+}
+
+
+message RegisterExecutorRequest {
+  // executor public key, the server will expect the private key will be used to sign requests!
+  bytes public_key = 1;
+  string clientId = 2;
+  // A signed GetTasksRequest payload ; the signature must be valid and the key_id must be identical to the client_id
+  //
+  // Thus, the executor will be able to register itself only if the task server "knows" its public key.
+  payload.SignedPayload getTasksRequest = 3;
+
 }
 
 message GetTasksRequest {

@@ -25,7 +25,10 @@ use tonic::{Code, Request, Response, Status, Streaming};
 mod commander_service_impl;
 mod executor_service_impl;
 
-use crate::crypto::keystore::{file_keystore, memory_keystore, FileKeyStoreBackend, KeyStore};
+use crate::crypto::keystore::{
+    file_keystore, memory_keystore, FileKeyStoreBackend, KeyStore, KeyStoreError,
+    MemoryKeyStoreBackend,
+};
 use crate::file_utils::path_concat2;
 pub use commander_service_impl::AdminDroppedExecutorJsonResponse;
 use grpc_service::payload::SignedPayload;
@@ -64,9 +67,9 @@ pub struct TaskServer {
 
     executor_meta_database: Arc<FileDatabase<ExecutorMetaDatabase, Yaml>>,
 
-    authorized_keys: Arc<KeyStore<HashMap<String, Vec<u8>>>>,
+    authorized_keys: Arc<KeyStore<MemoryKeyStoreBackend>>,
 
-    authorized_admin_keys: Arc<KeyStore<HashMap<String, Vec<u8>>>>,
+    authorized_admin_keys: Arc<KeyStore<MemoryKeyStoreBackend>>,
 
     trusted_executor_keystore: Arc<KeyStore<FileKeyStoreBackend>>,
 
@@ -186,6 +189,41 @@ impl TaskServer {
         write_function: F,
     ) -> Result<R, TaskServerError> {
         Ok(self.executor_meta_database.write(write_function)?)
+    }
+
+    /// Handle executor public key.
+    ///
+    /// If the key is known and authorized, does nothing.
+    ///
+    /// If the key is not known for this client_id, register it in unapproved_executor_keystore
+    fn handle_executor_key(&self, client_id: &str, key_bytes: &[u8]) -> Result<(), KeyStoreError> {
+        if !self
+            .trusted_executor_keystore
+            .has_key(client_id, key_bytes)?
+            && !self
+                .unapproved_executor_keystore
+                .has_key(client_id, key_bytes)?
+        {
+            self.unapproved_executor_keystore
+                .register_key(client_id, key_bytes.to_vec())
+        } else {
+            Ok(())
+        }
+    }
+
+    fn approve_executor_key(&self, client_id: &str) -> Result<(), KeyStoreError> {
+        self.trusted_executor_keystore.register_key(
+            client_id,
+            self.unapproved_executor_keystore.remove_key(client_id)?,
+        )
+    }
+
+    fn list_trusted_executor_keys(&self) -> Result<HashMap<String, String>, KeyStoreError> {
+        self.trusted_executor_keystore.list_all()
+    }
+
+    fn list_unapproved_executor_keys(&self) -> Result<HashMap<String, String>, KeyStoreError> {
+        self.unapproved_executor_keystore.list_all()
     }
 }
 

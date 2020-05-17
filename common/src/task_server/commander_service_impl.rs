@@ -288,6 +288,21 @@ impl CommanderService for TaskServer {
                     )),
                 }))
             }
+            RequestType::ListExecutorKeys(_) => Ok(Response::new(AdminRequestResponse {
+                response_kind: Some(ResponseKind::JsonResponse(
+                    serde_json::to_string(&AdminListExecutorKeysJsonResponse {
+                        trusted_executor_keys: self.list_trusted_executor_keys()?,
+                        unapproved_executor_keys: self.list_unapproved_executor_keys()?,
+                    })
+                    .map_err(|deser| Status::internal(format!("An error occured: {}", deser)))?,
+                )),
+            })),
+            RequestType::ApproveExecutorKey(client_id) => {
+                self.approve_executor_key(&client_id)?;
+                Ok(Response::new(AdminRequestResponse {
+                    response_kind: Some(ResponseKind::JsonResponse("{}".to_string())),
+                }))
+            }
         }
     }
 }
@@ -296,4 +311,10 @@ impl CommanderService for TaskServer {
 pub struct AdminDroppedExecutorJsonResponse {
     pub removed_from_connected: bool,
     pub removed_from_known: bool,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct AdminListExecutorKeysJsonResponse {
+    pub trusted_executor_keys: HashMap<String, String>,
+    pub unapproved_executor_keys: HashMap<String, String>,
 }
