@@ -1,4 +1,4 @@
-use commander::AdminCommandOuputMode;
+use commander::{AdminCommandOuputMode, CommanderSyntheticOutput, ExecutorState};
 use funtonic::config::Role::Commander;
 use funtonic::config::{
     CommanderConfig, Config, ED25519Key, ExecutorConfig, Role, ServerConfig, TlsConfig,
@@ -137,5 +137,37 @@ pub fn commander_config(port: u16, with_tls: bool, ed25519_key: ED25519Key) -> C
             server_url: format!("http://127.0.0.1:{}", port),
             ed25519_key,
         }),
+    }
+}
+
+pub fn assert_success_of_one_executor(res: CommanderSyntheticOutput) {
+    match res {
+        CommanderSyntheticOutput::Executor {
+            states,
+            output: _output,
+        } => assert_eq!(
+            1,
+            states
+                .get(&ExecutorState::Success)
+                .expect("Executor must be in success")
+                .len()
+        ),
+        _ => panic!("Not an executor result"),
+    }
+}
+
+pub fn assert_executor_error(res: CommanderSyntheticOutput) {
+    match res {
+        CommanderSyntheticOutput::Executor {
+            states,
+            output: _output,
+        } => assert_eq!(
+            1,
+            states
+                .get(&ExecutorState::Error)
+                .expect("Executor must be in error")
+                .len()
+        ),
+        _ => panic!("Not an executor result"),
     }
 }

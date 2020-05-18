@@ -4,8 +4,8 @@ mod test_utils;
 #[cfg(test)]
 mod tests {
     use crate::test_utils::{
-        admin_cmd, approve_key_executor_cmd, commander_config, executor_config,
-        list_executors_keys_cmd, run_cmd_opt, taskserver_config,
+        admin_cmd, approve_key_executor_cmd, assert_executor_error, assert_success_of_one_executor,
+        commander_config, executor_config, list_executors_keys_cmd, run_cmd_opt, taskserver_config,
     };
     use commander::{commander_main, CommanderSyntheticOutput, ExecutorState};
     use executor::executor_main;
@@ -59,22 +59,6 @@ mod tests {
                 .await
                 .expect("cat Cargo.toml failed"),
         );
-    }
-
-    fn assert_success_of_one_executor(res: CommanderSyntheticOutput) {
-        match res {
-            CommanderSyntheticOutput::Executor {
-                states,
-                output: _output,
-            } => assert_eq!(
-                1,
-                states
-                    .get(&ExecutorState::Success)
-                    .expect("Executor must be in success")
-                    .len()
-            ),
-            _ => panic!("Not an executor result"),
-        }
     }
 
     #[tokio::test]
@@ -167,6 +151,10 @@ mod tests {
         // register an "ultimate" key both in normal & admin authorized key stores
         let (ultimate_key, ultimate_authorired_key) = generate_base64_encoded_keys("ultimate");
 
+        // register an authorized key on the task server which is not in executor
+        let (not_in_executor_key, not_in_executor_authorized_key) =
+            generate_base64_encoded_keys("not_in_executor");
+
         let (executor_private_key, _) = generate_base64_encoded_keys("local_executor");
 
         authorized_keys.insert(
@@ -176,6 +164,14 @@ mod tests {
         admin_authorized_keys.insert(
             "ultimate".into(),
             ultimate_authorired_key.get("ultimate").unwrap().clone(),
+        );
+        let executor_authorized_keys = authorized_keys.clone();
+        authorized_keys.insert(
+            "not_in_executor".into(),
+            not_in_executor_authorized_key
+                .get("not_in_executor")
+                .unwrap()
+                .clone(),
         );
 
         let datadir = tempdir().unwrap();
@@ -187,7 +183,7 @@ mod tests {
             &datadir,
         );
         super::test_utils::spawn_future_on_new_thread(|| taskserver_main(taskserver_config));
-        let executor_config = executor_config(54012, false, authorized_keys.clone());
+        let executor_config = executor_config(54012, false, executor_authorized_keys);
         super::test_utils::spawn_future_on_new_thread(|| {
             executor_main(executor_config, executor_private_key)
         });
@@ -208,6 +204,16 @@ mod tests {
             commander_main(
                 run_cmd_opt("*", "cat Cargo.toml"),
                 commander_config(54012, false, regular_key.clone()),
+            )
+            .await
+            .expect("cat Cargo.toml failed"),
+        );
+
+        // executing a command with a regular key not registered in executor must fail
+        assert_executor_error(
+            commander_main(
+                run_cmd_opt("*", "cat Cargo.toml"),
+                commander_config(54012, false, not_in_executor_key.clone()),
             )
             .await
             .expect("cat Cargo.toml failed"),
