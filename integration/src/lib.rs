@@ -7,7 +7,7 @@ mod tests {
         admin_cmd, approve_key_executor_cmd, assert_executor_error, assert_success_of_one_executor,
         commander_config, executor_config, list_executors_keys_cmd, run_cmd_opt, taskserver_config,
     };
-    use commander::{commander_main, CommanderSyntheticOutput, ExecutorState};
+    use commander::{commander_main, ExecutorState};
     use executor::executor_main;
     use funtonic::crypto::keygen::generate_base64_encoded_keys;
     use log::LevelFilter;
