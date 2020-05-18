@@ -6,6 +6,7 @@ use funtonic::config::{
 use futures::Future;
 use std::collections::BTreeMap;
 use std::error::Error;
+use std::path::Path;
 
 pub fn spawn_future_on_new_thread<
     F: FnOnce() -> Fut + Send + 'static,
@@ -47,11 +48,12 @@ pub fn admin_cmd() -> commander::Opt {
     }
 }
 
-pub fn taskserver_config(
+pub fn taskserver_config<P: AsRef<Path>>(
     port: u16,
     with_tls: bool,
     authorized_keys: BTreeMap<String, String>,
     admin_authorized_keys: BTreeMap<String, String>,
+    task_server_dir: P,
 ) -> Config {
     Config {
         tls: if with_tls {
@@ -66,7 +68,7 @@ pub fn taskserver_config(
         },
         role: Role::Server(ServerConfig {
             bind_address: format!("127.0.0.1:{}", port),
-            data_directory: "/tmp/taskserver".to_string(),
+            data_directory: task_server_dir.as_ref().to_string_lossy().to_string(),
             authorized_keys,
             admin_authorized_keys,
         }),
@@ -95,6 +97,27 @@ pub fn executor_config(
             server_url: format!("http://127.0.0.1:{}", port),
             authorized_keys,
         }),
+    }
+}
+
+pub fn approve_key_executor_cmd() -> commander::Opt {
+    commander::Opt {
+        config: None,
+        command: commander::Command::Admin {
+            output_mode: AdminCommandOuputMode::Json,
+            command: commander::AdminCommand::ApproveExecutorKey {
+                executor: "exec".to_string(),
+            },
+        },
+    }
+}
+pub fn list_executors_keys_cmd() -> commander::Opt {
+    commander::Opt {
+        config: None,
+        command: commander::Command::Admin {
+            output_mode: AdminCommandOuputMode::Json,
+            command: commander::AdminCommand::ListExecutorKeys,
+        },
     }
 }
 

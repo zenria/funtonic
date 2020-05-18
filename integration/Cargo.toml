@@ -18,3 +18,4 @@ futures="0.3"
 base64="0.12"
 reqwest = {version="0.10", features=["rustls-tls"]}
 rustls="0.17"
+tempfile="3"

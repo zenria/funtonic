@@ -4,15 +4,17 @@ mod test_utils;
 #[cfg(test)]
 mod tests {
     use crate::test_utils::{
-        admin_cmd, commander_config, executor_config, run_cmd_opt, taskserver_config,
+        admin_cmd, approve_key_executor_cmd, commander_config, executor_config,
+        list_executors_keys_cmd, run_cmd_opt, taskserver_config,
     };
-    use commander::commander_main;
+    use commander::{commander_main, CommanderSyntheticOutput, ExecutorState};
     use executor::executor_main;
     use funtonic::crypto::keygen::generate_base64_encoded_keys;
     use log::LevelFilter;
     use std::sync::Once;
     use std::time::Duration;
     use taskserver::taskserver_main;
+    use tempfile::tempdir;
 
     static INIT_LOGGER: Once = Once::new();
 
@@ -28,11 +30,13 @@ mod tests {
 
         let (executor_private_key, _) = generate_base64_encoded_keys("local_executor");
 
+        let taskserver_datadir = tempdir().unwrap();
         let taskserver_config = taskserver_config(
             54010,
             false,
             authorized_keys.clone(),
             authorized_keys.clone(),
+            &taskserver_datadir,
         );
         super::test_utils::spawn_future_on_new_thread(|| taskserver_main(taskserver_config));
         let executor_config = executor_config(54010, false, authorized_keys.clone());
@@ -41,10 +45,36 @@ mod tests {
         });
 
         let commander_opt = run_cmd_opt("*", "cat Cargo.toml");
-        std::thread::sleep(Duration::from_secs(1));
-        commander_main(commander_opt, commander_config(54010, false, priv_key))
-            .await
-            .expect("cat Cargo.toml failed");
+        std::thread::sleep(Duration::from_secs(2));
+        commander_main(
+            approve_key_executor_cmd(),
+            commander_config(54010, false, priv_key.clone()),
+        )
+        .await
+        .expect("Did not approve executor key");
+        std::thread::sleep(Duration::from_secs(2));
+
+        assert_success_of_one_executor(
+            commander_main(commander_opt, commander_config(54010, false, priv_key))
+                .await
+                .expect("cat Cargo.toml failed"),
+        );
+    }
+
+    fn assert_success_of_one_executor(res: CommanderSyntheticOutput) {
+        match res {
+            CommanderSyntheticOutput::Executor {
+                states,
+                output: _output,
+            } => assert_eq!(
+                1,
+                states
+                    .get(&ExecutorState::Success)
+                    .expect("Executor must be in success")
+                    .len()
+            ),
+            _ => panic!("Not an executor result"),
+        }
     }
 
     #[tokio::test]
@@ -54,11 +84,13 @@ mod tests {
         let (priv_key, authorized_keys) = generate_base64_encoded_keys("tests");
         let (executor_private_key, _) = generate_base64_encoded_keys("local_executor");
 
+        let datadir = tempdir().unwrap();
         let taskserver_config = taskserver_config(
             54011,
             true,
             authorized_keys.clone(),
             authorized_keys.clone(),
+            &datadir,
         );
         super::test_utils::spawn_future_on_new_thread(|| taskserver_main(taskserver_config));
 
@@ -67,7 +99,7 @@ mod tests {
             executor_main(executor_config, executor_private_key)
         });
 
-        std::thread::sleep(Duration::from_secs(1));
+        std::thread::sleep(Duration::from_secs(2));
 
         // accessing the taskserver without tls is an error
         commander_main(
@@ -77,13 +109,31 @@ mod tests {
         .await
         .expect_err("Accessing tls server without tls must fail");
 
-        // nominal case
+        // approve executor key
+        println!("List executor keys");
         commander_main(
-            run_cmd_opt("*", "cat Cargo.toml"),
+            list_executors_keys_cmd(),
             commander_config(54011, true, priv_key.clone()),
         )
         .await
-        .expect("cat Cargo.toml failed");
+        .expect("Cannot list executor keys");
+        println!("Approve executor key");
+        commander_main(
+            approve_key_executor_cmd(),
+            commander_config(54011, true, priv_key.clone()),
+        )
+        .await
+        .expect("Did not approve executor key");
+        std::thread::sleep(Duration::from_secs(2));
+        // nominal case
+        assert_success_of_one_executor(
+            commander_main(
+                run_cmd_opt("*", "cat Cargo.toml"),
+                commander_config(54011, true, priv_key.clone()),
+            )
+            .await
+            .expect("cat Cargo.toml failed"),
+        );
 
         commander_main(admin_cmd(), commander_config(54011, true, priv_key))
             .await
@@ -128,24 +178,40 @@ mod tests {
             ultimate_authorired_key.get("ultimate").unwrap().clone(),
         );
 
-        let taskserver_config =
-            taskserver_config(54012, false, authorized_keys.clone(), admin_authorized_keys);
+        let datadir = tempdir().unwrap();
+        let taskserver_config = taskserver_config(
+            54012,
+            false,
+            authorized_keys.clone(),
+            admin_authorized_keys,
+            &datadir,
+        );
         super::test_utils::spawn_future_on_new_thread(|| taskserver_main(taskserver_config));
         let executor_config = executor_config(54012, false, authorized_keys.clone());
         super::test_utils::spawn_future_on_new_thread(|| {
             executor_main(executor_config, executor_private_key)
         });
 
-        std::thread::sleep(Duration::from_secs(1));
+        std::thread::sleep(Duration::from_secs(2));
         /////// ------------- Regular command forwarded to executors
 
-        // executing a command with regular key must succeed
         commander_main(
-            run_cmd_opt("*", "cat Cargo.toml"),
-            commander_config(54012, false, regular_key.clone()),
+            approve_key_executor_cmd(),
+            commander_config(54012, false, admin_key.clone()),
         )
         .await
-        .expect("cat Cargo.toml failed");
+        .expect("Did not approve executor key");
+        std::thread::sleep(Duration::from_secs(2));
+
+        // executing a command with regular key must succeed
+        assert_success_of_one_executor(
+            commander_main(
+                run_cmd_opt("*", "cat Cargo.toml"),
+                commander_config(54012, false, regular_key.clone()),
+            )
+            .await
+            .expect("cat Cargo.toml failed"),
+        );
 
         // executing a command with unauthorized keys must fail
         commander_main(
