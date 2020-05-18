@@ -298,7 +298,14 @@ impl CommanderService for TaskServer {
                 )),
             })),
             RequestType::ApproveExecutorKey(client_id) => {
-                self.approve_executor_key(&client_id)?;
+                if &client_id == "*" {
+                    // batch approve all
+                    for (client_id, _) in self.list_unapproved_executor_keys()?.iter() {
+                        self.approve_executor_key(client_id)?;
+                    }
+                } else {
+                    self.approve_executor_key(&client_id)?;
+                }
                 Ok(Response::new(AdminRequestResponse {
                     response_kind: Some(ResponseKind::JsonResponse("{}".to_string())),
                 }))
