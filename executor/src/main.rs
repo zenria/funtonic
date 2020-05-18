@@ -1,5 +1,6 @@
+use anyhow::bail;
 use executor::{executor_main, Opt};
-use funtonic::config::Config;
+use funtonic::config::{Config, Role};
 use funtonic::crypto::keygen::generate_base64_encoded_keys;
 use log::{error, info, warn};
 use std::fs::File;
@@ -10,7 +11,7 @@ use tokio::time::Duration;
 const LOG4RS_CONFIG: &'static str = "/etc/funtonic/executor-log4rs.yaml";
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> Result<(), anyhow::Error> {
     log4rs_gelf::init_file(LOG4RS_CONFIG, None).unwrap_or_else(|e| {
         eprintln!("Cannot initialize logger from {} - {}", LOG4RS_CONFIG, e);
         eprintln!("Trying with dev assets!");
@@ -24,7 +25,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let signing_key = if key_path.exists() {
             serde_yaml::from_reader(File::open(key_path)?)?
         } else {
-            let (signing_key, _) = generate_base64_encoded_keys("local_executor");
+            let client_id = match &config.role {
+                Role::Executor(config) => &config.client_id,
+                _ => bail!("Config file is not an executor config file"),
+            };
+
+            let (signing_key, _) = generate_base64_encoded_keys(client_id);
             warn!(
                 "Signing key not found, generated a new one, public_key: {}",
                 signing_key.public_key.as_ref().unwrap()
