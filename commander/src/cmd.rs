@@ -1,4 +1,4 @@
-use crate::ExecutorState;
+use crate::{CommanderSyntheticOutput, ExecutorState};
 use atty::Stream;
 use colored::{Color, Colorize};
 use funtonic::config::CommanderConfig;
@@ -39,7 +39,7 @@ pub async fn handle_cmd(
     mut client: CommanderServiceClient<Channel>,
     commander_config: &CommanderConfig,
     cmd: Cmd,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<CommanderSyntheticOutput, Box<dyn Error>> {
     let Cmd {
         raw,
         group,
@@ -97,6 +97,43 @@ pub async fn handle_cmd(
             TaskResponse::TaskExecutionResult(task_execution_result) => {
                 let client_id = &task_execution_result.client_id;
                 match task_execution_result.execution_result.unwrap() {
+                    ExecutionResult::TaskRejected(reason) => {
+                        debug!("Tasks completed on {} (REJECTED: {})", client_id, reason);
+                        *executors
+                            .entry(client_id.clone())
+                            .or_insert(ExecutorState::Matching) = ExecutorState::Error;
+                        if let Some(pb) = &pb {
+                            pb.inc(1);
+                        }
+                        if group && !raw {
+                            match &pb {
+                                None => {
+                                    println!("{} {}:", "########".green(), client_id);
+                                    println!("{}: {}", "Task rejected".red(), reason);
+                                }
+                                Some(pb) => {
+                                    pb.println(format!("{} {}:", "########".green(), client_id));
+                                    pb.println(format!("{}: {}", "Task rejected".red(), reason));
+                                }
+                            }
+                        } else {
+                            match &pb {
+                                None => eprintln!(
+                                    "{}: {}: {}",
+                                    client_id.red(),
+                                    "Task rejected".red(),
+                                    reason
+                                ),
+                                Some(pb) => pb.println(format!(
+                                    "{}: {}: {}",
+                                    client_id.red(),
+                                    "Task rejected".red(),
+                                    reason
+                                )),
+                            }
+                        }
+                    }
+
                     ExecutionResult::TaskAborted(_) => {
                         debug!("Tasks completed on {} (KILLED)", client_id);
                         *executors
@@ -147,7 +184,7 @@ pub async fn handle_cmd(
                                 pb.inc(1);
                             }
                             if group {
-                                if let Some(lines) = executors_output.remove(client_id) {
+                                if let Some(lines) = executors_output.get(client_id) {
                                     match &pb {
                                         None => {
                                             println!("{} {}:", "########".green(), client_id);
@@ -240,12 +277,15 @@ pub async fn handle_cmd(
         (*states.entry(state).or_insert(BTreeSet::new())).insert(client_id);
     }
     if !raw {
-        for (state, client_ids) in states {
+        for (state, client_ids) in &states {
             println!("{}: {}", state, colorize(client_ids.iter(), state.color()));
         }
     }
     if no_std_process_return {
-        Ok(())
+        Ok(CommanderSyntheticOutput::Executor {
+            states,
+            output: executors_output,
+        })
     } else {
         std::process::exit(if success { 0 } else { 1 });
     }

@@ -24,7 +24,7 @@ mod test {
     fn test() {
         let (private_key, public_key) = generate_ed25519_key_pair().unwrap();
 
-        let mut key_store = memory_keystore();
+        let key_store = memory_keystore();
         key_store.register_key("abcd", public_key.to_vec()).unwrap();
 
         let payload = TestPayload {
@@ -63,7 +63,7 @@ mod test {
         .unwrap();
 
         {
-            let mut ks = file_keystore(&file).unwrap();
+            let ks = file_keystore(&file).unwrap();
             assert!(file.exists());
             ks.register_key("abcd", public_key.to_vec()).unwrap();
 

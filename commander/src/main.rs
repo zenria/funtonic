@@ -15,5 +15,5 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_log::LogTracer::init().unwrap();
     let opt: Opt = Opt::from_args();
     let config = Config::parse(&opt.config, "commander.yml")?;
-    commander_main(opt, config).await
+    commander_main(opt, config).await.map(|_| ())
 }

@@ -315,6 +315,6 @@ pub struct AdminDroppedExecutorJsonResponse {
 
 #[derive(Serialize, Deserialize)]
 pub struct AdminListExecutorKeysJsonResponse {
-    pub trusted_executor_keys: HashMap<String, String>,
-    pub unapproved_executor_keys: HashMap<String, String>,
+    pub trusted_executor_keys: BTreeMap<String, String>,
+    pub unapproved_executor_keys: BTreeMap<String, String>,
 }

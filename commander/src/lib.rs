@@ -8,7 +8,7 @@ use funtonic::crypto::keygen::generate_ed25519_key_pair;
 use grpc_service::grpc_protocol::commander_service_client::CommanderServiceClient;
 use http::Uri;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt::{Display, Error, Formatter};
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -20,8 +20,8 @@ use tonic::transport::Channel;
 mod admin;
 pub mod cmd;
 
-#[derive(Eq, Ord, PartialOrd, PartialEq, Hash)]
-enum ExecutorState {
+#[derive(Eq, Ord, PartialOrd, PartialEq, Hash, Debug)]
+pub enum ExecutorState {
     Matching,
     Submitted,
     Alive,
@@ -95,7 +95,10 @@ pub enum Utils {
 #[error("Missing field for commander config!")]
 struct InvalidConfig;
 
-pub async fn commander_main(opt: Opt, config: Config) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn commander_main(
+    opt: Opt,
+    config: Config,
+) -> Result<CommanderSyntheticOutput, Box<dyn std::error::Error>> {
     debug!("Commander starting with config {:#?}", config);
     if let Role::Commander(commander_config) = &config.role {
         let mut channel = Channel::builder(Uri::from_str(&commander_config.server_url)?)
@@ -127,7 +130,7 @@ struct GenerateKeyPairOutput {
     authorized_keys: BTreeMap<String, String>,
 }
 
-fn handle_utils_cmd(cmd: Utils) -> Result<(), Box<dyn std::error::Error>> {
+fn handle_utils_cmd(cmd: Utils) -> Result<CommanderSyntheticOutput, Box<dyn std::error::Error>> {
     match cmd {
         Utils::GenerateED25519KeyPair { name } => {
             let (priv_key, pub_key) = generate_ed25519_key_pair().unwrap();
@@ -142,5 +145,14 @@ fn handle_utils_cmd(cmd: Utils) -> Result<(), Box<dyn std::error::Error>> {
             println!("Generated Keys:\n{}", serde_yaml::to_string(&out)?);
         }
     }
-    Ok(())
+    Ok(CommanderSyntheticOutput::Cmd)
+}
+#[derive(Debug)]
+pub enum CommanderSyntheticOutput {
+    Executor {
+        states: BTreeMap<ExecutorState, BTreeSet<String>>,
+        output: HashMap<String, Vec<String>>,
+    },
+    Admin(String),
+    Cmd,
 }

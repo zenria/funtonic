@@ -117,6 +117,12 @@ impl ExecutorService for TaskServer {
                     task_execution_stream.client_id, task_id
                 );
                 if let Some(execution_result) = &task_execution_stream.execution_result {
+                    if let ExecutionResult::TaskRejected(reason) = execution_result {
+                        info!(
+                            "Task {} rejected ({}) on {}",
+                            task_id, reason, task_execution_stream.client_id,
+                        );
+                    }
                     if let ExecutionResult::TaskAborted(_) = execution_result {
                         info!(
                             "Task {} aborted (killed) on {}",

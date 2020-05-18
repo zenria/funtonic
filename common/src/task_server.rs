@@ -30,7 +30,9 @@ use crate::crypto::keystore::{
     MemoryKeyStoreBackend,
 };
 use crate::file_utils::path_concat2;
-pub use commander_service_impl::AdminDroppedExecutorJsonResponse;
+pub use commander_service_impl::{
+    AdminDroppedExecutorJsonResponse, AdminListExecutorKeysJsonResponse,
+};
 use grpc_service::payload::SignedPayload;
 
 #[derive(Debug, Error)]
@@ -218,11 +220,11 @@ impl TaskServer {
         )
     }
 
-    fn list_trusted_executor_keys(&self) -> Result<HashMap<String, String>, KeyStoreError> {
+    fn list_trusted_executor_keys(&self) -> Result<BTreeMap<String, String>, KeyStoreError> {
         self.trusted_executor_keystore.list_all()
     }
 
-    fn list_unapproved_executor_keys(&self) -> Result<HashMap<String, String>, KeyStoreError> {
+    fn list_unapproved_executor_keys(&self) -> Result<BTreeMap<String, String>, KeyStoreError> {
         self.unapproved_executor_keystore.list_all()
     }
 }

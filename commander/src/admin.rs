@@ -1,9 +1,10 @@
 use crate::admin::AdminCommandOuputMode::HumanReadableShort;
+use crate::CommanderSyntheticOutput;
 use colored::Colorize;
 use funtonic::config::CommanderConfig;
 use funtonic::crypto::signed_payload::encode_and_sign;
 use funtonic::executor_meta::ExecutorMeta;
-use funtonic::task_server::AdminDroppedExecutorJsonResponse;
+use funtonic::task_server::{AdminDroppedExecutorJsonResponse, AdminListExecutorKeysJsonResponse};
 use grpc_service::grpc_protocol::admin_request::RequestType;
 use grpc_service::grpc_protocol::admin_request_response::ResponseKind;
 use grpc_service::grpc_protocol::commander_service_client::CommanderServiceClient;
@@ -34,6 +35,10 @@ pub enum AdminCommand {
         /// the client_id of the executor to drop
         query: String,
     },
+    /// List executors public keys
+    ListExecutorKeys,
+    /// Approve an executor public key (*) can be used to approve all pending keys
+    ApproveExecutorKey { executor: String },
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -66,7 +71,7 @@ impl FromStr for AdminCommandOuputMode {
 impl AdminCommand {
     fn display_formatted_output(
         &self,
-        raw_json: String,
+        raw_json: &str,
         output_mode: AdminCommandOuputMode,
     ) -> Result<(), Box<dyn std::error::Error>> {
         match output_mode {
@@ -141,6 +146,30 @@ impl AdminCommand {
                         println!("Found {} executor, none dropped!", "0".red());
                     }
                 }
+                AdminCommand::ListExecutorKeys => {
+                    let keys: AdminListExecutorKeysJsonResponse = serde_json::from_str(&raw_json)?;
+
+                    println!("{}", "Trusted executors".green());
+                    let mut table = Table::new();
+                    table.set_format(*FORMAT_NO_BORDER_LINE_SEPARATOR);
+                    table.set_titles(row!["client_id", "key"]);
+                    for (client_id, key) in &keys.trusted_executor_keys {
+                        table.add_row(row![client_id.green(), key]);
+                    }
+                    table.printstd();
+
+                    println!("{}", "Waiting for approval executors".red());
+                    let mut table = Table::new();
+                    table.set_format(*FORMAT_NO_BORDER_LINE_SEPARATOR);
+                    table.set_titles(row!["client_id", "key"]);
+                    for (client_id, key) in &keys.unapproved_executor_keys {
+                        table.add_row(row![client_id.red(), key]);
+                    }
+                    table.printstd();
+                }
+                AdminCommand::ApproveExecutorKey {
+                    executor: _executor,
+                } => {}
             },
         }
 
@@ -160,7 +189,7 @@ pub async fn handle_admin_command(
     commander_config: &CommanderConfig,
     admin_command: AdminCommand,
     output_mode: AdminCommandOuputMode,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<CommanderSyntheticOutput, Box<dyn std::error::Error>> {
     // grpc prost typing is just awful piece of crap.
     let request = match &admin_command {
         AdminCommand::ListConnectedExecutors { query } => AdminRequest {
@@ -180,6 +209,12 @@ pub async fn handle_admin_command(
         AdminCommand::DropExecutor { ref query } => AdminRequest {
             request_type: Some(RequestType::DropExecutor(query.clone())),
         },
+        AdminCommand::ListExecutorKeys => AdminRequest {
+            request_type: Some(RequestType::ListExecutorKeys(Empty {})),
+        },
+        AdminCommand::ApproveExecutorKey { executor } => AdminRequest {
+            request_type: Some(RequestType::ApproveExecutorKey(executor.clone())),
+        },
     };
 
     let request = tonic::Request::new(encode_and_sign(
@@ -194,7 +229,9 @@ pub async fn handle_admin_command(
             eprintln!("{}", e.red());
             std::process::exit(1);
         }
-        ResponseKind::JsonResponse(j) => admin_command.display_formatted_output(j, output_mode)?,
+        ResponseKind::JsonResponse(j) => {
+            admin_command.display_formatted_output(&j, output_mode)?;
+            Ok(CommanderSyntheticOutput::Admin(j))
+        }
     }
-    Ok(())
 }

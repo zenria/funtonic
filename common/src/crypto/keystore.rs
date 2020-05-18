@@ -196,7 +196,7 @@ impl<B: KeyStoreBackend> KeyStore<B> {
     ) -> Result<Self, KeyStoreError> {
         map.into_iter().try_fold(
             self,
-            |mut store, (key, base64_encoded_bytes): (&String, &String)| {
+            |store, (key, base64_encoded_bytes): (&String, &String)| {
                 store.register_key(key, base64::decode(base64_encoded_bytes)?)?;
                 Ok(store)
             },
@@ -244,7 +244,7 @@ impl<B: KeyStoreBackend> KeyStore<B> {
             .map_err(|decode_err| KeyStoreError::PayloadDecodeError(decode_err.to_string()))
     }
 
-    pub fn list_all(&self) -> Result<HashMap<String, String>, KeyStoreError> {
+    pub fn list_all(&self) -> Result<BTreeMap<String, String>, KeyStoreError> {
         self.keys.list_all().map(|keys| {
             keys.into_iter()
                 .map(|(id, bytes)| (id, base64::encode(bytes)))

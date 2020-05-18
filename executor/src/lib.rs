@@ -5,7 +5,7 @@ use exec::a_sync;
 use exec::*;
 use funtonic::config::{Config, ED25519Key, Role};
 use funtonic::crypto::keystore::{memory_keystore, KeyStore, KeyStoreBackend};
-use funtonic::crypto::signed_payload::{encode_and_sign, EncodePayloadError};
+use funtonic::crypto::signed_payload::encode_and_sign;
 use funtonic::executor_meta::{ExecutorMeta, Tag};
 use funtonic::PROTOCOL_VERSION;
 use futures::StreamExt;
@@ -17,7 +17,6 @@ use grpc_service::grpc_protocol::{
     Empty, ExecuteCommand, GetTasksRequest, LaunchTaskRequestPayload, RegisterExecutorRequest,
     TaskCompleted, TaskExecutionResult, TaskOutput,
 };
-use grpc_service::payload::SignedPayload;
 use http::Uri;
 use std::collections::HashMap;
 use std::error::Error;
@@ -177,7 +176,12 @@ async fn do_executor_main<B: KeyStoreBackend>(
                         },
                         None => error!("No task inside LauchTaskRequest"),
                     },
-                    Err(e) => error!("Unable to decode received payload for {}: {}", task_id, e),
+                    Err(e) => {
+                        let error = format!("{}", e);
+                        error!("Unable to decode received payload for {}: {}", task_id, e);
+                        reject_task(&client_id, &task_id, &error, &signing_key, &mut client)
+                            .await?;
+                    }
                 }
             }
             None => error!("No payload in {}, ignoring it!", task_id),
@@ -186,6 +190,34 @@ async fn do_executor_main<B: KeyStoreBackend>(
         info!("Waiting for next task")
     }
 
+    Ok(())
+}
+
+async fn reject_task(
+    client_id: &str,
+    task_id: &str,
+    error: &str,
+    signing_key: &ED25519Key,
+    client: &mut ExecutorServiceClient<Channel>,
+) -> Result<(), Box<dyn Error>> {
+    let stream = futures::stream::once(futures::future::ready(encode_and_sign(
+        TaskExecutionResult {
+            task_id: task_id.to_string(),
+            client_id: client_id.to_string(),
+            execution_result: Some(ExecutionResult::TaskRejected(format!(
+                "Unable to decode received payload for {}: {}",
+                task_id, error
+            ))),
+        },
+        &signing_key,
+        Duration::from_secs(60),
+    )?));
+    let mut request = Request::new(stream);
+    request.metadata_mut().insert(
+        "task_id",
+        AsciiMetadataValue::from_str(&task_id.clone()).unwrap(),
+    );
+    client.task_execution(request).await?;
     Ok(())
 }
 

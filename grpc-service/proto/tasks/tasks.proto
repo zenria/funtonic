@@ -146,6 +146,8 @@ message TaskExecutionResult {
     Empty taskSubmitted = 8;
     // Task exited without any status (killed)
     Empty taskAborted = 9;
+    // Task rejected by the executor
+    string taskRejected = 10;
   }
 }
 message Empty {
