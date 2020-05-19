@@ -3,7 +3,7 @@ extern crate log;
 
 use exec::a_sync;
 use exec::*;
-use funtonic::config::{Config, ED25519Key, Role};
+use funtonic::config::{ED25519Key, ExecutorConfig};
 use funtonic::crypto::keystore::{memory_keystore, KeyStore, KeyStoreBackend};
 use funtonic::crypto::signed_payload::encode_and_sign;
 use funtonic::executor_meta::{ExecutorMeta, Tag};
@@ -50,72 +50,68 @@ enum LastConnectionStatus {
 }
 
 pub async fn executor_main(
-    config: Config,
+    executor_config: ExecutorConfig,
     mut signing_key: ED25519Key,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<ExecutorConfig, Box<dyn std::error::Error>> {
     info!(
         "Executor v{}, core v{},  protocol v{}",
         VERSION,
         funtonic::VERSION,
         PROTOCOL_VERSION
     );
-    info!("{:#?}", config);
+    info!("{:#?}", executor_config);
 
-    if let Role::Executor(executor_config) = config.role {
-        // force the is of the key to match the executor client_id
-        signing_key.id = executor_config.client_id.clone();
-        let mut endpoint = Channel::builder(Uri::from_str(&executor_config.server_url)?)
-            .tcp_keepalive(Some(Duration::from_secs(60)));
+    // force the is of the key to match the executor client_id
+    signing_key.id = executor_config.client_id.clone();
+    let mut endpoint = Channel::builder(Uri::from_str(&executor_config.server_url)?)
+        .tcp_keepalive(Some(Duration::from_secs(60)));
 
-        if let Some(tls_config) = &config.tls {
-            endpoint = endpoint.tls_config(tls_config.get_client_config()?);
-        }
-
-        let max_reconnect_time = Duration::from_secs(10);
-        let mut reconnect_time = Duration::from_millis(100);
-
-        let key_store = memory_keystore().init_from_map(&executor_config.authorized_keys)?;
-
-        let mut executor_meta = ExecutorMeta::from(executor_config);
-        // add some generic meta about system
-        let info = os_info::get();
-        let mut os: HashMap<String, Tag> = HashMap::new();
-        os.insert("type".into(), format!("{:?}", info.os_type()).into());
-        os.insert("version".into(), format!("{}", info.version()).into());
-        executor_meta.tags_mut().insert("os".into(), Tag::Map(os));
-        info!("Metas: {:#?}", executor_meta);
-
-        let (mut connection_status_sender, connection_status_receiver) =
-            tokio::sync::watch::channel(LastConnectionStatus::Connecting);
-
-        // executor execution never ends
-        while let Err(e) = do_executor_main(
-            &endpoint,
-            &executor_meta,
-            &mut connection_status_sender,
-            &key_store,
-            signing_key.clone(),
-        )
-        .await
-        {
-            error!("Error {}", e);
-            // increase reconnect time if connecting, reset if connected
-            match *connection_status_receiver.borrow() {
-                LastConnectionStatus::Connecting => {
-                    reconnect_time = reconnect_time + Duration::from_secs(1);
-                    if reconnect_time > max_reconnect_time {
-                        reconnect_time = max_reconnect_time;
-                    }
-                }
-                LastConnectionStatus::Connected => reconnect_time = Duration::from_secs(1),
-            }
-            info!("Reconnecting in {}s", reconnect_time.as_secs());
-            tokio::time::delay_for(reconnect_time).await;
-        }
-        Ok(())
-    } else {
-        Err(InvalidConfig)?
+    if let Some(tls_config) = &executor_config.tls {
+        endpoint = endpoint.tls_config(tls_config.get_client_config()?);
     }
+
+    let max_reconnect_time = Duration::from_secs(10);
+    let mut reconnect_time = Duration::from_millis(100);
+
+    let key_store = memory_keystore().init_from_map(&executor_config.authorized_keys)?;
+
+    let mut executor_meta = ExecutorMeta::from(&executor_config);
+    // add some generic meta about system
+    let info = os_info::get();
+    let mut os: HashMap<String, Tag> = HashMap::new();
+    os.insert("type".into(), format!("{:?}", info.os_type()).into());
+    os.insert("version".into(), format!("{}", info.version()).into());
+    executor_meta.tags_mut().insert("os".into(), Tag::Map(os));
+    info!("Metas: {:#?}", executor_meta);
+
+    let (mut connection_status_sender, connection_status_receiver) =
+        tokio::sync::watch::channel(LastConnectionStatus::Connecting);
+
+    // executor execution never ends
+    while let Err(e) = do_executor_main(
+        &endpoint,
+        &executor_meta,
+        &mut connection_status_sender,
+        &key_store,
+        signing_key.clone(),
+    )
+    .await
+    {
+        error!("Error {}", e);
+        // increase reconnect time if connecting, reset if connected
+        match *connection_status_receiver.borrow() {
+            LastConnectionStatus::Connecting => {
+                reconnect_time = reconnect_time + Duration::from_secs(1);
+                if reconnect_time > max_reconnect_time {
+                    reconnect_time = max_reconnect_time;
+                }
+            }
+            LastConnectionStatus::Connected => reconnect_time = Duration::from_secs(1),
+        }
+        info!("Reconnecting in {}s", reconnect_time.as_secs());
+        tokio::time::delay_for(reconnect_time).await;
+    }
+    Ok(executor_config)
 }
 
 async fn do_executor_main<B: KeyStoreBackend>(
@@ -173,6 +169,8 @@ async fn do_executor_main<B: KeyStoreBackend>(
                             Task::StreamingPayload(_) => {
                                 error!("Streaming not yet implemented!");
                             }
+                            Task::AuthorizeKey(_) => {}
+                            Task::RevokeKey(_) => {}
                         },
                         None => error!("No task inside LauchTaskRequest"),
                     },

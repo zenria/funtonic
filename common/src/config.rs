@@ -59,6 +59,8 @@ impl TlsConfig {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ServerConfig {
+    /// TLS configuration. If not present, plain unencrypted socket communication will be used
+    pub tls: Option<TlsConfig>,
     /// bind address
     pub bind_address: String,
     /// Where the server stores its data
@@ -70,6 +72,8 @@ pub struct ServerConfig {
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CommanderConfig {
+    /// TLS configuration. If not present, plain unencrypted socket communication will be used
+    pub tls: Option<TlsConfig>,
     pub server_url: String,
     pub ed25519_key: ED25519Key,
 }
@@ -82,29 +86,12 @@ pub struct ED25519Key {
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ExecutorConfig {
+    /// TLS configuration. If not present, plain unencrypted socket communication will be used
+    pub tls: Option<TlsConfig>,
     pub client_id: String,
     pub tags: HashMap<String, Tag>,
     pub server_url: String,
     pub authorized_keys: BTreeMap<String, String>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(untagged)]
-pub enum Role {
-    #[serde(rename = "server")]
-    Server(ServerConfig),
-    #[serde(rename = "executor")]
-    Executor(ExecutorConfig),
-    #[serde(rename = "commander")]
-    Commander(CommanderConfig),
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Config {
-    /// TLS configuration. If not present, plain unencrypted socket communication will be used
-    pub tls: Option<TlsConfig>,
-    #[serde(flatten)]
-    pub role: Role,
 }
 
 const DEFAULT_CONFIG_LOCATION: &[&str] = &["~/.funtonic/", "/etc/funtonic/"];
@@ -142,22 +129,20 @@ fn resolve_config_path<P: AsRef<Path>, T: AsRef<Path>>(
         .ok_or(NoConfigFileError(name.as_ref().to_string_lossy().into()))
 }
 
-impl Config {
-    pub fn parse<P: AsRef<Path>, T: AsRef<Path>>(
-        provided_config: &Option<P>,
-        name: T,
-    ) -> Result<Config, Error> {
-        resolve_config(provided_config, name)
-    }
+pub fn parse<P: AsRef<Path>, T: AsRef<Path>, C: DeserializeOwned>(
+    provided_config: &Option<P>,
+    name: T,
+) -> Result<C, Error> {
+    resolve_config(provided_config, name)
+}
 
-    pub fn get_config_directory<P: AsRef<Path>, T: AsRef<Path>>(
-        provided_config: &Option<P>,
-        name: T,
-    ) -> Result<PathBuf, Error> {
-        let mut config_file = resolve_config_path(provided_config, name)?;
-        config_file.pop();
-        Ok(config_file)
-    }
+pub fn get_config_directory<P: AsRef<Path>, T: AsRef<Path>>(
+    provided_config: &Option<P>,
+    name: T,
+) -> Result<PathBuf, Error> {
+    let mut config_file = resolve_config_path(provided_config, name)?;
+    config_file.pop();
+    Ok(config_file)
 }
 
 impl From<(&str, &[u8])> for ED25519Key {

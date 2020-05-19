@@ -3,7 +3,7 @@ extern crate log;
 
 pub use crate::admin::{AdminCommand, AdminCommandOuputMode};
 use colored::{Color, Colorize};
-use funtonic::config::{Config, ED25519Key, Role};
+use funtonic::config::{CommanderConfig, ED25519Key};
 use funtonic::crypto::keygen::generate_ed25519_key_pair;
 use grpc_service::grpc_protocol::commander_service_client::CommanderServiceClient;
 use http::Uri;
@@ -97,30 +97,26 @@ struct InvalidConfig;
 
 pub async fn commander_main(
     opt: Opt,
-    config: Config,
+    commander_config: CommanderConfig,
 ) -> Result<CommanderSyntheticOutput, Box<dyn std::error::Error>> {
-    debug!("Commander starting with config {:#?}", config);
-    if let Role::Commander(commander_config) = &config.role {
-        let mut channel = Channel::builder(Uri::from_str(&commander_config.server_url)?)
-            .tcp_keepalive(Some(Duration::from_secs(60)));
-        if let Some(tls_config) = &config.tls {
-            channel = channel.tls_config(tls_config.get_client_config()?);
-        }
-        let channel = channel.connect().await?;
+    debug!("Commander starting with config {:#?}", commander_config);
+    let mut channel = Channel::builder(Uri::from_str(&commander_config.server_url)?)
+        .tcp_keepalive(Some(Duration::from_secs(60)));
+    if let Some(tls_config) = &commander_config.tls {
+        channel = channel.tls_config(tls_config.get_client_config()?);
+    }
+    let channel = channel.connect().await?;
 
-        let client = CommanderServiceClient::new(channel);
+    let client = CommanderServiceClient::new(channel);
 
-        match opt.command {
-            Command::Admin {
-                output_mode,
-                command,
-            } => admin::handle_admin_command(client, commander_config, command, output_mode).await,
-            Command::Run(cmd) => cmd::handle_cmd(client, commander_config, cmd).await,
+    match opt.command {
+        Command::Admin {
+            output_mode,
+            command,
+        } => admin::handle_admin_command(client, &commander_config, command, output_mode).await,
+        Command::Run(cmd) => cmd::handle_cmd(client, &commander_config, cmd).await,
 
-            Command::Utils(cmd) => handle_utils_cmd(cmd),
-        }
-    } else {
-        Err(InvalidConfig)?
+        Command::Utils(cmd) => handle_utils_cmd(cmd),
     }
 }
 

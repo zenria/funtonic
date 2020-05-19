@@ -91,9 +91,22 @@ message GetTaskStreamReply {
 
 message LaunchTaskRequestPayload {
   oneof task {
+    // Launch a command
     ExecuteCommand executeCommand=1;
+    // TODO
     StreamingPayload streamingPayload=2;
+    // Authorize a key
+    PublicKey authorizeKey=3;
+    // Revoke a key
+    string revokeKey=4;
   }
+}
+
+message PublicKey {
+  // Id (name) of the key
+  string key_id = 1;
+  // Raw bytes of the public key.
+  bytes key_bytes = 2;
 }
 
 message LaunchTaskRequest {

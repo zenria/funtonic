@@ -1,4 +1,4 @@
-use funtonic::config::Config;
+use funtonic::config;
 use structopt::StructOpt;
 use taskserver::{taskserver_main, Opt};
 
@@ -13,6 +13,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .expect("Cannot open taskserver/assets/log4rs.yaml");
     });
     let opt = Opt::from_args();
-    let config = Config::parse(&opt.config, "server.yml")?;
+    let config = config::parse(&opt.config, "server.yml")?;
     taskserver_main(config).await
 }

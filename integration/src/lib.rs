@@ -5,7 +5,8 @@ mod test_utils;
 mod tests {
     use crate::test_utils::{
         admin_cmd, approve_key_executor_cmd, assert_executor_error, assert_success_of_one_executor,
-        commander_config, executor_config, list_executors_keys_cmd, run_cmd_opt, taskserver_config,
+        commander_config, executor_config, list_executors_keys_cmd, loop_executor_main,
+        run_cmd_opt, taskserver_config,
     };
     use commander::{commander_main, ExecutorState};
     use executor::executor_main;
@@ -41,7 +42,7 @@ mod tests {
         super::test_utils::spawn_future_on_new_thread(|| taskserver_main(taskserver_config));
         let executor_config = executor_config(54010, false, authorized_keys.clone());
         super::test_utils::spawn_future_on_new_thread(|| {
-            executor_main(executor_config, executor_private_key)
+            loop_executor_main(executor_config, executor_private_key)
         });
 
         let commander_opt = run_cmd_opt("*", "cat Cargo.toml");
@@ -80,7 +81,7 @@ mod tests {
 
         let executor_config = executor_config(54011, true, authorized_keys.clone());
         super::test_utils::spawn_future_on_new_thread(|| {
-            executor_main(executor_config, executor_private_key)
+            loop_executor_main(executor_config, executor_private_key)
         });
 
         std::thread::sleep(Duration::from_secs(2));
@@ -185,7 +186,7 @@ mod tests {
         super::test_utils::spawn_future_on_new_thread(|| taskserver_main(taskserver_config));
         let executor_config = executor_config(54012, false, executor_authorized_keys);
         super::test_utils::spawn_future_on_new_thread(|| {
-            executor_main(executor_config, executor_private_key)
+            loop_executor_main(executor_config, executor_private_key)
         });
 
         std::thread::sleep(Duration::from_secs(2));

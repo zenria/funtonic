@@ -1,8 +1,6 @@
 use commander::{AdminCommandOuputMode, CommanderSyntheticOutput, ExecutorState};
-use funtonic::config::Role::Commander;
-use funtonic::config::{
-    CommanderConfig, Config, ED25519Key, ExecutorConfig, Role, ServerConfig, TlsConfig,
-};
+use executor::executor_main;
+use funtonic::config::{CommanderConfig, ED25519Key, ExecutorConfig, ServerConfig, TlsConfig};
 use futures::Future;
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -54,8 +52,8 @@ pub fn taskserver_config<P: AsRef<Path>>(
     authorized_keys: BTreeMap<String, String>,
     admin_authorized_keys: BTreeMap<String, String>,
     task_server_dir: P,
-) -> Config {
-    Config {
+) -> ServerConfig {
+    ServerConfig {
         tls: if with_tls {
             Some(TlsConfig {
                 ca_cert: "tls/funtonic-ca.pem".to_string(),
@@ -66,12 +64,10 @@ pub fn taskserver_config<P: AsRef<Path>>(
         } else {
             None
         },
-        role: Role::Server(ServerConfig {
-            bind_address: format!("127.0.0.1:{}", port),
-            data_directory: task_server_dir.as_ref().to_string_lossy().to_string(),
-            authorized_keys,
-            admin_authorized_keys,
-        }),
+        bind_address: format!("127.0.0.1:{}", port),
+        data_directory: task_server_dir.as_ref().to_string_lossy().to_string(),
+        authorized_keys,
+        admin_authorized_keys,
     }
 }
 
@@ -79,8 +75,8 @@ pub fn executor_config(
     port: u16,
     with_tls: bool,
     authorized_keys: BTreeMap<String, String>,
-) -> Config {
-    Config {
+) -> ExecutorConfig {
+    ExecutorConfig {
         tls: if with_tls {
             Some(TlsConfig {
                 ca_cert: "tls/funtonic-ca.pem".to_string(),
@@ -91,12 +87,10 @@ pub fn executor_config(
         } else {
             None
         },
-        role: Role::Executor(ExecutorConfig {
-            client_id: "exec".to_string(),
-            tags: Default::default(),
-            server_url: format!("http://127.0.0.1:{}", port),
-            authorized_keys,
-        }),
+        client_id: "exec".to_string(),
+        tags: Default::default(),
+        server_url: format!("http://127.0.0.1:{}", port),
+        authorized_keys,
     }
 }
 
@@ -121,8 +115,8 @@ pub fn list_executors_keys_cmd() -> commander::Opt {
     }
 }
 
-pub fn commander_config(port: u16, with_tls: bool, ed25519_key: ED25519Key) -> Config {
-    Config {
+pub fn commander_config(port: u16, with_tls: bool, ed25519_key: ED25519Key) -> CommanderConfig {
+    CommanderConfig {
         tls: if with_tls {
             Some(TlsConfig {
                 ca_cert: "tls/funtonic-ca.pem".to_string(),
@@ -133,10 +127,8 @@ pub fn commander_config(port: u16, with_tls: bool, ed25519_key: ED25519Key) -> C
         } else {
             None
         },
-        role: Commander(CommanderConfig {
-            server_url: format!("http://127.0.0.1:{}", port),
-            ed25519_key,
-        }),
+        server_url: format!("http://127.0.0.1:{}", port),
+        ed25519_key,
     }
 }
 
@@ -169,5 +161,14 @@ pub fn assert_executor_error(res: CommanderSyntheticOutput) {
                 .len()
         ),
         _ => panic!("Not an executor result"),
+    }
+}
+
+pub async fn loop_executor_main(
+    mut config: ExecutorConfig,
+    signing_key: ED25519Key,
+) -> Result<(), Box<dyn Error>> {
+    loop {
+        config = executor_main(config, signing_key.clone()).await?;
     }
 }

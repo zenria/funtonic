@@ -53,7 +53,13 @@ impl CommanderService for TaskServer {
             .as_ref()
             .ok_or(Status::invalid_argument("Missing task"))?
         {
-            Task::ExecuteCommand(command) => command,
+            Task::ExecuteCommand(command) => format!("ExecuteCommand: {}", command.command),
+            Task::AuthorizeKey(key) => format!(
+                "AuthorizeKey: {} - {}",
+                key.key_id,
+                base64::encode(&key.key_bytes)
+            ),
+            Task::RevokeKey(key_id) => format!("RevokeKey: {}", key_id),
             Task::StreamingPayload(_) => {
                 return Err(Status::new(Code::Internal, "not implemented"))
             }

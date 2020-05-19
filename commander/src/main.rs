@@ -1,5 +1,5 @@
 use commander::{commander_main, Opt};
-use funtonic::config::Config;
+use funtonic::config;
 use structopt::StructOpt;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 
@@ -14,6 +14,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .expect("setting tracing default failed");
     tracing_log::LogTracer::init().unwrap();
     let opt: Opt = Opt::from_args();
-    let config = Config::parse(&opt.config, "commander.yml")?;
+    let config = config::parse(&opt.config, "commander.yml")?;
     commander_main(opt, config).await.map(|_| ())
 }

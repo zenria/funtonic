@@ -1,6 +1,7 @@
 use anyhow::bail;
 use executor::{executor_main, Opt};
-use funtonic::config::{Config, Role};
+use funtonic::config;
+use funtonic::config::ExecutorConfig;
 use funtonic::crypto::keygen::generate_base64_encoded_keys;
 use log::{error, info, warn};
 use std::fs::File;
@@ -20,17 +21,12 @@ async fn main() -> Result<(), anyhow::Error> {
     });
     let opt = Opt::from_args();
     loop {
-        let config = Config::parse(&opt.config, "executor.yml")?;
-        let key_path = get_key_path(Config::get_config_directory(&opt.config, "executor.yml")?);
+        let config: ExecutorConfig = config::parse(&opt.config, "executor.yml")?;
+        let key_path = get_key_path(config::get_config_directory(&opt.config, "executor.yml")?);
         let signing_key = if key_path.exists() {
             serde_yaml::from_reader(File::open(key_path)?)?
         } else {
-            let client_id = match &config.role {
-                Role::Executor(config) => &config.client_id,
-                _ => bail!("Config file is not an executor config file"),
-            };
-
-            let (signing_key, _) = generate_base64_encoded_keys(client_id);
+            let (signing_key, _) = generate_base64_encoded_keys(&config.client_id);
             warn!(
                 "Signing key not found, generated a new one, public_key: {}",
                 signing_key.public_key.as_ref().unwrap()

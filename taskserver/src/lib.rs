@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate log;
 
-use funtonic::config::{Config, Role};
+use funtonic::config::ServerConfig;
 use funtonic::file_utils::mkdirs;
 use funtonic::task_server::TaskServer;
 use grpc_service::grpc_protocol::commander_service_server::CommanderServiceServer;
@@ -25,7 +25,9 @@ pub struct Opt {
 #[error("Missing field for server config!")]
 struct InvalidConfig;
 
-pub async fn taskserver_main(config: Config) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn taskserver_main(
+    server_config: ServerConfig,
+) -> Result<(), Box<dyn std::error::Error>> {
     info!(
         "Taskserver v{}, core v{},  protocol v{}, query parser v{} starting",
         VERSION,
@@ -34,31 +36,27 @@ pub async fn taskserver_main(config: Config) -> Result<(), Box<dyn std::error::E
         funtonic::QUERY_PARSER_VERSION
     );
 
-    info!("{:#?}", config);
-    if let Role::Server(server_config) = &config.role {
-        let mut server = Server::builder().tcp_keepalive(Some(Duration::from_secs(25)));
-        if let Some(tls_config) = &config.tls {
-            server = server.tls_config(tls_config.get_server_config()?);
-        }
-
-        let addr = server_config.bind_address.parse().unwrap();
-        let database_directory = mkdirs(&server_config.data_directory)?;
-        let task_server = TaskServer::new(
-            &database_directory,
-            &server_config.authorized_keys,
-            &server_config.admin_authorized_keys,
-        )?;
-
-        task_server.start_heartbeat();
-
-        server
-            .add_service(ExecutorServiceServer::new(task_server.clone()))
-            .add_service(CommanderServiceServer::new(task_server))
-            .serve(addr)
-            .await?;
-
-        Ok(())
-    } else {
-        Err(InvalidConfig)?
+    info!("{:#?}", server_config);
+    let mut server = Server::builder().tcp_keepalive(Some(Duration::from_secs(25)));
+    if let Some(tls_config) = &server_config.tls {
+        server = server.tls_config(tls_config.get_server_config()?);
     }
+
+    let addr = server_config.bind_address.parse().unwrap();
+    let database_directory = mkdirs(&server_config.data_directory)?;
+    let task_server = TaskServer::new(
+        &database_directory,
+        &server_config.authorized_keys,
+        &server_config.admin_authorized_keys,
+    )?;
+
+    task_server.start_heartbeat();
+
+    server
+        .add_service(ExecutorServiceServer::new(task_server.clone()))
+        .add_service(CommanderServiceServer::new(task_server))
+        .serve(addr)
+        .await?;
+
+    Ok(())
 }
