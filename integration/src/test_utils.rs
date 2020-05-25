@@ -1,4 +1,4 @@
-use commander::cmd::CommandOptions;
+use commander::cmd::{CommandOptions, KeyCmd};
 use commander::{AdminCommandOuputMode, CommanderSyntheticOutput, ExecutorState};
 use executor::executor_main;
 use funtonic::config::{CommanderConfig, ED25519Key, ExecutorConfig, ServerConfig, TlsConfig};
@@ -35,6 +35,45 @@ pub fn run_cmd_opt(query: &str, command: &str) -> commander::Opt {
             },
             query: query.to_string(),
             command: vec![command.into()],
+        }),
+    }
+}
+
+pub fn authorize_key_cmd_opt(query: &str, key_id: &str, key: &str) -> commander::Opt {
+    commander::Opt {
+        config: None,
+        command: commander::Command::Cmd(commander::cmd::Cmd::Keys {
+            options: CommandOptions {
+                raw: false,
+                group: false,
+                no_progress: false,
+                no_std_process_return: true,
+            },
+            query: query.to_string(),
+
+            key_cmd: KeyCmd::Authorize {
+                key_id: key_id.into(),
+                public_key: key.into(),
+            },
+        }),
+    }
+}
+
+pub fn revoke_key_cmd_opt(query: &str, key_id: &str) -> commander::Opt {
+    commander::Opt {
+        config: None,
+        command: commander::Command::Cmd(commander::cmd::Cmd::Keys {
+            options: CommandOptions {
+                raw: false,
+                group: false,
+                no_progress: false,
+                no_std_process_return: true,
+            },
+            query: query.to_string(),
+
+            key_cmd: KeyCmd::Revoke {
+                key_id: key_id.into(),
+            },
         }),
     }
 }

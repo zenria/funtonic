@@ -5,8 +5,8 @@ mod test_utils;
 mod tests {
     use crate::test_utils::{
         admin_cmd, approve_key_executor_cmd, assert_executor_error, assert_success_of_one_executor,
-        commander_config, executor_config, list_executors_keys_cmd, loop_executor_main,
-        run_cmd_opt, taskserver_config,
+        authorize_key_cmd_opt, commander_config, executor_config, list_executors_keys_cmd,
+        loop_executor_main, revoke_key_cmd_opt, run_cmd_opt, taskserver_config,
     };
     use commander::commander_main;
     use funtonic::crypto::keygen::generate_base64_encoded_keys;
@@ -155,6 +155,9 @@ mod tests {
         let (not_in_executor_key, not_in_executor_authorized_key) =
             generate_base64_encoded_keys("not_in_executor");
 
+        // a new key that will be dynamically registered in executor
+        let (new_key, new_key_authorized_key) = generate_base64_encoded_keys("new_key");
+
         let (executor_private_key, _) = generate_base64_encoded_keys("local_executor");
 
         authorized_keys.insert(
@@ -189,7 +192,7 @@ mod tests {
         });
 
         std::thread::sleep(Duration::from_secs(2));
-        /////// ------------- Regular command forwarded to executors
+        // =============  Regular command forwarded to executors
 
         commander_main(
             approve_key_executor_cmd(),
@@ -240,15 +243,18 @@ mod tests {
         .await
         .expect_err("Execution with unauth key must fail");
 
-        /////// ------------- ADMIN
+        // =============  ADMIN
 
         commander_main(admin_cmd(), commander_config(54012, false, admin_key))
             .await
             .expect("This must not fail (admin command with admin key ;))");
 
-        commander_main(admin_cmd(), commander_config(54012, false, regular_key))
-            .await
-            .expect_err("Non admin keys are not authorized");
+        commander_main(
+            admin_cmd(),
+            commander_config(54012, false, regular_key.clone()),
+        )
+        .await
+        .expect_err("Non admin keys are not authorized");
 
         commander_main(
             admin_cmd(),
@@ -284,5 +290,53 @@ mod tests {
         )
         .await
         .expect("cat Cargo.toml failed");
+
+        // ============= Dynamic key registration
+
+        // before
+        commander_main(
+            run_cmd_opt("*", "cat Cargo.toml"),
+            commander_config(54012, false, new_key.clone()),
+        )
+        .await
+        .expect_err("Execution with new_key key must fail");
+
+        // authorize new_key
+        commander_main(
+            authorize_key_cmd_opt(
+                "*",
+                "new_key",
+                new_key_authorized_key.get("new_key").unwrap(),
+            ),
+            commander_config(54012, false, regular_key.clone()),
+        )
+        .await
+        .expect("authorize new_key");
+
+        // let the executor reconnect with the new keyset
+        std::thread::sleep(Duration::from_secs(1));
+        commander_main(
+            run_cmd_opt("*", "cat Cargo.toml"),
+            commander_config(54012, false, new_key.clone()),
+        )
+            .await
+            .expect("Execution with new_key key must not fail: it has been registed in executor which then reported in in the taskserver");
+
+        // revoke new_key
+        commander_main(
+            revoke_key_cmd_opt("*", "new_key"),
+            commander_config(54012, false, regular_key.clone()),
+        )
+        .await
+        .expect("revoke new_key");
+        std::thread::sleep(Duration::from_secs(1));
+        assert_executor_error(
+            commander_main(
+                run_cmd_opt("*", "cat Cargo.toml"),
+                commander_config(54012, false, new_key.clone()),
+            )
+            .await
+            .expect("Execution with new_key is accepted by the task server but rejected by the executor"),
+        );
     }
 }
