@@ -1,3 +1,4 @@
+use commander::cmd::CommandOptions;
 use commander::{AdminCommandOuputMode, CommanderSyntheticOutput, ExecutorState};
 use executor::executor_main;
 use funtonic::config::{CommanderConfig, ED25519Key, ExecutorConfig, ServerConfig, TlsConfig};
@@ -25,13 +26,15 @@ pub fn spawn_future_on_new_thread<
 pub fn run_cmd_opt(query: &str, command: &str) -> commander::Opt {
     commander::Opt {
         config: None,
-        command: commander::Command::Run(commander::cmd::Cmd {
-            raw: false,
-            group: false,
-            no_progress: false,
+        command: commander::Command::Cmd(commander::cmd::Cmd::Run {
+            options: CommandOptions {
+                raw: false,
+                group: false,
+                no_progress: false,
+                no_std_process_return: true,
+            },
             query: query.to_string(),
             command: vec![command.into()],
-            no_std_process_return: true,
         }),
     }
 }

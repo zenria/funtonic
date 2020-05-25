@@ -103,11 +103,9 @@ struct NoConfigFileError(String);
 fn resolve_config<P: AsRef<Path>, T: AsRef<Path>, D: DeserializeOwned>(
     provided_config: &Option<P>,
     name: T,
-) -> Result<D, Error> {
-    Ok(parse_yaml_from_file(resolve_config_path(
-        provided_config,
-        name,
-    )?)?)
+) -> Result<(D, PathBuf), Error> {
+    let config_path = resolve_config_path(provided_config, name)?;
+    Ok((parse_yaml_from_file(&config_path)?, config_path))
 }
 
 fn resolve_config_path<P: AsRef<Path>, T: AsRef<Path>>(
@@ -132,7 +130,7 @@ fn resolve_config_path<P: AsRef<Path>, T: AsRef<Path>>(
 pub fn parse<P: AsRef<Path>, T: AsRef<Path>, C: DeserializeOwned>(
     provided_config: &Option<P>,
     name: T,
-) -> Result<C, Error> {
+) -> Result<(C, PathBuf), Error> {
     resolve_config(provided_config, name)
 }
 

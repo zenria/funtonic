@@ -1,4 +1,3 @@
-use anyhow::bail;
 use executor::{executor_main, Opt};
 use funtonic::config;
 use funtonic::config::ExecutorConfig;
@@ -21,7 +20,8 @@ async fn main() -> Result<(), anyhow::Error> {
     });
     let opt = Opt::from_args();
     loop {
-        let config: ExecutorConfig = config::parse(&opt.config, "executor.yml")?;
+        let (config, config_path) =
+            config::parse::<_, _, ExecutorConfig>(&opt.config, "executor.yml")?;
         let key_path = get_key_path(config::get_config_directory(&opt.config, "executor.yml")?);
         let signing_key = if key_path.exists() {
             serde_yaml::from_reader(File::open(key_path)?)?
@@ -34,12 +34,23 @@ async fn main() -> Result<(), anyhow::Error> {
             serde_yaml::to_writer(File::create(key_path)?, &signing_key)?;
             signing_key
         };
-        if let Err(e) = executor_main(config, signing_key).await {
-            // this should only happen on TLS configuration parsing.
-            error!("Unknown error occured! {}", e);
-            tokio::time::delay_for(Duration::from_secs(1)).await;
-        } else {
-            info!("Connection to task server ended gracefully, reconnecting.");
+        match executor_main(config, signing_key).await {
+            Err(e) => {
+                // this should only happen on TLS configuration parsing.
+                error!("Unknown error occured! {}", e);
+                tokio::time::delay_for(Duration::from_secs(1)).await;
+            }
+            Ok(config) => {
+                info!("Connection to task server ended gracefully, saving config & reconnecting.");
+                if let Err(e) = serde_yaml::to_writer(File::create(&config_path)?, &config) {
+                    error!(
+                        "Unable to write configuration file to {}: {}\n{:#?}",
+                        config_path.to_string_lossy(),
+                        e,
+                        config
+                    );
+                }
+            }
         }
     }
 }

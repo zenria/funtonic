@@ -73,9 +73,8 @@ pub enum Command {
         #[structopt(subcommand)]
         command: AdminCommand,
     },
-    /// Run command line programs
-    #[structopt(name = "run")]
-    Run(cmd::Cmd),
+    #[structopt(flatten)]
+    Cmd(cmd::Cmd),
     /// Utilities
     #[structopt(name = "utils")]
     Utils(Utils),
@@ -114,7 +113,7 @@ pub async fn commander_main(
             output_mode,
             command,
         } => admin::handle_admin_command(client, &commander_config, command, output_mode).await,
-        Command::Run(cmd) => cmd::handle_cmd(client, &commander_config, cmd).await,
+        Command::Cmd(cmd) => cmd::handle_cmd(client, &commander_config, cmd).await,
 
         Command::Utils(cmd) => handle_utils_cmd(cmd),
     }

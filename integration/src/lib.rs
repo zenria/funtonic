@@ -8,8 +8,7 @@ mod tests {
         commander_config, executor_config, list_executors_keys_cmd, loop_executor_main,
         run_cmd_opt, taskserver_config,
     };
-    use commander::{commander_main, ExecutorState};
-    use executor::executor_main;
+    use commander::commander_main;
     use funtonic::crypto::keygen::generate_base64_encoded_keys;
     use log::LevelFilter;
     use std::sync::Once;

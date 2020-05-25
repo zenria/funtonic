@@ -48,9 +48,10 @@ enum LastConnectionStatus {
     Connecting,
     Connected,
 }
-
+/// Launch the executor ; returns an updated version of its configuration. The caller should persist it
+/// and immediately reconnect the executor
 pub async fn executor_main(
-    executor_config: ExecutorConfig,
+    mut executor_config: ExecutorConfig,
     mut signing_key: ED25519Key,
 ) -> Result<ExecutorConfig, Box<dyn std::error::Error>> {
     info!(
@@ -88,39 +89,69 @@ pub async fn executor_main(
         tokio::sync::watch::channel(LastConnectionStatus::Connecting);
 
     // executor execution never ends
-    while let Err(e) = do_executor_main(
-        &endpoint,
-        &executor_meta,
-        &mut connection_status_sender,
-        &key_store,
-        signing_key.clone(),
-    )
-    .await
-    {
-        error!("Error {}", e);
-        // increase reconnect time if connecting, reset if connected
-        match *connection_status_receiver.borrow() {
-            LastConnectionStatus::Connecting => {
-                reconnect_time = reconnect_time + Duration::from_secs(1);
-                if reconnect_time > max_reconnect_time {
-                    reconnect_time = max_reconnect_time;
+    'retryloop: loop {
+        match do_executor_main(
+            &endpoint,
+            &executor_meta,
+            &executor_config,
+            &mut connection_status_sender,
+            &key_store,
+            signing_key.clone(),
+        )
+        .await
+        {
+            Ok(config_modification) => {
+                match config_modification {
+                    ConfigurationModification::AddKey { key_id, key_bytes } => {
+                        executor_config
+                            .authorized_keys
+                            .insert(key_id, base64::encode(key_bytes));
+                    }
+                    ConfigurationModification::RevokeKey(key_id) => {
+                        executor_config.authorized_keys.remove(&key_id);
+                    }
+
+                    ConfigurationModification::None => {
+                        // nothing to do here
+                    }
                 }
+                break 'retryloop;
             }
-            LastConnectionStatus::Connected => reconnect_time = Duration::from_secs(1),
+            Err(e) => {
+                error!("Error {}", e);
+                // increase reconnect time if connecting, reset if connected
+                match *connection_status_receiver.borrow() {
+                    LastConnectionStatus::Connecting => {
+                        reconnect_time = reconnect_time + Duration::from_secs(1);
+                        if reconnect_time > max_reconnect_time {
+                            reconnect_time = max_reconnect_time;
+                        }
+                    }
+                    LastConnectionStatus::Connected => reconnect_time = Duration::from_secs(1),
+                }
+                info!("Reconnecting in {}s", reconnect_time.as_secs());
+                tokio::time::delay_for(reconnect_time).await;
+            }
         }
-        info!("Reconnecting in {}s", reconnect_time.as_secs());
-        tokio::time::delay_for(reconnect_time).await;
     }
+
     Ok(executor_config)
+}
+
+enum ConfigurationModification {
+    AddKey { key_id: String, key_bytes: Vec<u8> },
+    RevokeKey(String),
+    None,
 }
 
 async fn do_executor_main<B: KeyStoreBackend>(
     endpoint: &Endpoint,
     executor_metas: &ExecutorMeta,
+    executor_config: &ExecutorConfig,
     last_connection_status_sender: &mut Sender<LastConnectionStatus>,
     key_store: &KeyStore<B>,
     signing_key: ED25519Key,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<ConfigurationModification, Box<dyn std::error::Error>> {
     last_connection_status_sender.broadcast(LastConnectionStatus::Connecting)?;
     let channel = endpoint.connect().await?;
     last_connection_status_sender.broadcast(LastConnectionStatus::Connected)?;
@@ -168,17 +199,78 @@ async fn do_executor_main<B: KeyStoreBackend>(
                             }
                             Task::StreamingPayload(_) => {
                                 error!("Streaming not yet implemented!");
+                                // reject task
+                                single_execution_result(
+                                    ExecutionResult::TaskRejected(
+                                        "Streaming not yet implemented".into(),
+                                    ),
+                                    &client_id,
+                                    &task_id,
+                                    &signing_key,
+                                    &mut client,
+                                )
+                                .await?;
                             }
-                            Task::AuthorizeKey(_) => {}
-                            Task::RevokeKey(_) => {}
+                            Task::AuthorizeKey(public_key) => {
+                                single_execution_result(
+                                    ExecutionResult::TaskCompleted(TaskCompleted {
+                                        return_code: 0,
+                                    }),
+                                    &client_id,
+                                    &task_id,
+                                    &signing_key,
+                                    &mut client,
+                                )
+                                .await?;
+                                return Ok(ConfigurationModification::AddKey {
+                                    key_id: public_key.key_id,
+                                    key_bytes: public_key.key_bytes,
+                                });
+                            }
+                            Task::RevokeKey(key_id) => {
+                                if executor_config.authorized_keys.contains_key(&key_id) {
+                                    single_execution_result(
+                                        ExecutionResult::TaskCompleted(TaskCompleted {
+                                            return_code: 0,
+                                        }),
+                                        &client_id,
+                                        &task_id,
+                                        &signing_key,
+                                        &mut client,
+                                    )
+                                    .await?;
+                                    return Ok(ConfigurationModification::RevokeKey(key_id));
+                                } else {
+                                    single_execution_result(
+                                        ExecutionResult::TaskRejected(format!(
+                                            "Cannot revoke key {}: key not found",
+                                            key_id
+                                        )),
+                                        &client_id,
+                                        &task_id,
+                                        &signing_key,
+                                        &mut client,
+                                    )
+                                    .await?;
+                                }
+                            }
                         },
                         None => error!("No task inside LauchTaskRequest"),
                     },
                     Err(e) => {
-                        let error = format!("{}", e);
                         error!("Unable to decode received payload for {}: {}", task_id, e);
-                        reject_task(&client_id, &task_id, &error, &signing_key, &mut client)
-                            .await?;
+                        // reject task
+                        single_execution_result(
+                            ExecutionResult::TaskRejected(format!(
+                                "Unable to decode received payload for {}: {}",
+                                task_id, e
+                            )),
+                            &client_id,
+                            &task_id,
+                            &signing_key,
+                            &mut client,
+                        )
+                        .await?;
                     }
                 }
             }
@@ -188,13 +280,13 @@ async fn do_executor_main<B: KeyStoreBackend>(
         info!("Waiting for next task")
     }
 
-    Ok(())
+    Ok(ConfigurationModification::None)
 }
 
-async fn reject_task(
+async fn single_execution_result(
+    result: ExecutionResult,
     client_id: &str,
     task_id: &str,
-    error: &str,
     signing_key: &ED25519Key,
     client: &mut ExecutorServiceClient<Channel>,
 ) -> Result<(), Box<dyn Error>> {
@@ -202,10 +294,7 @@ async fn reject_task(
         TaskExecutionResult {
             task_id: task_id.to_string(),
             client_id: client_id.to_string(),
-            execution_result: Some(ExecutionResult::TaskRejected(format!(
-                "Unable to decode received payload for {}: {}",
-                task_id, error
-            ))),
+            execution_result: Some(result),
         },
         &signing_key,
         Duration::from_secs(60),
