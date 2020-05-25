@@ -66,15 +66,12 @@ impl ExecutorService for TaskServer {
             ))?;
         }
 
-        // TODO check executor key before registering it
-        //self.handle_executor_key(&client_id, request.)
-
         let client_id = request.client_id.clone();
         info!("{} connected with meta {:?}", client_id, metadata);
         // register the client and wait for new tasks to come, forward them
         // to the response
         let (sender, receiver) = mpsc::unbounded();
-        if let Err(e) = self.register_executor((&request).into(), sender) {
+        if let Err(e) = self.register_executor(&request, sender) {
             error!("Unable to register executor {}", e);
             Err(e)?;
         }

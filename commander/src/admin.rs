@@ -21,9 +21,13 @@ use tonic::transport::Channel;
 #[structopt(rename_all = "kebab")]
 pub enum AdminCommand {
     /// Get connected executors and their meta as json
-    ListConnectedExecutors { query: Option<String> },
+    ListConnectedExecutors {
+        query: Option<String>,
+    },
     /// Get all known executors and their meta as json
-    ListKnownExecutors { query: Option<String> },
+    ListKnownExecutors {
+        query: Option<String>,
+    },
     /// Get all running tasks as json
     ListRunningTasks,
     /// Remove the executor from the taskserver
@@ -38,7 +42,15 @@ pub enum AdminCommand {
     /// List executors public keys
     ListExecutorKeys,
     /// Approve an executor public key (*) can be used to approve all pending keys
-    ApproveExecutorKey { executor: String },
+    ApproveExecutorKey {
+        executor: String,
+    },
+    /// List authorized keys
+    ///
+    /// Authorized keys are allowed to run various commands on executors, the list contains keys from static
+    /// configuration file & is completed with authorized keys from each executors that connects to it
+    ListAuthorizedKeys,
+    ListAdminAuthorizedKeys,
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -170,6 +182,23 @@ impl AdminCommand {
                 AdminCommand::ApproveExecutorKey {
                     executor: _executor,
                 } => {}
+
+                AdminCommand::ListAuthorizedKeys | AdminCommand::ListAdminAuthorizedKeys => {
+                    let keys: BTreeMap<String, String> = serde_json::from_str(&raw_json)?;
+                    let title = match self {
+                        AdminCommand::ListAuthorizedKeys => "Authorized Keys",
+                        AdminCommand::ListAdminAuthorizedKeys => "Admin Authorized Keys",
+                        _ => panic!("Not possible by construction"),
+                    };
+                    println!("{}", title.green());
+                    let mut table = Table::new();
+                    table.set_format(*FORMAT_NO_BORDER_LINE_SEPARATOR);
+                    table.set_titles(row!["key_id", "key"]);
+                    for (key_id, key) in &keys {
+                        table.add_row(row![key_id.green(), key]);
+                    }
+                    table.printstd();
+                }
             },
         }
 
@@ -214,6 +243,12 @@ pub async fn handle_admin_command(
         },
         AdminCommand::ApproveExecutorKey { executor } => AdminRequest {
             request_type: Some(RequestType::ApproveExecutorKey(executor.clone())),
+        },
+        AdminCommand::ListAuthorizedKeys => AdminRequest {
+            request_type: Some(RequestType::ListAuthorizedKeys(Empty {})),
+        },
+        AdminCommand::ListAdminAuthorizedKeys => AdminRequest {
+            request_type: Some(RequestType::ListAdminAuthorizedKeys(Empty {})),
         },
     };
 

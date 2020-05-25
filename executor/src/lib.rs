@@ -19,6 +19,7 @@ use grpc_service::grpc_protocol::{
 };
 use http::Uri;
 use std::collections::HashMap;
+use std::convert::TryFrom;
 use std::error::Error;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -167,7 +168,7 @@ async fn do_executor_main<B: KeyStoreBackend>(
             public_key: base64::decode(signing_key.public_key.as_ref().unwrap())?,
             client_id: client_id.clone(),
             get_tasks_request: Some(encode_and_sign(
-                GetTasksRequest::from(executor_metas),
+                GetTasksRequest::try_from(executor_config)?,
                 &signing_key,
                 Duration::from_secs(60),
             )?),

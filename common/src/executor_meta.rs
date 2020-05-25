@@ -1,9 +1,11 @@
 use crate::config::ExecutorConfig;
 use crate::{PROTOCOL_VERSION, VERSION};
-use grpc_service::grpc_protocol::{GetTasksRequest, ValueList, ValueMap};
+use anyhow::Context;
+use grpc_service::grpc_protocol::{GetTasksRequest, PublicKey, ValueList, ValueMap};
 use query_parser::{Query, QueryMatcher};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::convert::TryFrom;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(untagged)]
@@ -30,9 +32,12 @@ impl From<&ExecutorConfig> for ExecutorMeta {
     }
 }
 
-impl From<&ExecutorMeta> for GetTasksRequest {
-    fn from(m: &ExecutorMeta) -> Self {
-        Self {
+impl TryFrom<&ExecutorConfig> for GetTasksRequest {
+    type Error = anyhow::Error;
+
+    fn try_from(config: &ExecutorConfig) -> Result<Self, Self::Error> {
+        let m: ExecutorMeta = config.into();
+        Ok(Self {
             client_id: m.client_id.clone(),
             client_version: m.version.clone(),
             tags: m
@@ -45,9 +50,19 @@ impl From<&ExecutorMeta> for GetTasksRequest {
                     )
                 })
                 .collect(),
-
             client_protocol_version: PROTOCOL_VERSION.into(),
-        }
+            authorized_keys: config
+                .authorized_keys
+                .iter()
+                .try_fold::<_, _, Result<_, anyhow::Error>>(vec![], |mut keys, (id, key)| {
+                    keys.push(PublicKey {
+                        key_id: id.clone(),
+                        key_bytes: base64::decode(key)
+                            .with_context(|| format!("Unable to decode key {}", id))?,
+                    });
+                    Ok(keys)
+                })?,
+        })
     }
 }
 

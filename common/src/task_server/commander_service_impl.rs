@@ -316,6 +316,21 @@ impl CommanderService for TaskServer {
                     response_kind: Some(ResponseKind::JsonResponse("{}".to_string())),
                 }))
             }
+
+            RequestType::ListAuthorizedKeys(_) => Ok(Response::new(AdminRequestResponse {
+                response_kind: Some(ResponseKind::JsonResponse(
+                    serde_json::to_string(&self.authorized_keys.list_all()?).map_err(|deser| {
+                        Status::internal(format!("An error occured: {}", deser))
+                    })?,
+                )),
+            })),
+            RequestType::ListAdminAuthorizedKeys(_) => Ok(Response::new(AdminRequestResponse {
+                response_kind: Some(ResponseKind::JsonResponse(
+                    serde_json::to_string(&self.authorized_admin_keys.list_all()?).map_err(
+                        |deser| Status::internal(format!("An error occured: {}", deser)),
+                    )?,
+                )),
+            })),
         }
     }
 }

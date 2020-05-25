@@ -34,6 +34,11 @@ message AdminRequest {
 
     Empty listExecutorKeys = 6;
     string approveExecutorKey = 7;
+    // list authorized keys (keys allowed to run various commands on executors, the list contains keys from static
+    // configuration file & is completed with authorized keys from each executors that connects to it)
+    Empty listAuthorizedKeys = 8;
+    // list admin authorized keys (keys allowed to to admin command on task servers such as authorize new executors)
+    Empty listAdminAuthorizedKeys = 9;
   }
 }
 
@@ -66,6 +71,7 @@ message GetTasksRequest {
   string clientVersion = 2;
   map<string, Tag> tags = 3;
   string clientProtocolVersion = 4;
+  repeated PublicKey authorizedKeys = 5;
 }
 
 message Tag {

@@ -236,15 +236,15 @@ dependencies = [
 
 [[package]]
 name = "commander"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "anyhow 1.0.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "atty 0.2.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "colored 1.9.3 (registry+https://github.com/rust-lang/crates.io-index)",
- "funtonic 0.18.0",
+ "funtonic 0.19.0",
  "futures 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "grpc-service 0.18.0",
+ "grpc-service 0.19.0",
  "http 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "indicatif 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -477,14 +477,14 @@ dependencies = [
 
 [[package]]
 name = "executor"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "anyhow 1.0.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "base64 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "exec 0.4.0",
- "funtonic 0.18.0",
+ "funtonic 0.19.0",
  "futures 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "grpc-service 0.18.0",
+ "grpc-service 0.19.0",
  "http 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "log4rs-gelf 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -548,7 +548,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "funtonic"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "anyhow 1.0.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "async-stream 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -558,7 +558,7 @@ dependencies = [
  "crossbeam 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "exec 0.4.0",
  "futures 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "grpc-service 0.18.0",
+ "grpc-service 0.19.0",
  "http 0.2.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "itertools 0.8.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -698,7 +698,7 @@ dependencies = [
 
 [[package]]
 name = "grpc-service"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "async-stream 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytes 0.4.12 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -869,15 +869,15 @@ name = "integration"
 version = "0.1.0"
 dependencies = [
  "base64 0.12.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "commander 0.18.0",
+ "commander 0.19.0",
  "env_logger 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "executor 0.18.0",
- "funtonic 0.18.0",
+ "executor 0.19.0",
+ "funtonic 0.19.0",
  "futures 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "reqwest 0.10.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "rustls 0.17.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "taskserver 0.18.0",
+ "taskserver 0.19.0",
  "tempfile 3.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio 0.2.21 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -1908,12 +1908,12 @@ dependencies = [
 
 [[package]]
 name = "taskserver"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "anyhow 1.0.31 (registry+https://github.com/rust-lang/crates.io-index)",
- "funtonic 0.18.0",
+ "funtonic 0.19.0",
  "futures 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
- "grpc-service 0.18.0",
+ "grpc-service 0.19.0",
  "log 0.4.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "log4rs-gelf 0.1.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "native-tls 0.2.4 (registry+https://github.com/rust-lang/crates.io-index)",

@@ -3,7 +3,7 @@ use crate::PROTOCOL_VERSION;
 use futures::channel::mpsc;
 use futures::{SinkExt, StreamExt};
 use grpc_service::grpc_protocol::launch_task_response::TaskResponse;
-use grpc_service::grpc_protocol::ExecuteCommand;
+use grpc_service::grpc_protocol::{ExecuteCommand, GetTasksRequest};
 use query_parser::{parse, Query, QueryMatcher};
 use rand::Rng;
 use rustbreak::deser::Yaml;
@@ -41,6 +41,8 @@ pub enum TaskServerError {
     LockError,
     #[error("Rustbreak database error {0}")]
     DatabaseError(#[from] rustbreak::RustbreakError),
+    #[error("Internal key store error {0}")]
+    KeyStoreError(#[from] KeyStoreError),
 }
 
 impl From<TaskServerError> for Status {
@@ -148,12 +150,14 @@ impl TaskServer {
 
     fn register_executor(
         &self,
-        executor_meta: ExecutorMeta,
+        request: &GetTasksRequest,
         sender_to_get_task_response: mpsc::UnboundedSender<(
             SignedPayload,
             mpsc::UnboundedSender<TaskResponse>,
         )>,
     ) -> Result<(), TaskServerError> {
+        let executor_meta: ExecutorMeta = request.into();
+
         self.executors.lock().unwrap().insert(
             executor_meta.client_id().to_string(),
             sender_to_get_task_response,
@@ -166,6 +170,12 @@ impl TaskServer {
             );
             executors.insert(executor_meta.client_id().to_string(), executor_meta);
         })?;
+
+        for public_key in &request.authorized_keys {
+            self.authorized_keys
+                .register_key(&public_key.key_id, public_key.key_bytes.clone())?;
+        }
+
         Ok(self.executor_meta_database.save()?)
     }
 
