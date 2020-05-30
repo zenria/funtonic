@@ -84,7 +84,13 @@ fn and_clause<'a, E: ParseError<&'a str>>(
 
 // not
 fn one_shot_not<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, (), E> {
-    value((), alt((tag_no_case("not "), tag("!"))))(i)
+    value(
+        (),
+        alt((
+            pair(tag_no_case("not "), maybe_sp),
+            pair(tag("!"), maybe_sp),
+        )),
+    )(i)
 }
 
 fn simple_not_clause<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, RawQuery<'a>, E> {
@@ -250,6 +256,8 @@ mod test {
     fn test_not() {
         assert!(one_shot_not::<VerboseError<&str>>("not ").is_ok());
         assert!(one_shot_not::<VerboseError<&str>>("!").is_ok());
+        assert!(one_shot_not::<VerboseError<&str>>("not  ").is_ok());
+        assert!(one_shot_not::<VerboseError<&str>>("! ").is_ok());
 
         // basic not
         assert_eq!(

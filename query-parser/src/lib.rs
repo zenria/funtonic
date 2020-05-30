@@ -253,6 +253,10 @@ mod tests {
         assert!(!"qa".qmatches(&parse("!qa").unwrap()));
         assert!("prod".qmatches(&parse("not qa").unwrap()));
         assert!("prod".qmatches(&parse("!qa").unwrap()));
+        assert!(!"qa".qmatches(&parse("not  qa").unwrap()));
+        assert!(!"qa".qmatches(&parse("! qa").unwrap()));
+        assert!("prod".qmatches(&parse("not  qa").unwrap()));
+        assert!("prod".qmatches(&parse("! qa").unwrap()));
 
         // do some more funny tests with maps
         let mut tags = HashMap::new();
