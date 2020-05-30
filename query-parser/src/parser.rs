@@ -4,7 +4,7 @@ use nom::character::complete::char;
 use nom::character::is_alphanumeric;
 use nom::combinator::{complete, map, value};
 use nom::error::ParseError;
-use nom::sequence::{separated_pair, tuple};
+use nom::sequence::{pair, separated_pair, tuple};
 use nom::{Err, IResult};
 
 /// Raw parsed query with no precedence applied
@@ -15,6 +15,7 @@ pub enum RawQuery<'a> {
     Wildcard,
     And(Box<RawQuery<'a>>, Box<RawQuery<'a>>),
     Or(Box<RawQuery<'a>>, Box<RawQuery<'a>>),
+    Not(Box<RawQuery<'a>>),
 }
 
 pub fn parse_raw<'a, E: ParseError<&'a str>>(
@@ -81,6 +82,15 @@ fn and_clause<'a, E: ParseError<&'a str>>(
     separated_pair(parse_simple_query, and_separator, parse_query)(i)
 }
 
+// not
+fn one_shot_not<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, (), E> {
+    value((), alt((tag_no_case("not "), tag("!"))))(i)
+}
+
+fn simple_not_clause<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, RawQuery<'a>, E> {
+    map(pair(one_shot_not, parse_simple_query), |(_, query)| query)(i)
+}
+
 // field:sub_query
 fn field_pattern<'a, E: ParseError<&'a str>>(
     i: &'a str,
@@ -102,13 +112,14 @@ fn parse_query<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, RawQu
     alt((
         map(and_clause, |(l, r)| RawQuery::And(l.into(), r.into())),
         map(or_clause, |(l, r)| RawQuery::Or(l.into(), r.into())),
+        map(simple_not_clause, |q| RawQuery::Not(q.into())),
         parse_simple_query,
     ))(i)
 }
 
 #[cfg(test)]
 mod test {
-    use crate::parser::{and, comma, or, parse_raw, RawQuery};
+    use crate::parser::{and, comma, one_shot_not, or, parse_raw, simple_not_clause, RawQuery};
     use nom::error::VerboseError;
 
     #[test]
@@ -143,6 +154,7 @@ mod test {
             parse_raw::<VerboseError<&str>>("field:*").unwrap().1,
             RawQuery::FieldPattern("field", Box::new(RawQuery::Wildcard)),
         );
+
         assert_eq!(
             parse_raw::<VerboseError<&str>>("field:sub_field:pattern")
                 .unwrap()
@@ -232,6 +244,60 @@ mod test {
                     Box::new(RawQuery::Pattern("yak"))
                 ))
             ),
+        );
+    }
+    #[test]
+    fn test_not() {
+        assert!(one_shot_not::<VerboseError<&str>>("not ").is_ok());
+        assert!(one_shot_not::<VerboseError<&str>>("!").is_ok());
+
+        // basic not
+        assert_eq!(
+            simple_not_clause::<VerboseError<&str>>("not foobar")
+                .unwrap()
+                .1,
+            RawQuery::Pattern("foobar")
+        );
+        assert_eq!(
+            simple_not_clause::<VerboseError<&str>>("!foobar")
+                .unwrap()
+                .1,
+            RawQuery::Pattern("foobar")
+        );
+        assert_eq!(
+            simple_not_clause::<VerboseError<&str>>("not foobar:baz")
+                .unwrap()
+                .1,
+            RawQuery::FieldPattern("foobar", Box::new(RawQuery::Pattern("baz")))
+        );
+        assert_eq!(
+            simple_not_clause::<VerboseError<&str>>("!foobar:baz")
+                .unwrap()
+                .1,
+            RawQuery::FieldPattern("foobar", Box::new(RawQuery::Pattern("baz")))
+        );
+
+        assert_eq!(
+            parse_raw::<VerboseError<&str>>("not foobar").unwrap().1,
+            RawQuery::Not(Box::new(RawQuery::Pattern("foobar")))
+        );
+        assert_eq!(
+            parse_raw::<VerboseError<&str>>("!foobar").unwrap().1,
+            RawQuery::Not(Box::new(RawQuery::Pattern("foobar")))
+        );
+        assert_eq!(
+            parse_raw::<VerboseError<&str>>("not foobar:baz").unwrap().1,
+            RawQuery::Not(Box::new(RawQuery::FieldPattern(
+                "foobar",
+                Box::new(RawQuery::Pattern("baz"))
+            )))
+        );
+        assert_eq!(
+            parse_raw::<VerboseError<&str>>("!foobar:baz").unwrap().1,
+            RawQuery::Not(Box::new(RawQuery::FieldPattern(
+                "foobar",
+                Box::new(RawQuery::Pattern("baz"))
+            )))
         );
     }
 }

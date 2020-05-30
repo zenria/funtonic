@@ -49,6 +49,7 @@ pub enum Query<'a> {
     Wildcard,
     And(Vec<Query<'a>>),
     Or(Vec<Query<'a>>),
+    Not(Box<Query<'a>>),
 }
 
 pub trait QueryMatcher {
@@ -69,6 +70,7 @@ impl QueryMatcher for &str {
             Query::Wildcard => true,
             Query::And(and) => and.iter().all(|q| self.qmatches(q)),
             Query::Or(or) => or.iter().any(|q| self.qmatches(q)),
+            Query::Not(not) => !self.qmatches(not),
         }
     }
 }
@@ -106,6 +108,7 @@ impl<Q: QueryMatcher, F: FieldExtractable<Field = Q>> QueryMatcher for F {
             Query::Wildcard => true,
             Query::And(and) => and.iter().all(|q| self.qmatches(q)),
             Query::Or(or) => or.iter().any(|q| self.qmatches(q)),
+            Query::Not(not) => !self.qmatches(not),
         }
     }
 }
@@ -212,6 +215,10 @@ impl<'a> From<RawQuery<'a>> for Query<'a> {
                     right => Query::Or(vec![left, right]),
                 }
             }
+            RawQuery::Not(raw_query) => {
+                let q: Query = (*raw_query).into();
+                Query::Not(Box::new(q))
+            }
         }
     }
 }
@@ -241,6 +248,11 @@ mod tests {
         assert!(!"qa".qmatches(&parse("prod and qa").unwrap()));
         assert!(!"qa".qmatches(&parse("prod and qa or coucou").unwrap()));
         assert!(!"qa".qmatches(&parse("coucou or prod and qa or coucou").unwrap()));
+
+        assert!(!"qa".qmatches(&parse("not qa").unwrap()));
+        assert!(!"qa".qmatches(&parse("!qa").unwrap()));
+        assert!("prod".qmatches(&parse("not qa").unwrap()));
+        assert!("prod".qmatches(&parse("!qa").unwrap()));
 
         // do some more funny tests with maps
         let mut tags = HashMap::new();
