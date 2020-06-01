@@ -1,9 +1,12 @@
 use crate::config::ExecutorConfig;
 use crate::{PROTOCOL_VERSION, VERSION};
 use anyhow::Context;
+use get_if_addrs::{IfAddr, Interface};
 use grpc_service::grpc_protocol::{GetTasksRequest, PublicKey, ValueList, ValueMap};
+use os_info::Info;
 use query_parser::{Query, QueryMatcher};
 use serde::{Deserialize, Serialize};
+use std::collections::hash_map::RandomState;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 
@@ -32,11 +35,82 @@ impl From<&ExecutorConfig> for ExecutorMeta {
     }
 }
 
+// os info
+impl From<Info> for Tag {
+    fn from(info: Info) -> Self {
+        let mut tags = HashMap::new();
+        tags.insert("type".to_string(), Tag::Value(info.os_type().to_string()));
+        tags.insert(
+            "version".to_string(),
+            Tag::Value(info.version().to_string()),
+        );
+        Tag::Map(tags)
+    }
+}
+
+impl From<Vec<Interface>> for Tag {
+    fn from(interfaces: Vec<Interface>) -> Self {
+        interfaces
+            .into_iter()
+            .fold(HashMap::new(), |mut interfaces, interface| {
+                match &interface.addr {
+                    IfAddr::V4(ip) => {
+                        let if_type = if ip.ip.is_loopback() {
+                            "loopback"
+                        } else if ip.ip.is_private() {
+                            "lan"
+                        } else if ip.ip.is_multicast() {
+                            // should not happen
+                            "multicast"
+                        } else if ip.ip.is_broadcast() {
+                            // should not happen
+                            "broadcast"
+                        } else if ip.ip.is_documentation() {
+                            // should not happen
+                            "documentation"
+                        } else if ip.ip.is_unspecified() {
+                            // should not happen
+                            "unspecified"
+                        } else if ip.ip.is_link_local() {
+                            // should not happen
+                            "link_local"
+                        } else if ip.ip.is_documentation() {
+                            // should not happen
+                            "documentation"
+                        } else {
+                            "wan"
+                        };
+
+                        let if_list = interfaces.entry(if_type).or_insert(HashMap::new());
+                        let if_addrs = if_list.entry(interface.name).or_insert(vec![]);
+                        let mut addr = HashMap::new();
+                        addr.insert("ip", ip.ip.to_string());
+                        addr.insert("netmask", ip.netmask.to_string());
+                        if let Some(broadcast) = ip.broadcast.as_ref() {
+                            addr.insert("broadcast", broadcast.to_string());
+                        }
+                        if_addrs.push(addr);
+                    }
+                    IfAddr::V6(_) => { // ignore ipv6 completely
+                    }
+                }
+                interfaces
+            })
+            .into()
+    }
+}
+
 impl TryFrom<&ExecutorConfig> for GetTasksRequest {
     type Error = anyhow::Error;
 
     fn try_from(config: &ExecutorConfig) -> Result<Self, Self::Error> {
-        let m: ExecutorMeta = config.into();
+        let mut m: ExecutorMeta = config.into();
+        // add os info to executor metas
+        m.tags.insert("os_info".into(), os_info::get().into());
+        m.tags.insert(
+            "network_interfaces".into(),
+            get_if_addrs::get_if_addrs()?.into(),
+        );
         Ok(Self {
             client_id: m.client_id.clone(),
             client_version: m.version.clone(),
@@ -122,6 +196,21 @@ impl From<String> for Tag {
 impl From<&str> for Tag {
     fn from(v: &str) -> Self {
         Tag::Value(v.into())
+    }
+}
+
+impl<S: Into<String>, T: Into<Tag>> From<HashMap<S, T>> for Tag {
+    fn from(map: HashMap<S, T, RandomState>) -> Self {
+        Tag::Map(
+            map.into_iter()
+                .map(|(key, value)| (key.into(), value.into()))
+                .collect(),
+        )
+    }
+}
+impl<T: Into<Tag>> From<Vec<T>> for Tag {
+    fn from(list: Vec<T>) -> Self {
+        Tag::List(list.into_iter().map(|value| value.into()).collect())
     }
 }
 
