@@ -4,7 +4,8 @@ use anyhow::Context;
 use get_if_addrs::{IfAddr, Interface};
 use grpc_service::grpc_protocol::{GetTasksRequest, PublicKey, ValueList, ValueMap};
 use os_info::Info;
-use query_parser::{Query, QueryMatcher};
+use query_parser::MatchResult::Rejected;
+use query_parser::{MatchResult, Query, QueryMatcher};
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::RandomState;
 use std::collections::HashMap;
@@ -215,7 +216,7 @@ impl<T: Into<Tag>> From<Vec<T>> for Tag {
 }
 
 impl QueryMatcher for Tag {
-    fn qmatches(&self, query: &Query) -> bool {
+    fn qmatches(&self, query: &Query) -> MatchResult {
         match self {
             Tag::Map(map) => map.qmatches(query),
             Tag::List(list) => list.qmatches(query),
@@ -225,8 +226,21 @@ impl QueryMatcher for Tag {
 }
 
 impl QueryMatcher for ExecutorMeta {
-    fn qmatches(&self, query: &Query) -> bool {
-        self.client_id.qmatches(query) || self.tags.qmatches(query)
+    fn qmatches(&self, query: &Query) -> MatchResult {
+        /*let client_id_matches = self.client_id.qmatches(query);
+        let tag_matches = self.tags.qmatches(query);
+        dbg!(&client_id_matches);
+        dbg!(&tag_matches);
+        if client_id_matches == Rejected || tag_matches == Rejected {
+            Rejected
+        } else {
+            client_id_matches | tag_matches
+        }*/
+        Tag::List(vec![
+            Tag::Map(self.tags.clone()),
+            Tag::Value(self.client_id.clone()),
+        ])
+        .qmatches(query)
     }
 }
 
@@ -259,7 +273,8 @@ mod test {
     }
     impl<T: QueryMatcher> TestMatch for T {
         fn matches(&self, query: &str) -> bool {
-            self.qmatches(&parse(query).unwrap())
+            dbg!(&query);
+            self.qmatches(&parse(query).unwrap()).matches()
         }
     }
 
@@ -342,5 +357,9 @@ mod test {
         assert!(meta.matches("os:type:*"));
         assert!(meta.matches("os:version:18.04"));
         assert!(!meta.matches("os:type:Windows"));
+
+        assert!(meta.matches("env:prod and siderant"));
+        assert!(!meta.matches("env:prod and !siderant"));
+        // this is a TODO
     }
 }

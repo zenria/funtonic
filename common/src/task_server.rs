@@ -130,7 +130,7 @@ impl TaskServer {
         let client_ids: Vec<String> = self.executor_meta_database.read(|executors| {
             executors
                 .iter()
-                .filter(|(_client_id, meta)| meta.qmatches(query))
+                .filter(|(_client_id, meta)| meta.qmatches(query).matches())
                 .map(|(client_id, _meta)| client_id.clone())
                 .collect()
         })?;

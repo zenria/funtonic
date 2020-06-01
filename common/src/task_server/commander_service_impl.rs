@@ -198,7 +198,7 @@ impl CommanderService for TaskServer {
                                             .iter()
                                             .filter(|(client_id, meta)| {
                                                 connected_executors.contains(*client_id)
-                                                    && meta.qmatches(&query)
+                                                    && meta.qmatches(&query).matches()
                                             })
                                             .collect::<BTreeMap<_, _>>(),
                                     )
@@ -221,7 +221,7 @@ impl CommanderService for TaskServer {
                                 serde_json::to_string(
                                     &data
                                         .iter()
-                                        .filter(|(_, meta)| meta.qmatches(&query))
+                                        .filter(|(_, meta)| meta.qmatches(&query).matches())
                                         .collect::<BTreeMap<_, _>>(),
                                 )
                             })?
@@ -255,7 +255,7 @@ impl CommanderService for TaskServer {
                                 .and_then(|query| {
                                     Ok(self.read_executor_meta_database(|data| {
                                         data.iter()
-                                            .filter(|(_, meta)| meta.qmatches(&query))
+                                            .filter(|(_, meta)| meta.qmatches(&query).matches())
                                             .map(|(client_id, _)| client_id.clone())
                                             .collect::<Vec<_>>()
                                     })?)
