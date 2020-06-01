@@ -55,7 +55,7 @@ impl From<Vec<Interface>> for Tag {
             .fold(HashMap::new(), |mut interfaces, interface| {
                 match &interface.addr {
                     IfAddr::V4(ip) => {
-                        let if_type = if ip.ip.is_loopback() {
+                        let if_type = if ip.ip.is_loopback() || interface.name.starts_with("lo:") {
                             "loopback"
                         } else if ip.ip.is_private() {
                             "lan"
