@@ -4,7 +4,7 @@ use nom::character::complete::char;
 use nom::character::is_alphanumeric;
 use nom::combinator::{complete, map, value};
 use nom::error::ParseError;
-use nom::sequence::{pair, separated_pair, tuple};
+use nom::sequence::{delimited, pair, separated_pair, tuple};
 use nom::{Err, IResult};
 
 /// Raw parsed query with no precedence applied
@@ -97,6 +97,25 @@ fn simple_not_clause<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str,
     map(pair(one_shot_not, parse_simple_query), |(_, query)| query)(i)
 }
 
+fn start_not<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, (), E> {
+    value(
+        (),
+        alt((
+            tuple((tag("not"), maybe_sp, tag("("), maybe_sp)),
+            tuple((tag("!"), maybe_sp, tag("("), maybe_sp)),
+        )),
+    )(i)
+}
+fn end_not<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, (), E> {
+    value(
+        (),
+        alt((tuple((maybe_sp, tag(")"))), tuple((maybe_sp, tag(")"))))),
+    )(i)
+}
+fn not_clause<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, RawQuery<'a>, E> {
+    delimited(start_not, parse_query, end_not)(i)
+}
+
 // field:sub_query
 fn field_pattern<'a, E: ParseError<&'a str>>(
     i: &'a str,
@@ -118,6 +137,7 @@ fn parse_query<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, RawQu
     alt((
         map(and_clause, |(l, r)| RawQuery::And(l.into(), r.into())),
         map(or_clause, |(l, r)| RawQuery::Or(l.into(), r.into())),
+        map(not_clause, |q| RawQuery::Not(q.into())),
         map(simple_not_clause, |q| RawQuery::Not(q.into())),
         parse_simple_query,
     ))(i)
@@ -302,6 +322,73 @@ mod test {
         );
         assert_eq!(
             parse_raw::<VerboseError<&str>>("!foobar:baz").unwrap().1,
+            RawQuery::Not(Box::new(RawQuery::FieldPattern(
+                "foobar",
+                Box::new(RawQuery::Pattern("baz"))
+            )))
+        );
+
+        // comlpex not
+        assert_eq!(
+            parse_raw::<VerboseError<&str>>("not(foobar:baz)")
+                .unwrap()
+                .1,
+            RawQuery::Not(Box::new(RawQuery::FieldPattern(
+                "foobar",
+                Box::new(RawQuery::Pattern("baz"))
+            )))
+        );
+        assert_eq!(
+            parse_raw::<VerboseError<&str>>("!(foobar:baz)").unwrap().1,
+            RawQuery::Not(Box::new(RawQuery::FieldPattern(
+                "foobar",
+                Box::new(RawQuery::Pattern("baz"))
+            )))
+        );
+        assert_eq!(
+            parse_raw::<VerboseError<&str>>("not (foobar:baz)")
+                .unwrap()
+                .1,
+            RawQuery::Not(Box::new(RawQuery::FieldPattern(
+                "foobar",
+                Box::new(RawQuery::Pattern("baz"))
+            )))
+        );
+        assert_eq!(
+            parse_raw::<VerboseError<&str>>("! (foobar:baz)").unwrap().1,
+            RawQuery::Not(Box::new(RawQuery::FieldPattern(
+                "foobar",
+                Box::new(RawQuery::Pattern("baz"))
+            )))
+        );
+
+        assert_eq!(
+            parse_raw::<VerboseError<&str>>("not( foobar:baz)")
+                .unwrap()
+                .1,
+            RawQuery::Not(Box::new(RawQuery::FieldPattern(
+                "foobar",
+                Box::new(RawQuery::Pattern("baz"))
+            )))
+        );
+        assert_eq!(
+            parse_raw::<VerboseError<&str>>("!( foobar:baz)").unwrap().1,
+            RawQuery::Not(Box::new(RawQuery::FieldPattern(
+                "foobar",
+                Box::new(RawQuery::Pattern("baz"))
+            )))
+        );
+        assert_eq!(
+            parse_raw::<VerboseError<&str>>("not(foobar:baz )")
+                .unwrap()
+                .1,
+            RawQuery::Not(Box::new(RawQuery::FieldPattern(
+                "foobar",
+                Box::new(RawQuery::Pattern("baz"))
+            )))
+        );
+        assert_eq!(
+            parse_raw::<VerboseError<&str>>("!(foobar:baz )").unwrap().1,
             RawQuery::Not(Box::new(RawQuery::FieldPattern(
                 "foobar",
                 Box::new(RawQuery::Pattern("baz"))
