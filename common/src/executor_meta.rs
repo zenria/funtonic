@@ -225,22 +225,23 @@ impl QueryMatcher for Tag {
     }
 }
 
+/// Used in ExecutorMeta QueryMatcher impl to avoid cloning large structs
+enum TagRef<'a> {
+    Map(&'a HashMap<String, Tag>),
+    Value(&'a str),
+}
+
+impl<'a> QueryMatcher for TagRef<'a> {
+    fn qmatches(&self, query: &Query) -> MatchResult {
+        match self {
+            TagRef::Map(map) => map.qmatches(query),
+            TagRef::Value(value) => value.qmatches(query),
+        }
+    }
+}
 impl QueryMatcher for ExecutorMeta {
     fn qmatches(&self, query: &Query) -> MatchResult {
-        /*let client_id_matches = self.client_id.qmatches(query);
-        let tag_matches = self.tags.qmatches(query);
-        dbg!(&client_id_matches);
-        dbg!(&tag_matches);
-        if client_id_matches == Rejected || tag_matches == Rejected {
-            Rejected
-        } else {
-            client_id_matches | tag_matches
-        }*/
-        Tag::List(vec![
-            Tag::Map(self.tags.clone()),
-            Tag::Value(self.client_id.clone()),
-        ])
-        .qmatches(query)
+        vec![TagRef::Value(&self.client_id), TagRef::Map(&self.tags)].qmatches(query)
     }
 }
 

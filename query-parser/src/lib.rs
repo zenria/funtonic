@@ -208,7 +208,7 @@ impl<Q: QueryMatcher, F: FieldExtractable<Field = Q>> QueryMatcher for F {
     }
 }
 
-impl<Q: QueryMatcher + Debug> QueryMatcher for Vec<Q> {
+impl<Q: QueryMatcher> QueryMatcher for &[Q] {
     fn qmatches(&self, query: &Query) -> MatchResult {
         match query {
             Query::Wildcard => Match,
@@ -226,6 +226,12 @@ impl<Q: QueryMatcher + Debug> QueryMatcher for Vec<Q> {
                 .iter()
                 .fold(NoMatch, |m, item| m | item.qmatches(query)),
         }
+    }
+}
+
+impl<Q: QueryMatcher> QueryMatcher for Vec<Q> {
+    fn qmatches(&self, query: &Query) -> MatchResult {
+        self.as_slice().qmatches(query)
     }
 }
 
