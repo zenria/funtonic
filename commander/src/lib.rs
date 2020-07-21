@@ -102,7 +102,7 @@ pub async fn commander_main(
     let mut channel = Channel::builder(Uri::from_str(&commander_config.server_url)?)
         .tcp_keepalive(Some(Duration::from_secs(60)));
     if let Some(tls_config) = &commander_config.tls {
-        channel = channel.tls_config(tls_config.get_client_config()?);
+        channel = channel.tls_config(tls_config.get_client_config()?)?;
     }
     let channel = channel.connect().await?;
 

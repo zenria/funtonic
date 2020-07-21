@@ -39,7 +39,7 @@ pub async fn taskserver_main(
     info!("{:#?}", server_config);
     let mut server = Server::builder().tcp_keepalive(Some(Duration::from_secs(25)));
     if let Some(tls_config) = &server_config.tls {
-        server = server.tls_config(tls_config.get_server_config()?);
+        server = server.tls_config(tls_config.get_server_config()?)?;
     }
 
     let addr = server_config.bind_address.parse().unwrap();

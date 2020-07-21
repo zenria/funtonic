@@ -69,7 +69,7 @@ pub async fn executor_main(
         .tcp_keepalive(Some(Duration::from_secs(60)));
 
     if let Some(tls_config) = &executor_config.tls {
-        endpoint = endpoint.tls_config(tls_config.get_client_config()?);
+        endpoint = endpoint.tls_config(tls_config.get_client_config()?)?;
     }
 
     let max_reconnect_time = Duration::from_secs(10);
