@@ -56,7 +56,7 @@ enum LastConnectionStatus {
 pub async fn executor_main(
     mut executor_config: ExecutorConfig,
     mut signing_key: ED25519Key,
-) -> Result<ExecutorConfig, Box<dyn std::error::Error>> {
+) -> anyhow::Result<ExecutorConfig> {
     info!(
         "Executor v{}, core v{},  protocol v{}",
         VERSION,
@@ -154,7 +154,7 @@ async fn do_executor_main<B: KeyStoreBackend>(
     last_connection_status_sender: &mut Sender<LastConnectionStatus>,
     key_store: &KeyStore<B>,
     signing_key: ED25519Key,
-) -> Result<ConfigurationModification, Box<dyn std::error::Error>> {
+) -> anyhow::Result<ConfigurationModification> {
     last_connection_status_sender.send(LastConnectionStatus::Connecting)?;
     let channel = endpoint.connect().await?;
     last_connection_status_sender.send(LastConnectionStatus::Connected)?;
@@ -292,7 +292,7 @@ async fn single_execution_result(
     task_id: &str,
     signing_key: &ED25519Key,
     client: &mut ExecutorServiceClient<Channel>,
-) -> Result<(), Box<dyn Error>> {
+) -> anyhow::Result<()> {
     let stream = futures::stream::once(futures::future::ready(encode_and_sign(
         TaskExecutionResult {
             task_id: task_id.to_string(),

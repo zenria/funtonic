@@ -26,9 +26,7 @@ pub struct Opt {
 #[error("Missing field for server config!")]
 struct InvalidConfig;
 
-pub async fn taskserver_main(
-    server_config: ServerConfig,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn taskserver_main(server_config: ServerConfig) -> anyhow::Result<()> {
     info!(
         "Taskserver v{}, core v{},  protocol v{}, query parser v{} starting",
         VERSION,

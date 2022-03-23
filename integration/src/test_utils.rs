@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 use std::error::Error;
 use std::path::Path;
 
+#[deprecated]
 pub fn spawn_future_on_new_thread<
     F: FnOnce() -> Fut + Send + 'static,
     Fut: Future<Output = Result<(), Box<dyn Error>>>,
@@ -209,7 +210,7 @@ pub fn assert_executor_error(res: CommanderSyntheticOutput) {
 pub async fn loop_executor_main(
     mut config: ExecutorConfig,
     signing_key: ED25519Key,
-) -> Result<(), Box<dyn Error>> {
+) -> anyhow::Result<()> {
     loop {
         config = executor_main(config, signing_key.clone()).await?;
     }

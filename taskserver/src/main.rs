@@ -1,12 +1,12 @@
 use funtonic::config;
+use funtonic::tokio;
 use structopt::StructOpt;
 use taskserver::{taskserver_main, Opt};
-use funtonic::tokio;
 
 const LOG4RS_CONFIG: &'static str = "/etc/funtonic/server-log4rs.yaml";
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn main() -> anyhow::Result<()> {
     log4rs_gelf::init_file(LOG4RS_CONFIG, None).unwrap_or_else(|e| {
         eprintln!("Cannot initialize logger from {} - {}", LOG4RS_CONFIG, e);
         eprintln!("Trying with dev assets!");

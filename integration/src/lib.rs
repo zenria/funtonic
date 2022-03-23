@@ -39,11 +39,9 @@ mod tests {
             authorized_keys.clone(),
             &taskserver_datadir,
         );
-        super::test_utils::spawn_future_on_new_thread(|| taskserver_main(taskserver_config));
+        tokio::spawn(taskserver_main(taskserver_config));
         let executor_config = executor_config(54010, false, authorized_keys.clone());
-        super::test_utils::spawn_future_on_new_thread(|| {
-            loop_executor_main(executor_config, executor_private_key)
-        });
+        tokio::spawn(loop_executor_main(executor_config, executor_private_key));
 
         let commander_opt = run_cmd_opt("*", "cat Cargo.toml");
         std::thread::sleep(Duration::from_secs(2));
@@ -77,12 +75,10 @@ mod tests {
             authorized_keys.clone(),
             &datadir,
         );
-        super::test_utils::spawn_future_on_new_thread(|| taskserver_main(taskserver_config));
+        tokio::spawn(taskserver_main(taskserver_config));
 
         let executor_config = executor_config(54011, true, authorized_keys.clone());
-        super::test_utils::spawn_future_on_new_thread(|| {
-            loop_executor_main(executor_config, executor_private_key)
-        });
+        tokio::spawn(loop_executor_main(executor_config, executor_private_key));
 
         std::thread::sleep(Duration::from_secs(2));
 
@@ -186,11 +182,9 @@ mod tests {
             admin_authorized_keys,
             &datadir,
         );
-        super::test_utils::spawn_future_on_new_thread(|| taskserver_main(taskserver_config));
+        tokio::spawn(taskserver_main(taskserver_config));
         let executor_config = executor_config(54012, false, executor_authorized_keys);
-        super::test_utils::spawn_future_on_new_thread(|| {
-            loop_executor_main(executor_config, executor_private_key)
-        });
+        tokio::spawn(loop_executor_main(executor_config, executor_private_key));
 
         std::thread::sleep(Duration::from_secs(2));
         // =============  Regular command forwarded to executors
