@@ -1,6 +1,7 @@
 use super::Stream;
 use crate::executor_meta::ExecutorMeta;
 use crate::task_server::{get_task_sink, register_new_task, TaskServer};
+use crate::tonic;
 use crate::PROTOCOL_VERSION;
 use futures::channel::mpsc;
 use futures::{SinkExt, StreamExt};

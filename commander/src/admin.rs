@@ -5,6 +5,8 @@ use funtonic::config::CommanderConfig;
 use funtonic::crypto::signed_payload::encode_and_sign;
 use funtonic::executor_meta::ExecutorMeta;
 use funtonic::task_server::{AdminDroppedExecutorJsonResponse, AdminListExecutorKeysJsonResponse};
+use funtonic::tokio;
+use funtonic::tonic::transport::Channel;
 use grpc_service::grpc_protocol::admin_request::RequestType;
 use grpc_service::grpc_protocol::admin_request_response::ResponseKind;
 use grpc_service::grpc_protocol::commander_service_client::CommanderServiceClient;
@@ -15,7 +17,6 @@ use std::collections::BTreeMap;
 use std::str::FromStr;
 use structopt::StructOpt;
 use tokio::time::Duration;
-use tonic::transport::Channel;
 
 #[derive(StructOpt, Debug)]
 #[structopt(rename_all = "kebab")]
@@ -252,7 +253,7 @@ pub async fn handle_admin_command(
         },
     };
 
-    let request = tonic::Request::new(encode_and_sign(
+    let request = funtonic::tonic::Request::new(encode_and_sign(
         request,
         &commander_config.ed25519_key,
         Duration::from_secs(60),

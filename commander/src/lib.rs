@@ -15,6 +15,7 @@ use std::str::FromStr;
 use std::time::Duration;
 use structopt::StructOpt;
 use thiserror::Error;
+use funtonic::tonic;
 use tonic::transport::Channel;
 
 mod admin;

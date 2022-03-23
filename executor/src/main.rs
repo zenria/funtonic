@@ -2,6 +2,7 @@ use executor::{executor_main, Opt};
 use funtonic::config;
 use funtonic::config::ExecutorConfig;
 use funtonic::crypto::keygen::generate_base64_encoded_keys;
+use funtonic::tokio;
 use log::{error, info, warn};
 use std::fs::File;
 use std::path::{Path, PathBuf};
@@ -38,7 +39,7 @@ async fn main() -> Result<(), anyhow::Error> {
             Err(e) => {
                 // this should only happen on TLS configuration parsing.
                 error!("Unknown error occured! {}", e);
-                tokio::time::delay_for(Duration::from_secs(1)).await;
+                tokio::time::sleep(Duration::from_secs(1)).await;
             }
             Ok(config) => {
                 info!("Connection to task server ended gracefully, saving config & reconnecting.");

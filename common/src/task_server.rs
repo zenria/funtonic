@@ -1,4 +1,5 @@
 use crate::executor_meta::ExecutorMeta;
+use crate::tonic;
 use crate::PROTOCOL_VERSION;
 use futures::channel::mpsc;
 use futures::{SinkExt, StreamExt};
@@ -250,7 +251,7 @@ async fn heartbeat(
     >,
 ) {
     loop {
-        tokio::time::delay_for(Duration::from_secs(5)).await;
+        tokio::time::sleep(Duration::from_secs(5)).await;
         debug!("Checking connected executor health");
     }
 }

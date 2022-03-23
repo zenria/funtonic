@@ -1,4 +1,5 @@
 use crate::config::ED25519Key;
+use crate::prost;
 use bytes::BytesMut;
 use grpc_service::payload::SignedPayload;
 use rand::random;

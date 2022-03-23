@@ -1,6 +1,7 @@
 use funtonic::config;
 use structopt::StructOpt;
 use taskserver::{taskserver_main, Opt};
+use funtonic::tokio;
 
 const LOG4RS_CONFIG: &'static str = "/etc/funtonic/server-log4rs.yaml";
 

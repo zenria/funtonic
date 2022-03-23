@@ -2,6 +2,7 @@ use commander::cmd::{CommandOptions, KeyCmd};
 use commander::{AdminCommandOuputMode, CommanderSyntheticOutput, ExecutorState};
 use executor::executor_main;
 use funtonic::config::{CommanderConfig, ED25519Key, ExecutorConfig, ServerConfig, TlsConfig};
+use funtonic::tokio;
 use futures::Future;
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -14,8 +15,7 @@ pub fn spawn_future_on_new_thread<
     f: F,
 ) {
     std::thread::spawn(move || {
-        let mut rt = tokio::runtime::Builder::new()
-            .basic_scheduler()
+        let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .unwrap();

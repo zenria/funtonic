@@ -1,5 +1,6 @@
 use crate::executor_meta::ExecutorMeta;
 use crate::task_server::{random_task_id, Stream, TaskServer};
+use crate::tonic;
 use crate::PROTOCOL_VERSION;
 use futures::channel::mpsc;
 use futures::{SinkExt, StreamExt};

@@ -4,6 +4,10 @@ pub mod grpc_protocol;
 pub mod payload;
 
 pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
+
+pub use prost;
+pub use tonic;
+
 /*
 trait IntoGrpc {
     type Output;

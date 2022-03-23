@@ -10,6 +10,7 @@ mod tests {
     };
     use commander::commander_main;
     use funtonic::crypto::keygen::generate_base64_encoded_keys;
+    use funtonic::tokio;
     use log::LevelFilter;
     use std::sync::Once;
     use std::time::Duration;

@@ -4,6 +4,7 @@ extern crate log;
 use funtonic::config::ServerConfig;
 use funtonic::file_utils::mkdirs;
 use funtonic::task_server::TaskServer;
+use funtonic::tonic;
 use grpc_service::grpc_protocol::commander_service_server::CommanderServiceServer;
 use grpc_service::grpc_protocol::executor_service_server::ExecutorServiceServer;
 use std::path::PathBuf;

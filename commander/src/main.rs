@@ -1,5 +1,6 @@
 use commander::{commander_main, Opt};
 use funtonic::config;
+use funtonic::tokio;
 use structopt::StructOpt;
 use tracing_subscriber::{EnvFilter, FmtSubscriber};
 

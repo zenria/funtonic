@@ -7,6 +7,8 @@ use funtonic::config::{ED25519Key, ExecutorConfig};
 use funtonic::crypto::keystore::{memory_keystore, KeyStore, KeyStoreBackend};
 use funtonic::crypto::signed_payload::encode_and_sign;
 use funtonic::executor_meta::{ExecutorMeta, Tag};
+use funtonic::tokio;
+use funtonic::tonic;
 use funtonic::PROTOCOL_VERSION;
 use futures::StreamExt;
 use grpc_service::grpc_protocol::executor_service_client::ExecutorServiceClient;
@@ -131,7 +133,7 @@ pub async fn executor_main(
                     LastConnectionStatus::Connected => reconnect_time = Duration::from_secs(1),
                 }
                 info!("Reconnecting in {}s", reconnect_time.as_secs());
-                tokio::time::delay_for(reconnect_time).await;
+                tokio::time::sleep(reconnect_time).await;
             }
         }
     }
@@ -153,9 +155,9 @@ async fn do_executor_main<B: KeyStoreBackend>(
     key_store: &KeyStore<B>,
     signing_key: ED25519Key,
 ) -> Result<ConfigurationModification, Box<dyn std::error::Error>> {
-    last_connection_status_sender.broadcast(LastConnectionStatus::Connecting)?;
+    last_connection_status_sender.send(LastConnectionStatus::Connecting)?;
     let channel = endpoint.connect().await?;
-    last_connection_status_sender.broadcast(LastConnectionStatus::Connected)?;
+    last_connection_status_sender.send(LastConnectionStatus::Connected)?;
 
     let mut client = ExecutorServiceClient::new(channel);
 

@@ -11,16 +11,14 @@ query-parser = {path="../query-parser"}
 grpc-service = {path="../grpc-service"}
 funtonic = {path="../common"}
 structopt="0.3"
-tonic={version="0.3", features=["tokio-rustls", "tls"] }
 thiserror="1"
-tokio = {version="0.2", features=["full"]}
 anyhow="1"
 log="0.4"
-os_info = "1.1"
+os_info = "3.2"
 futures = "0.3"
 http="0.2"
 log4rs-gelf = "0.1.4"
 native-tls = { version = "0.2", features=["vendored"] }
 exec={path="../exec"}
 serde_yaml="0.8"
-base64="0.12"
+base64="0.13"
