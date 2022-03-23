@@ -2,27 +2,8 @@ use commander::cmd::{CommandOptions, KeyCmd};
 use commander::{AdminCommandOuputMode, CommanderSyntheticOutput, ExecutorState};
 use executor::executor_main;
 use funtonic::config::{CommanderConfig, ED25519Key, ExecutorConfig, ServerConfig, TlsConfig};
-use funtonic::tokio;
-use futures::Future;
 use std::collections::BTreeMap;
-use std::error::Error;
 use std::path::Path;
-
-#[deprecated]
-pub fn spawn_future_on_new_thread<
-    F: FnOnce() -> Fut + Send + 'static,
-    Fut: Future<Output = Result<(), Box<dyn Error>>>,
->(
-    f: F,
-) {
-    std::thread::spawn(move || {
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap();
-        rt.block_on(f()).unwrap();
-    });
-}
 
 pub fn run_cmd_opt(query: &str, command: &str) -> commander::Opt {
     commander::Opt {

@@ -23,7 +23,7 @@ mod tests {
         INIT_LOGGER.call_once(|| env_logger::builder().filter_level(LevelFilter::Info).init())
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn no_tls_test() {
         init_logger();
 
@@ -60,7 +60,7 @@ mod tests {
         );
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn tls_test() {
         init_logger();
 
@@ -134,7 +134,7 @@ mod tests {
             .expect_err("Accepting invalid certificate still must fail (the server will not accept a connection without a specific certificate)");
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread")]
     async fn keys_test() {
         init_logger();
         // valid keys

@@ -29,6 +29,7 @@ use std::time::Duration;
 use structopt::StructOpt;
 use thiserror::Error;
 use tokio::sync::watch::Sender;
+use tokio_stream::wrappers::UnboundedReceiverStream;
 use tonic::metadata::AsciiMetadataValue;
 use tonic::transport::{Channel, Endpoint};
 use tonic::Request;
@@ -336,7 +337,7 @@ async fn do_execute_task(
 
     let (exec_receiver, kill_sender) = a_sync::exec_command(&execute_command.command)?;
 
-    let stream = exec_receiver
+    let stream = UnboundedReceiverStream::new(exec_receiver)
         .map(|exec_event| match exec_event {
             ExecEvent::Started => ExecutionResult::Ping(Empty {}),
             ExecEvent::Finished(return_code) => match return_code {

@@ -47,7 +47,7 @@ pub fn exec_command(
 }
 
 async fn wait_for_exit(
-    child: Child,
+    mut child: Child,
     kill_recv: Receiver<()>,
     sender: UnboundedSender<ExecEvent>,
     streams_join: Vec<JoinHandle<()>>,
@@ -63,7 +63,7 @@ async fn wait_for_exit(
         _ = kill_recv => return
     }
 
-    let mut child = child.fuse();
+    let mut child = Box::pin(child.wait()).fuse();
 
     select! {
         status = child =>{
@@ -115,6 +115,17 @@ mod test {
     use super::*;
     use crate::*;
     use futures::stream::StreamExt;
+    use tokio_stream::wrappers::UnboundedReceiverStream;
+
+    /// Helper trait to ease test impl
+    trait ToStream<T> {
+        fn to_stream(self) -> UnboundedReceiverStream<T>;
+    }
+    impl<T> ToStream<T> for UnboundedReceiver<T> {
+        fn to_stream(self) -> UnboundedReceiverStream<T> {
+            UnboundedReceiverStream::new(self)
+        }
+    }
 
     #[tokio::test]
     async fn test() {
@@ -122,6 +133,7 @@ mod test {
             exec_command("echo foo ; echo bar")
                 .unwrap()
                 .0
+                .to_stream()
                 .collect::<Vec<ExecEvent>>()
                 .await,
             vec![
@@ -136,6 +148,7 @@ mod test {
             exec_command("echo foo ; exit 123")
                 .unwrap()
                 .0
+                .to_stream()
                 .collect::<Vec<ExecEvent>>()
                 .await,
             vec![
@@ -149,6 +162,7 @@ mod test {
             exec_command(">&2 echo bar ; exit 5")
                 .unwrap()
                 .0
+                .to_stream()
                 .collect::<Vec<ExecEvent>>()
                 .await,
             vec![
