@@ -2,7 +2,8 @@ use commander::{commander_main, Opt};
 use funtonic::config;
 use funtonic::tokio;
 use structopt::StructOpt;
-use tracing_subscriber::{EnvFilter, FmtSubscriber};
+use tracing_subscriber::EnvFilter;
+use tracing_subscriber::FmtSubscriber;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
