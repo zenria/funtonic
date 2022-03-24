@@ -22,7 +22,7 @@ mod tests {
     fn init_logger() {
         INIT_LOGGER.call_once(|| {
             env_logger::builder()
-                .filter_level(LevelFilter::Debug)
+                .filter_level(LevelFilter::Info)
                 .init()
         })
     }
