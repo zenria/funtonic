@@ -19,6 +19,8 @@ pub const PROTOCOL_VERSION: &'static str = grpc_service::VERSION;
 
 pub const QUERY_PARSER_VERSION: &'static str = query_parser::VERSION;
 
-pub use grpc_service:: prost;
-pub use tokio;
+pub use grpc_service::prost;
 pub use grpc_service::tonic;
+pub use tokio;
+
+pub mod error;

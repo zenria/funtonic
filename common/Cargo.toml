@@ -1,6 +1,6 @@
 [package]
 name = "funtonic"
-version = "0.19.6"
+version = "0.20.0"
 authors = ["Philippe GASSMANN <philoops@gmail.com>"]
 edition = "2018"
 
@@ -11,7 +11,7 @@ rand = "0.8"
 
 tokio = {version="1", features=["full"]}
 futures="0.3"
-async-stream ="0.2.1"
+async-stream ="0.3"
 crossbeam="0.7.3"
 itertools = "0.9.0"
 log="0.4"
@@ -30,7 +30,7 @@ grpc-service = {path="../grpc-service"}
 exec={path="../exec"}
 ring="0.16"
 chrono = "0.4"
-base64="0.12"
+base64="0.13"
 bytes = "1"
 get_if_addrs = "0.5"
 # needed for testing

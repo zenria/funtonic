@@ -6,6 +6,7 @@ use exec::*;
 use funtonic::config::{ED25519Key, ExecutorConfig};
 use funtonic::crypto::keystore::{memory_keystore, KeyStore, KeyStoreBackend};
 use funtonic::crypto::signed_payload::encode_and_sign;
+use funtonic::error::format_error;
 use funtonic::executor_meta::{ExecutorMeta, Tag};
 use funtonic::tokio;
 use funtonic::tonic;
@@ -122,7 +123,7 @@ pub async fn executor_main(
                 break 'retryloop;
             }
             Err(e) => {
-                error!("Error {}", e);
+                error!("Error running executor: {}", format_error(e));
                 // increase reconnect time if connecting, reset if connected
                 match *connection_status_receiver.borrow() {
                     LastConnectionStatus::Connecting => {

@@ -20,7 +20,11 @@ mod tests {
     static INIT_LOGGER: Once = Once::new();
 
     fn init_logger() {
-        INIT_LOGGER.call_once(|| env_logger::builder().filter_level(LevelFilter::Info).init())
+        INIT_LOGGER.call_once(|| {
+            env_logger::builder()
+                .filter_level(LevelFilter::Debug)
+                .init()
+        })
     }
 
     #[tokio::test(flavor = "multi_thread")]

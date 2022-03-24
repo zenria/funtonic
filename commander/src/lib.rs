@@ -2,9 +2,11 @@
 extern crate log;
 
 pub use crate::admin::{AdminCommand, AdminCommandOuputMode};
+use anyhow::Context;
 use colored::{Color, Colorize};
 use funtonic::config::{CommanderConfig, ED25519Key};
 use funtonic::crypto::keygen::generate_ed25519_key_pair;
+use funtonic::tonic;
 use grpc_service::grpc_protocol::commander_service_client::CommanderServiceClient;
 use http::Uri;
 use serde::{Deserialize, Serialize};
@@ -15,7 +17,6 @@ use std::str::FromStr;
 use std::time::Duration;
 use structopt::StructOpt;
 use thiserror::Error;
-use funtonic::tonic;
 use tonic::transport::Channel;
 
 mod admin;
@@ -103,11 +104,17 @@ pub async fn commander_main(
     let mut channel = Channel::builder(Uri::from_str(&commander_config.server_url)?)
         .tcp_keepalive(Some(Duration::from_secs(60)));
     if let Some(tls_config) = &commander_config.tls {
+        info!("TLS configuration found");
         channel = channel.tls_config(tls_config.get_client_config()?)?;
     }
-    let channel = channel.connect().await?;
+    let channel = channel
+        .connect()
+        .await
+        .context("Unable to connect to taskserver")?;
 
     let client = CommanderServiceClient::new(channel);
+
+    info!("Connected");
 
     match opt.command {
         Command::Admin {
