@@ -1,6 +1,6 @@
 [package]
 name = "funtonic"
-version = "0.20.0"
+version = "0.20.1"
 authors = ["Philippe GASSMANN <philoops@gmail.com>"]
 edition = "2018"
 
@@ -33,8 +33,8 @@ chrono = "0.4"
 base64="0.13"
 bytes = "1"
 get_if_addrs = "0.5"
-# needed for testing
-prost="0.9"
 
 [dev-dependencies]
 tempfile = "3"
+# required for testing ; importing grpc_service::prost won't work for an obscure proc macro related reason
+prost="0.10"

@@ -305,10 +305,9 @@ async fn single_execution_result(
         Duration::from_secs(60),
     )?));
     let mut request = Request::new(stream);
-    request.metadata_mut().insert(
-        "task_id",
-        AsciiMetadataValue::from_str(&task_id.clone()).unwrap(),
-    );
+    request
+        .metadata_mut()
+        .insert("task_id", AsciiMetadataValue::try_from(task_id.as_bytes())?);
     client.task_execution(request).await?;
     Ok(())
 }
@@ -373,7 +372,7 @@ async fn do_execute_task(
     let mut request = Request::new(stream);
     request.metadata_mut().insert(
         "task_id",
-        AsciiMetadataValue::from_str(&cloned_task_id).unwrap(),
+        AsciiMetadataValue::try_from(cloned_task_id.as_bytes())?,
     );
     client.task_execution(request).await?;
     // do not leave process behind
