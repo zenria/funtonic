@@ -4,7 +4,7 @@ before_script:
   - cmake --version
   - wget https://github.com/Kitware/CMake/releases/download/v3.24.0-rc3/cmake-3.24.0-rc3-linux-x86_64.tar.gz
   - tar zxf cmake-3.24.0-rc3-linux-x86_64.tar.gz
-  - export PATH=cmake-3.24.0-rc3-linux-x86_64/bin:$PATH
+  - export PATH=/runneruser/cmake-3.24.0-rc3-linux-x86_64/bin:$PATH
   - cmake --version
 
 stages:
@@ -15,7 +15,7 @@ build:
   stage: build
   script:
     - rustup component add rustfmt
-    - export PATH=cmake-3.24.0-rc3-linux-x86_64/bin:$PATH
+    - export PATH=/runneruser/cmake-3.24.0-rc3-linux-x86_64/bin:$PATH
     - cargo build --all --all-targets --color=always
     - RUST_BACKTRACE=1 cargo test
 
@@ -25,6 +25,6 @@ release:
     - tags
   script:
     - rustup component add rustfmt
-    - export PATH=cmake-3.24.0-rc3-linux-x86_64/bin:$PATH
+    - export PATH=/runneruser/cmake-3.24.0-rc3-linux-x86_64/bin:$PATH
     - cargo build --release --all --all-targets --color=always
     - binrep push funtonic $CI_COMMIT_TAG target/release/executor target/release/taskserver target/release/commander
