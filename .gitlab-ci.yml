@@ -1,5 +1,12 @@
 image: 'registry.scoopit.io/scoopit-runner'
 
+before_script: 
+  - cmake --version
+  - wget https://github.com/Kitware/CMake/releases/download/v3.24.0-rc3/cmake-3.24.0-rc3-linux-x86_64.tar.gz
+  - tar zxf cmake-3.24.0-rc3-linux-x86_64.tar.gz
+  - mv cmake-3.24.0-rc3-linux-x86_64/bin/* ~/.bin
+  - cmake --version
+
 stages:
   - build
   - deploy
