@@ -1,6 +1,6 @@
 [package]
 name = "executor"
-version = "0.21.0"
+version = "0.21.1"
 authors = ["Philippe GASSMANN <philoops@gmail.com>"]
 edition = "2018"
 
@@ -20,6 +20,6 @@ http="0.2"
 log4rs-gelf = "0.1.4"
 native-tls = { version = "0.2", features=["vendored"] }
 exec={path="../exec"}
-serde_yaml="0.8"
+serde_yaml="0.9"
 base64="0.13"
 tokio-stream="0.1"
