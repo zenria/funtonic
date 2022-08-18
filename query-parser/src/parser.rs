@@ -1,10 +1,10 @@
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case, take_while, take_while1};
-use nom::character::complete::char;
+use nom::character::complete::{char, multispace1};
 use nom::character::is_alphanumeric;
 use nom::combinator::{complete, map, value};
 use nom::error::ParseError;
-use nom::sequence::{delimited, pair, separated_pair, tuple};
+use nom::sequence::{delimited, pair, preceded, separated_pair, terminated, tuple};
 use nom::{Err, IResult};
 
 /// Raw parsed query with no precedence applied
@@ -13,154 +13,188 @@ pub enum RawQuery<'a> {
     Pattern(&'a str),
     FieldPattern(&'a str, Box<RawQuery<'a>>),
     Wildcard,
-    And(Box<RawQuery<'a>>, Box<RawQuery<'a>>),
-    Or(Box<RawQuery<'a>>, Box<RawQuery<'a>>),
+    And(Vec<RawQuery<'a>>),
+    Or(Vec<RawQuery<'a>>),
     Not(Box<RawQuery<'a>>),
+}
+
+impl<'a> RawQuery<'a> {
+    /// RawQuery::Text variant builder
+    pub fn pattern(text: &'a str) -> RawQuery<'a> {
+        RawQuery::Pattern(text)
+    }
+
+    /// RawQuery::FieldText variant builder
+    pub fn field_pattern(field: &'a str, pattern: RawQuery<'a>) -> RawQuery<'a> {
+        RawQuery::FieldPattern(field, Box::new(pattern))
+    }
+
+    /// RawQuery::Not variant builder
+    pub fn not(not: RawQuery<'a>) -> RawQuery<'a> {
+        RawQuery::Not(Box::new(not))
+    }
 }
 
 pub fn parse_raw<'a, E: ParseError<&'a str>>(
     i: &'a str,
 ) -> Result<(&'a str, RawQuery<'a>), Err<E>> {
-    parse_query(i)
+    //parse_query(i)
+    complete(parser_ng::expression)(i)
 }
 
 const SPACES: &'static str = " \t\r\n";
 const SPECIAL_AUTHORIZED_CHARS: &'static str = "-_@#.";
 
-fn sp<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, &'a str, E> {
-    take_while1(move |c| SPACES.contains(c))(i)
-}
+mod parser_ng {
+    use super::{RawQuery, SPECIAL_AUTHORIZED_CHARS};
+    use nom::{
+        branch::alt,
+        bytes::complete::{is_not, tag, tag_no_case, take_while1},
+        character::{
+            complete::{alphanumeric1, char, digit1, multispace0, multispace1},
+            is_alphanumeric,
+        },
+        combinator::map,
+        error::ParseError,
+        multi::{separated_list0, separated_list1},
+        sequence::{delimited, preceded, separated_pair, terminated, tuple},
+        IResult, Parser,
+    };
 
-fn maybe_sp<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, &'a str, E> {
-    take_while(move |c| SPACES.contains(c))(i)
-}
+    /// main entry point
+    ///
+    /// Or | Term
+    pub(crate) fn expression<'a, E: ParseError<&'a str>>(
+        input: &'a str,
+    ) -> IResult<&'a str, RawQuery<'a>, E> {
+        or(input)
+    }
 
-fn wildcard<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, char, E> {
-    nom::character::complete::char('*')(i)
-}
+    fn or_tag<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, &'a str, E> {
+        alt((tag_no_case("or"), tag("||"), tag(",")))(input)
+    }
 
-fn field_delimiter<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, char, E> {
-    nom::character::complete::char(':')(i)
-}
+    /// Term "OR" Term
+    fn or<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, RawQuery<'a>, E> {
+        map(
+            separated_list1(
+                alt((
+                    terminated(tag_no_case("or"), multispace1),
+                    terminated(alt((tag("||"), tag(","))), multispace0),
+                )),
+                term,
+            ),
+            |clauses| {
+                if clauses.len() == 1 {
+                    clauses.into_iter().nth(0).unwrap()
+                } else {
+                    RawQuery::Or(clauses)
+                }
+            },
+        )(input)
+    }
 
-fn pattern<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, &'a str, E> {
-    take_while1(|c| is_alphanumeric(c as u8) || SPECIAL_AUTHORIZED_CHARS.contains(c))(i)
-}
-// `or` or `||`
-fn or<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, (), E> {
-    value((), alt((tag_no_case("or"), tag("||"))))(i)
-}
-fn comma<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, (), E> {
-    value(
-        (),
-        tuple((maybe_sp, nom::character::complete::char(','), maybe_sp)),
-    )(i)
-}
+    /// And | NotFactor
+    fn term<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, RawQuery<'a>, E> {
+        alt((and, not_factor))(input)
+    }
 
-fn or_separator<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, (), E> {
-    value((), tuple((sp, or, sp)))(i)
-}
+    fn and_tags<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, &'a str, E> {
+        alt((tag_no_case("and"), tag("&&")))(input)
+    }
 
-fn or_clause<'a, E: ParseError<&'a str>>(
-    i: &'a str,
-) -> IResult<&'a str, (RawQuery<'a>, RawQuery<'a>), E> {
-    separated_pair(parse_simple_query, alt((comma, or_separator)), parse_query)(i)
-}
+    /// NotFactor "AND" NotFactor
+    fn and<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, RawQuery<'a>, E> {
+        map(
+            separated_list1(
+                alt((
+                    terminated(tag_no_case("and"), multispace1),
+                    terminated(tag("&&"), multispace0),
+                )),
+                not_factor,
+            ),
+            |clauses| {
+                if clauses.len() == 1 {
+                    clauses.into_iter().nth(0).unwrap()
+                } else {
+                    RawQuery::And(clauses)
+                }
+            },
+        )(input)
+    }
 
-// `and` or `&&`
-fn and<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, (), E> {
-    value((), alt((tag_no_case("and"), tag("&&"))))(i)
-}
+    fn not_tags<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, &'a str, E> {
+        alt((tag_no_case("not"), tag("!")))(input)
+    }
 
-fn and_separator<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, (), E> {
-    value((), tuple((sp, and, sp)))(i)
-}
-
-fn and_clause<'a, E: ParseError<&'a str>>(
-    i: &'a str,
-) -> IResult<&'a str, (RawQuery<'a>, RawQuery<'a>), E> {
-    separated_pair(parse_simple_query, and_separator, parse_query)(i)
-}
-
-// not
-fn one_shot_not<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, (), E> {
-    value(
-        (),
+    // "NOT" Factor | Factor
+    fn not_factor<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, RawQuery<'a>, E> {
         alt((
-            pair(tag_no_case("not "), maybe_sp),
-            pair(tag("!"), maybe_sp),
-        )),
-    )(i)
-}
+            preceded(terminated(tag_no_case("not"), multispace1), factor).map(RawQuery::not),
+            preceded(terminated(tag("!"), multispace0), factor).map(RawQuery::not),
+            preceded(not_tags, parens).map(RawQuery::not),
+            factor,
+        ))(input)
+    }
 
-fn simple_not_clause<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, RawQuery<'a>, E> {
-    map(pair(one_shot_not, parse_simple_query), |(_, query)| query)(i)
-}
+    /// Parens | Query
+    fn factor<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, RawQuery, E> {
+        alt((parens, query))(input)
+    }
 
-fn start_not<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, (), E> {
-    value(
-        (),
+    /// "(" RawQueryession ")"
+    fn parens<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, RawQuery<'a>, E> {
+        delimited(
+            terminated(char('('), multispace0),
+            expression,
+            terminated(char(')'), multispace0),
+        )(input)
+    }
+
+    /// FieldText | Quoted | Word | Wildcard
+    fn query<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, RawQuery<'a>, E> {
         alt((
-            tuple((tag("not"), maybe_sp, tag("("), maybe_sp)),
-            tuple((tag("!"), maybe_sp, tag("("), maybe_sp)),
-        )),
-    )(i)
-}
-fn end_not<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, (), E> {
-    value(
-        (),
-        alt((tuple((maybe_sp, tag(")"))), tuple((maybe_sp, tag(")"))))),
-    )(i)
-}
-fn not_clause<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, RawQuery<'a>, E> {
-    delimited(start_not, parse_query, end_not)(i)
-}
+            wildcard,
+            field_text,
+            quoted.map(RawQuery::Pattern),
+            word.map(RawQuery::Pattern),
+        ))(input)
+    }
 
-// field:sub_query
-fn field_pattern<'a, E: ParseError<&'a str>>(
-    i: &'a str,
-) -> IResult<&'a str, (&'a str, char, RawQuery<'a>), E> {
-    tuple((pattern, field_delimiter, parse_query))(i)
-}
-fn parse_simple_query<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, RawQuery<'a>, E> {
-    alt((
-        // * wildcard
-        map(wildcard, |_| RawQuery::Wildcard),
-        // field:_sub_query
-        map(field_pattern, |(field, _, sub_query)| {
-            RawQuery::FieldPattern(field, Box::new(sub_query))
-        }),
-        map(pattern, |s| RawQuery::Pattern(s)),
-    ))(i)
-}
-fn parse_query<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, RawQuery<'a>, E> {
-    alt((
-        map(and_clause, |(l, r)| RawQuery::And(l.into(), r.into())),
-        map(or_clause, |(l, r)| RawQuery::Or(l.into(), r.into())),
-        map(not_clause, |q| RawQuery::Not(q.into())),
-        map(simple_not_clause, |q| RawQuery::Not(q.into())),
-        parse_simple_query,
-    ))(i)
+    fn field_name<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, &'a str, E> {
+        take_while1(|c| is_alphanumeric(c as u8) || SPECIAL_AUTHORIZED_CHARS.contains(c))(input)
+    }
+
+    /// alpha1 ":" (Expression)
+    fn field_text<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, RawQuery<'a>, E> {
+        map(
+            separated_pair(field_name, char(':'), factor),
+            |(field_name, expr)| RawQuery::field_pattern(field_name, expr),
+        )(input)
+    }
+
+    /// Single word
+    fn word<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, &'a str, E> {
+        terminated(is_not(" ():,&|"), multispace0)(input)
+    }
+
+    fn quoted<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, &'a str, E> {
+        // TODO proper escaping
+        terminated(delimited(char('"'), is_not("\""), char('"')), multispace0)(input)
+    }
+
+    fn wildcard<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, RawQuery<'a>, E> {
+        map(terminated(char('*'), multispace0), |_| RawQuery::Wildcard)(input)
+    }
 }
 
 #[cfg(test)]
 mod test {
-    use crate::parser::{and, comma, one_shot_not, or, parse_raw, simple_not_clause, RawQuery};
+    use crate::parser::{parse_raw, RawQuery};
     use nom::error::VerboseError;
 
     #[test]
     fn test() {
-        assert!(and::<VerboseError<&str>>("and").is_ok());
-        assert!(and::<VerboseError<&str>>("&&").is_ok());
-        assert!(or::<VerboseError<&str>>("or").is_ok());
-        assert!(or::<VerboseError<&str>>("||").is_ok());
-        assert!(comma::<VerboseError<&str>>(",").is_ok());
-        assert!(comma::<VerboseError<&str>>(" ,").is_ok());
-        assert!(comma::<VerboseError<&str>>(", ").is_ok());
-        assert!(comma::<VerboseError<&str>>(" , ").is_ok());
-        assert!(comma::<VerboseError<&str>>("  ,").is_ok());
-        assert!(comma::<VerboseError<&str>>(",  ").is_ok());
-        assert!(comma::<VerboseError<&str>>("  ,  ").is_ok());
         assert!(parse_raw::<VerboseError<&str>>("").is_err());
         assert_eq!(
             parse_raw::<VerboseError<&str>>("*").unwrap().1,
@@ -208,54 +242,36 @@ mod test {
         // one lvl
         assert_eq!(
             parse_raw::<VerboseError<&str>>("foo and bar").unwrap().1,
-            RawQuery::And(
-                Box::new(RawQuery::Pattern("foo")),
-                Box::new(RawQuery::Pattern("bar"))
-            ),
+            RawQuery::And(vec![RawQuery::Pattern("foo"), RawQuery::Pattern("bar")]),
         );
         assert_eq!(
             parse_raw::<VerboseError<&str>>("foo or bar").unwrap().1,
-            RawQuery::Or(
-                Box::new(RawQuery::Pattern("foo")),
-                Box::new(RawQuery::Pattern("bar"))
-            ),
+            RawQuery::Or(vec![RawQuery::Pattern("foo"), RawQuery::Pattern("bar")]),
         );
         assert_eq!(
             parse_raw::<VerboseError<&str>>("foo , bar").unwrap().1,
-            RawQuery::Or(
-                Box::new(RawQuery::Pattern("foo")),
-                Box::new(RawQuery::Pattern("bar"))
-            ),
+            RawQuery::Or(vec![RawQuery::Pattern("foo"), RawQuery::Pattern("bar")]),
         );
         assert_eq!(
             parse_raw::<VerboseError<&str>>("foo,bar").unwrap().1,
-            RawQuery::Or(
-                Box::new(RawQuery::Pattern("foo")),
-                Box::new(RawQuery::Pattern("bar"))
-            ),
+            RawQuery::Or(vec![RawQuery::Pattern("foo"), RawQuery::Pattern("bar")]),
         );
         assert_eq!(
             parse_raw::<VerboseError<&str>>("foo, bar").unwrap().1,
-            RawQuery::Or(
-                Box::new(RawQuery::Pattern("foo")),
-                Box::new(RawQuery::Pattern("bar"))
-            ),
+            RawQuery::Or(vec![RawQuery::Pattern("foo"), RawQuery::Pattern("bar")]),
         );
         assert_eq!(
             parse_raw::<VerboseError<&str>>("w1.prod, w2.prod")
                 .unwrap()
                 .1,
-            RawQuery::Or(
-                Box::new(RawQuery::Pattern("w1.prod")),
-                Box::new(RawQuery::Pattern("w2.prod"))
-            ),
+            RawQuery::Or(vec![
+                RawQuery::Pattern("w1.prod"),
+                RawQuery::Pattern("w2.prod")
+            ]),
         );
         assert_eq!(
             parse_raw::<VerboseError<&str>>("foo ,bar").unwrap().1,
-            RawQuery::Or(
-                Box::new(RawQuery::Pattern("foo")),
-                Box::new(RawQuery::Pattern("bar"))
-            ),
+            RawQuery::Or(vec![RawQuery::Pattern("foo"), RawQuery::Pattern("bar")]),
         );
 
         // two lvl
@@ -263,48 +279,25 @@ mod test {
             parse_raw::<VerboseError<&str>>("foo and bar and yak")
                 .unwrap()
                 .1,
-            RawQuery::And(
-                Box::new(RawQuery::Pattern("foo")),
-                Box::new(RawQuery::And(
-                    Box::new(RawQuery::Pattern("bar")),
-                    Box::new(RawQuery::Pattern("yak"))
-                ))
-            ),
+            RawQuery::And(vec![
+                RawQuery::Pattern("foo"),
+                RawQuery::Pattern("bar"),
+                RawQuery::Pattern("yak")
+            ]),
+        );
+        assert_eq!(
+            parse_raw::<VerboseError<&str>>("foo or bar or yak")
+                .unwrap()
+                .1,
+            RawQuery::Or(vec![
+                RawQuery::Pattern("foo"),
+                RawQuery::Pattern("bar"),
+                RawQuery::Pattern("yak")
+            ]),
         );
     }
     #[test]
     fn test_not() {
-        assert!(one_shot_not::<VerboseError<&str>>("not ").is_ok());
-        assert!(one_shot_not::<VerboseError<&str>>("!").is_ok());
-        assert!(one_shot_not::<VerboseError<&str>>("not  ").is_ok());
-        assert!(one_shot_not::<VerboseError<&str>>("! ").is_ok());
-
-        // basic not
-        assert_eq!(
-            simple_not_clause::<VerboseError<&str>>("not foobar")
-                .unwrap()
-                .1,
-            RawQuery::Pattern("foobar")
-        );
-        assert_eq!(
-            simple_not_clause::<VerboseError<&str>>("!foobar")
-                .unwrap()
-                .1,
-            RawQuery::Pattern("foobar")
-        );
-        assert_eq!(
-            simple_not_clause::<VerboseError<&str>>("not foobar:baz")
-                .unwrap()
-                .1,
-            RawQuery::FieldPattern("foobar", Box::new(RawQuery::Pattern("baz")))
-        );
-        assert_eq!(
-            simple_not_clause::<VerboseError<&str>>("!foobar:baz")
-                .unwrap()
-                .1,
-            RawQuery::FieldPattern("foobar", Box::new(RawQuery::Pattern("baz")))
-        );
-
         assert_eq!(
             parse_raw::<VerboseError<&str>>("not foobar").unwrap().1,
             RawQuery::Not(Box::new(RawQuery::Pattern("foobar")))
@@ -393,6 +386,38 @@ mod test {
                 "foobar",
                 Box::new(RawQuery::Pattern("baz"))
             )))
+        );
+    }
+
+    #[test]
+    fn test_precedence() {
+        assert_eq!(
+            parse_raw::<VerboseError<&str>>("env:qa or location:paris")
+                .unwrap()
+                .1,
+            RawQuery::Or(vec![
+                RawQuery::FieldPattern("env", Box::new(RawQuery::Pattern("qa"))),
+                RawQuery::FieldPattern("location", Box::new(RawQuery::Pattern("paris")))
+            ])
+        );
+
+        assert_eq!(
+            parse_raw::<VerboseError<&str>>("foo or bar and baz")
+                .unwrap()
+                .1,
+            RawQuery::Or(vec![
+                RawQuery::Pattern("foo"),
+                RawQuery::And(vec![RawQuery::Pattern("bar"), RawQuery::Pattern("baz")])
+            ])
+        );
+        assert_eq!(
+            parse_raw::<VerboseError<&str>>("foo and bar or baz")
+                .unwrap()
+                .1,
+            RawQuery::Or(vec![
+                RawQuery::And(vec![RawQuery::Pattern("foo"), RawQuery::Pattern("bar"),]),
+                RawQuery::Pattern("baz"),
+            ])
         );
     }
 }

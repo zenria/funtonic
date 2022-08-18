@@ -240,88 +240,13 @@ impl<'a> From<RawQuery<'a>> for Query<'a> {
         match q {
             RawQuery::Pattern(p) => Query::Pattern(p),
             RawQuery::Wildcard => Query::Wildcard,
-            RawQuery::FieldPattern(f, q) => {
-                let q: Query = (*q).into();
-                // field(field, and(field_query, and_clauses)) => field(field, field_query) && and_clauses
-                // field(field, or(field_query, or_clauses)) => field(field, field_query) || or_clauses
+            RawQuery::FieldPattern(f, q) => Query::FieldPattern(f, Box::new(Query::from(*q))),
 
-                match q {
-                    Query::And(mut clauses) => {
-                        // FieldPattern has the higher precedence as anything, extract it
-                        // take the first element
-                        let first = clauses.drain(0..1).nth(0).unwrap();
-                        // move it into a field_pattern clause
-                        let field_pattern_query = Query::FieldPattern(f, first.into());
-                        // issue an Ans
-                        let mut and_clauses = vec![field_pattern_query];
-                        and_clauses.append(&mut clauses);
-                        Query::And(and_clauses)
-                    }
-                    Query::Or(mut clauses) => {
-                        // FieldPattern has the higher precedence as anything, extract it
-                        // take the first element
-                        let first = clauses.drain(0..1).nth(0).unwrap();
-                        // move it into a field_pattern clause
-                        let field_pattern_query = Query::FieldPattern(f, first.into());
-                        // issue an Or
-                        let mut or_clauses = vec![field_pattern_query];
-                        or_clauses.append(&mut clauses);
-                        Query::Or(or_clauses)
-                    }
-                    q => Query::FieldPattern(f, q.into()),
-                }
+            RawQuery::And(clauses) => {
+                Query::And(clauses.into_iter().map(|clause| clause.into()).collect())
             }
-            RawQuery::And(left, right) => {
-                let left: Query = (*left).into();
-                let right: Query = (*right).into();
-
-                // simplify wildcard
-                if let Query::Wildcard = &left {
-                    return right;
-                }
-
-                // by construction of the parser, left is always a "canonical" query
-                match right {
-                    Query::Wildcard => left, // simplify wildcard
-                    Query::And(mut clauses) => {
-                        clauses.insert(0, left);
-                        Query::And(clauses)
-                    }
-                    Query::Or(mut clauses) => {
-                        // take the first element
-                        let first = clauses.drain(0..1).nth(0).unwrap();
-                        // move it into a and clause
-                        let and = Query::And(vec![left, first]);
-                        // issue an Or
-                        let mut or_clauses = vec![and];
-                        or_clauses.append(&mut clauses);
-                        Query::Or(or_clauses)
-                    }
-                    simple => Query::And(vec![left, simple]),
-                }
-
-                // and(r_simpleQ, r_simpleQ) => simpleQ &&  simpleQ
-                // and(r_simpleQ, and(r_simpleQ, r_Q)) => simpleQ && simpleQ && r_Q
-
-                // and(simpleQ, simpleQ or Q) => (simpleQ && simpleQ) || Q
-            }
-            RawQuery::Or(left, right) => {
-                let left: Query = (*left).into();
-                let right: Query = (*right).into();
-
-                // simplify wildcard
-                if let Query::Wildcard = &left {
-                    return Query::Wildcard;
-                }
-                match right {
-                    Query::Wildcard => Query::Wildcard, // simplify wildcard
-                    Query::Or(mut clauses) => {
-                        // collapse all or clauses
-                        clauses.insert(0, left);
-                        Query::Or(clauses)
-                    }
-                    right => Query::Or(vec![left, right]),
-                }
+            RawQuery::Or(clauses) => {
+                Query::Or(clauses.into_iter().map(|clause| clause.into()).collect())
             }
             RawQuery::Not(raw_query) => {
                 let q: Query = (*raw_query).into();
@@ -338,11 +263,7 @@ mod tests {
     use nom::error::VerboseError;
     use std::collections::HashMap;
 
-    #[test]
-    fn test_wrong_query() {
-        assert!(parse("prod and (env:foo or bar)").is_err());
-    }
-
+    
     #[test]
     fn test_matches() {
         assert_eq!("prod".qmatches(&parse("prod").unwrap()), Match);
@@ -388,6 +309,7 @@ mod tests {
             tags.qmatches(&parse("env:prod or location:anywhere").unwrap()),
             Match
         );
+        dbg!(parse("env:qa or location:Paris"));
         assert_eq!(
             tags.qmatches(&parse("env:qa or location:Paris").unwrap()),
             Match
