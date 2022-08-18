@@ -1,3 +1,4 @@
+use super::Query as RawQuery;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case, take_while, take_while1};
 use nom::character::complete::{char, multispace1};
@@ -7,30 +8,19 @@ use nom::error::ParseError;
 use nom::sequence::{delimited, pair, preceded, separated_pair, terminated, tuple};
 use nom::{Err, IResult};
 
-/// Raw parsed query with no precedence applied
-#[derive(Debug, PartialOrd, PartialEq)]
-pub enum RawQuery<'a> {
-    Pattern(&'a str),
-    FieldPattern(&'a str, Box<RawQuery<'a>>),
-    Wildcard,
-    And(Vec<RawQuery<'a>>),
-    Or(Vec<RawQuery<'a>>),
-    Not(Box<RawQuery<'a>>),
-}
-
 impl<'a> RawQuery<'a> {
     /// RawQuery::Text variant builder
-    pub fn pattern(text: &'a str) -> RawQuery<'a> {
+    fn pattern(text: &'a str) -> RawQuery<'a> {
         RawQuery::Pattern(text)
     }
 
     /// RawQuery::FieldText variant builder
-    pub fn field_pattern(field: &'a str, pattern: RawQuery<'a>) -> RawQuery<'a> {
+    fn field_pattern(field: &'a str, pattern: RawQuery<'a>) -> RawQuery<'a> {
         RawQuery::FieldPattern(field, Box::new(pattern))
     }
 
     /// RawQuery::Not variant builder
-    pub fn not(not: RawQuery<'a>) -> RawQuery<'a> {
+    fn not(not: RawQuery<'a>) -> RawQuery<'a> {
         RawQuery::Not(Box::new(not))
     }
 }

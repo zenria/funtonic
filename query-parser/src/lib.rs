@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
 
-use crate::parser::{parse_raw, RawQuery};
+use crate::parser::parse_raw;
 use thiserror::Error;
 
 mod parser;
@@ -36,7 +36,7 @@ pub fn parse(i: &str) -> Result<Query, QueryParseError> {
             if rest.len() > 0 {
                 Err(QueryParseError::UnrecognizedInput(rest.into()))
             } else {
-                Ok(res.into())
+                Ok(res)
             }
         }
     }
@@ -235,27 +235,6 @@ impl<Q: QueryMatcher> QueryMatcher for Vec<Q> {
     }
 }
 
-impl<'a> From<RawQuery<'a>> for Query<'a> {
-    fn from(q: RawQuery<'a>) -> Self {
-        match q {
-            RawQuery::Pattern(p) => Query::Pattern(p),
-            RawQuery::Wildcard => Query::Wildcard,
-            RawQuery::FieldPattern(f, q) => Query::FieldPattern(f, Box::new(Query::from(*q))),
-
-            RawQuery::And(clauses) => {
-                Query::And(clauses.into_iter().map(|clause| clause.into()).collect())
-            }
-            RawQuery::Or(clauses) => {
-                Query::Or(clauses.into_iter().map(|clause| clause.into()).collect())
-            }
-            RawQuery::Not(raw_query) => {
-                let q: Query = (*raw_query).into();
-                Query::Not(Box::new(q))
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::MatchResult::{Match, NoMatch, Rejected};
@@ -263,7 +242,6 @@ mod tests {
     use nom::error::VerboseError;
     use std::collections::HashMap;
 
-    
     #[test]
     fn test_matches() {
         assert_eq!("prod".qmatches(&parse("prod").unwrap()), Match);
