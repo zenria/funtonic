@@ -37,4 +37,4 @@ get_if_addrs = "0.5"
 [dev-dependencies]
 tempfile = "3"
 # required for testing ; importing grpc_service::prost won't work for an obscure proc macro related reason
-prost="0.10"
+prost="0.11"
