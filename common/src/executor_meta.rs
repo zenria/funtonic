@@ -106,6 +106,13 @@ impl TryFrom<&ExecutorConfig> for GetTasksRequest {
 
     fn try_from(config: &ExecutorConfig) -> Result<Self, Self::Error> {
         let mut m: ExecutorMeta = config.into();
+        // add Saltstack grains if found.
+        if let Ok(grains_file) = std::fs::File::open("/etc/salt/grains") {
+            if let Ok(grains) = serde_yaml::from_reader::<_, HashMap<String, Tag>>(grains_file) {
+                info!("Found Saltstack grains, extending executor tags with it!");
+                m.tags.extend(grains);
+            }
+        }
         // add os info to executor metas
         m.tags.insert("os_info".into(), os_info::get().into());
         m.tags.insert(
