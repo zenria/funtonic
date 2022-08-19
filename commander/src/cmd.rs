@@ -2,6 +2,7 @@ use crate::{CommanderSyntheticOutput, ExecutorState};
 use anyhow::Context;
 use atty::Stream;
 use colored::{Color, Colorize};
+use directories::ProjectDirs;
 use funtonic::config::CommanderConfig;
 use funtonic::crypto::signed_payload::encode_and_sign;
 use funtonic::tonic::{self, Request};
@@ -16,9 +17,10 @@ use grpc_service::grpc_protocol::{
 use indicatif::ProgressBar;
 use query_parser::parse;
 use rustyline::error::ReadlineError;
-use rustyline::Editor;
+use rustyline::{history, Editor};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
+use std::path::PathBuf;
 use std::time::Duration;
 use structopt::StructOpt;
 use tonic::transport::Channel;
@@ -104,8 +106,23 @@ pub async fn handle_cmd(
         options.no_std_process_return = true;
 
         let mut rl = Editor::<()>::new()?;
+
+        let history_path = match ProjectDirs::from("io", "scoopit", "Funtonic") {
+            Some(proj_dirs) => {
+                let data_dir = proj_dirs.data_dir();
+                let _ = std::fs::create_dir_all(data_dir);
+                let mut history_path = PathBuf::from(data_dir);
+                history_path.push("interactive_history.txt");
+                Some(history_path)
+            }
+            None => None,
+        };
+        if let Some(history) = &history_path {
+            let _ = rl.load_history(history);
+        }
         loop {
             let readline = rl.readline(&format!("{query} > "));
+
             match readline {
                 Ok(line) => {
                     rl.add_history_entry(line.as_str());
@@ -133,6 +150,9 @@ pub async fn handle_cmd(
                     break;
                 }
             }
+        }
+        if let Some(history) = &history_path {
+            let _ = rl.save_history(history);
         }
         std::process::exit(0);
     } else {

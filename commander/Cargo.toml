@@ -28,3 +28,4 @@ prettytable-rs = "^0.9"
 serde = { version = "1.0", features = ["derive"] }
 base64="0.13"
 rustyline="10"
+directories = "4.0.1"
