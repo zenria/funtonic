@@ -25,7 +25,7 @@ use std::time::Duration;
 use structopt::StructOpt;
 use tonic::transport::Channel;
 
-#[derive(StructOpt, Debug, Clone)]
+#[derive(StructOpt, Debug, Clone, Default)]
 pub struct CommandOptions {
     /// Raw output, remote stderr/out will be printed as soon at they arrive without any other information
     #[structopt(short = "r", long = "raw")]
@@ -101,6 +101,24 @@ pub async fn handle_cmd(
 
         //check the query is parsable
         parse(&query)?;
+
+        // craft a special command to retrieve the list of connected executors
+        {
+            let mut options = CommandOptions::default();
+            options.no_std_process_return = true;
+            let request = tonic::Request::new(LaunchTaskRequest {
+                payload: Some(encode_and_sign(
+                    LaunchTaskRequestPayload {
+                        task: Some(Task::ExecuteCommand(ExecuteCommand { command: "".into() })),
+                    },
+                    &commander_config.ed25519_key,
+                    Duration::from_secs(60),
+                )?),
+
+                predicate: query.clone(),
+            });
+            do_handle_cmd(client.clone(), request, options.clone()).await?;
+        }
 
         // do not exit process on return
         options.no_std_process_return = true;
