@@ -17,7 +17,7 @@ use grpc_service::grpc_protocol::{
 use indicatif::ProgressBar;
 use query_parser::parse;
 use rustyline::error::ReadlineError;
-use rustyline::{history, Editor};
+use rustyline::Editor;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::path::PathBuf;
