@@ -1,6 +1,6 @@
 [package]
 name = "commander"
-version = "0.21.1"
+version = "0.22.0"
 authors = ["Philippe GASSMANN <philoops@gmail.com>"]
 edition = "2018"
 
@@ -27,3 +27,4 @@ serde_yaml="0.9"
 prettytable-rs = "^0.9"
 serde = { version = "1.0", features = ["derive"] }
 base64="0.13"
+rustyline="10"

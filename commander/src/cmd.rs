@@ -4,7 +4,7 @@ use atty::Stream;
 use colored::{Color, Colorize};
 use funtonic::config::CommanderConfig;
 use funtonic::crypto::signed_payload::encode_and_sign;
-use funtonic::tonic;
+use funtonic::tonic::{self, Request};
 use grpc_service::grpc_protocol::commander_service_client::CommanderServiceClient;
 use grpc_service::grpc_protocol::launch_task_request_payload::Task;
 use grpc_service::grpc_protocol::launch_task_response::TaskResponse;
@@ -15,13 +15,15 @@ use grpc_service::grpc_protocol::{
 };
 use indicatif::ProgressBar;
 use query_parser::parse;
+use rustyline::error::ReadlineError;
+use rustyline::Editor;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::time::Duration;
 use structopt::StructOpt;
 use tonic::transport::Channel;
 
-#[derive(StructOpt, Debug)]
+#[derive(StructOpt, Debug, Clone)]
 pub struct CommandOptions {
     /// Raw output, remote stderr/out will be printed as soon at they arrive without any other information
     #[structopt(short = "r", long = "raw")]
@@ -47,6 +49,14 @@ pub enum Cmd {
         /// Target query
         query: String,
         command: Vec<String>,
+    },
+    /// Interactive mode
+    #[structopt(name = "int")]
+    Int {
+        #[structopt(flatten)]
+        options: CommandOptions,
+        /// Target query
+        query: String,
     },
     /// Manage authorized keys on executors
     #[structopt(name = "keys")]
@@ -80,76 +90,131 @@ pub enum KeyCmd {
 }
 
 pub async fn handle_cmd(
-    mut client: CommanderServiceClient<Channel>,
+    client: CommanderServiceClient<Channel>,
     commander_config: &CommanderConfig,
     cmd: Cmd,
 ) -> Result<CommanderSyntheticOutput, Box<dyn Error>> {
-    let (request, options) = match cmd {
-        Cmd::Run {
-            options,
-            query,
-            command,
-        } => {
-            //check the query is parsable
-            parse(&query)?;
-            let command = command.join(" ");
+    if let Cmd::Int { mut options, query } = cmd {
+        // interactive mode
 
-            let request = tonic::Request::new(LaunchTaskRequest {
-                payload: Some(encode_and_sign(
-                    LaunchTaskRequestPayload {
-                        task: Some(Task::ExecuteCommand(ExecuteCommand { command })),
-                    },
-                    &commander_config.ed25519_key,
-                    Duration::from_secs(60),
-                )?),
+        //check the query is parsable
+        parse(&query)?;
 
-                predicate: query,
-            });
-            (request, options)
+        // do not exit process on return
+        options.no_std_process_return = true;
+
+        let mut rl = Editor::<()>::new()?;
+        loop {
+            let readline = rl.readline(&format!("{query} > "));
+            match readline {
+                Ok(line) => {
+                    rl.add_history_entry(line.as_str());
+                    let request = tonic::Request::new(LaunchTaskRequest {
+                        payload: Some(encode_and_sign(
+                            LaunchTaskRequestPayload {
+                                task: Some(Task::ExecuteCommand(ExecuteCommand { command: line })),
+                            },
+                            &commander_config.ed25519_key,
+                            Duration::from_secs(60),
+                        )?),
+
+                        predicate: query.clone(),
+                    });
+                    do_handle_cmd(client.clone(), request, options.clone()).await?;
+                }
+                Err(ReadlineError::Interrupted) => {
+                    break;
+                }
+                Err(ReadlineError::Eof) => {
+                    break;
+                }
+                Err(err) => {
+                    println!("Error: {:?}", err);
+                    break;
+                }
+            }
         }
+        std::process::exit(0);
+    } else {
+        let (request, options) = match cmd {
+            Cmd::Run {
+                options,
+                query,
+                command,
+            } => {
+                //check the query is parsable
+                parse(&query)?;
+                let command = command.join(" ");
 
-        Cmd::Keys {
-            options,
-            query,
-            key_cmd,
-        } => {
-            //check the query is parsable
-            parse(&query)?;
-            (
-                match key_cmd {
-                    KeyCmd::Authorize { key_id, public_key } => {
-                        tonic::Request::new(LaunchTaskRequest {
+                let request = tonic::Request::new(LaunchTaskRequest {
+                    payload: Some(encode_and_sign(
+                        LaunchTaskRequestPayload {
+                            task: Some(Task::ExecuteCommand(ExecuteCommand { command })),
+                        },
+                        &commander_config.ed25519_key,
+                        Duration::from_secs(60),
+                    )?),
+
+                    predicate: query,
+                });
+                (request, options)
+            }
+
+            Cmd::Keys {
+                options,
+                query,
+                key_cmd,
+            } => {
+                //check the query is parsable
+                parse(&query)?;
+                (
+                    match key_cmd {
+                        KeyCmd::Authorize { key_id, public_key } => {
+                            tonic::Request::new(LaunchTaskRequest {
+                                payload: Some(encode_and_sign(
+                                    LaunchTaskRequestPayload {
+                                        task: Some(Task::AuthorizeKey(PublicKey {
+                                            key_id,
+                                            key_bytes: base64::decode(public_key)
+                                                .context("Unable to decode base64 encoded key")?,
+                                        })),
+                                    },
+                                    &commander_config.ed25519_key,
+                                    Duration::from_secs(60),
+                                )?),
+
+                                predicate: query,
+                            })
+                        }
+                        KeyCmd::Revoke { key_id } => tonic::Request::new(LaunchTaskRequest {
                             payload: Some(encode_and_sign(
                                 LaunchTaskRequestPayload {
-                                    task: Some(Task::AuthorizeKey(PublicKey {
-                                        key_id,
-                                        key_bytes: base64::decode(public_key)
-                                            .context("Unable to decode base64 encoded key")?,
-                                    })),
+                                    task: Some(Task::RevokeKey(key_id)),
                                 },
                                 &commander_config.ed25519_key,
                                 Duration::from_secs(60),
                             )?),
 
                             predicate: query,
-                        })
-                    }
-                    KeyCmd::Revoke { key_id } => tonic::Request::new(LaunchTaskRequest {
-                        payload: Some(encode_and_sign(
-                            LaunchTaskRequestPayload {
-                                task: Some(Task::RevokeKey(key_id)),
-                            },
-                            &commander_config.ed25519_key,
-                            Duration::from_secs(60),
-                        )?),
+                        }),
+                    },
+                    options,
+                )
+            }
+            Cmd::Int {
+                options: _,
+                query: _,
+            } => panic!("You should never reach this code"),
+        };
+        do_handle_cmd(client, request, options).await
+    }
+}
 
-                        predicate: query,
-                    }),
-                },
-                options,
-            )
-        }
-    };
+pub async fn do_handle_cmd(
+    mut client: CommanderServiceClient<Channel>,
+    request: Request<LaunchTaskRequest>,
+    options: CommandOptions,
+) -> Result<CommanderSyntheticOutput, Box<dyn Error>> {
     let CommandOptions {
         raw,
         group,
