@@ -17,7 +17,7 @@ use grpc_service::grpc_protocol::{
 use indicatif::ProgressBar;
 use query_parser::parse;
 use rustyline::error::ReadlineError;
-use rustyline::Editor;
+use rustyline::{DefaultEditor, Editor};
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::path::PathBuf;
@@ -123,7 +123,7 @@ pub async fn handle_cmd(
         // do not exit process on return
         options.no_std_process_return = true;
 
-        let mut rl = Editor::<()>::new()?;
+        let mut rl = DefaultEditor::new()?;
 
         let history_path = match ProjectDirs::from("io", "scoopit", "Funtonic") {
             Some(proj_dirs) => {
@@ -143,7 +143,7 @@ pub async fn handle_cmd(
 
             match readline {
                 Ok(line) => {
-                    rl.add_history_entry(line.as_str());
+                    let _ = rl.add_history_entry(line.as_str()); // ignore result
                     let request = tonic::Request::new(LaunchTaskRequest {
                         payload: Some(encode_and_sign(
                             LaunchTaskRequestPayload {
