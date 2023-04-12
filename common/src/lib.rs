@@ -24,3 +24,5 @@ pub use grpc_service::tonic;
 pub use tokio;
 
 pub mod error;
+
+pub use data_encoding;

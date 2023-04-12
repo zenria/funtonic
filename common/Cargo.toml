@@ -30,7 +30,7 @@ grpc-service = {path="../grpc-service"}
 exec={path="../exec"}
 ring="0.16"
 chrono = "0.4"
-base64="0.13"
+data-encoding="2.3"
 bytes = "1"
 get_if_addrs = "0.5"
 

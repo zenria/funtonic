@@ -148,15 +148,15 @@ impl From<(&str, &[u8])> for ED25519Key {
     fn from((id, bytes): (&str, &[u8])) -> Self {
         Self {
             id: id.to_string(),
-            pkcs8: base64::encode(bytes),
+            pkcs8: data_encoding::BASE64.encode(bytes),
             public_key: None,
         }
     }
 }
 
 impl ED25519Key {
-    pub fn to_bytes(&self) -> Result<Vec<u8>, base64::DecodeError> {
-        base64::decode(&self.pkcs8)
+    pub fn to_bytes(&self) -> Result<Vec<u8>, data_encoding::DecodeError> {
+        data_encoding::BASE64.decode(self.pkcs8.as_bytes())
     }
 
     pub fn id(&self) -> &str {

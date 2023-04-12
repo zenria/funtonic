@@ -5,6 +5,7 @@ use colored::{Color, Colorize};
 use directories::ProjectDirs;
 use funtonic::config::CommanderConfig;
 use funtonic::crypto::signed_payload::encode_and_sign;
+use funtonic::data_encoding;
 use funtonic::tonic::{self, Request};
 use grpc_service::grpc_protocol::commander_service_client::CommanderServiceClient;
 use grpc_service::grpc_protocol::launch_task_request_payload::Task;
@@ -17,7 +18,7 @@ use grpc_service::grpc_protocol::{
 use indicatif::ProgressBar;
 use query_parser::parse;
 use rustyline::error::ReadlineError;
-use rustyline::{DefaultEditor, Editor};
+use rustyline::DefaultEditor;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::path::PathBuf;
@@ -213,7 +214,8 @@ pub async fn handle_cmd(
                                     LaunchTaskRequestPayload {
                                         task: Some(Task::AuthorizeKey(PublicKey {
                                             key_id,
-                                            key_bytes: base64::decode(public_key)
+                                            key_bytes: data_encoding::BASE64
+                                                .decode(public_key.as_bytes())
                                                 .context("Unable to decode base64 encoded key")?,
                                         })),
                                     },

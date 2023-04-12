@@ -6,7 +6,7 @@ use anyhow::Context;
 use colored::{Color, Colorize};
 use funtonic::config::{CommanderConfig, ED25519Key};
 use funtonic::crypto::keygen::generate_ed25519_key_pair;
-use funtonic::tonic;
+use funtonic::{data_encoding, tonic};
 use grpc_service::grpc_protocol::commander_service_client::CommanderServiceClient;
 use http::Uri;
 use serde::{Deserialize, Serialize};
@@ -140,10 +140,12 @@ fn handle_utils_cmd(cmd: Utils) -> Result<CommanderSyntheticOutput, Box<dyn std:
             let out = GenerateKeyPairOutput {
                 ed25519_key: ED25519Key {
                     id: name.clone(),
-                    pkcs8: base64::encode(&priv_key),
-                    public_key: Some(base64::encode(&pub_key)),
+                    pkcs8: data_encoding::BASE64.encode(&priv_key),
+                    public_key: Some(data_encoding::BASE64.encode(&pub_key)),
                 },
-                authorized_keys: vec![(name, base64::encode(&pub_key))].into_iter().collect(),
+                authorized_keys: vec![(name, data_encoding::BASE64.encode(&pub_key))]
+                    .into_iter()
+                    .collect(),
             };
             println!("Generated Keys:\n{}", serde_yaml::to_string(&out)?);
         }

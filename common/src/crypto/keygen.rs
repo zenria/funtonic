@@ -16,14 +16,14 @@ pub fn generate_ed25519_key_pair() -> Result<(Vec<u8>, Vec<u8>), ring::error::Un
 
 pub fn generate_base64_encoded_keys(key_name: &str) -> (ED25519Key, BTreeMap<String, String>) {
     let (priv_key, pub_key) = generate_ed25519_key_pair().unwrap();
-    let authorized_keys = vec![(key_name.to_string(), base64::encode(&pub_key))]
+    let authorized_keys = vec![(key_name.to_string(), data_encoding::BASE64.encode(&pub_key))]
         .into_iter()
         .collect();
     (
         ED25519Key {
             id: key_name.to_string(),
-            pkcs8: base64::encode(&priv_key),
-            public_key: Some(base64::encode(&pub_key)),
+            pkcs8: data_encoding::BASE64.encode(&priv_key),
+            public_key: Some(data_encoding::BASE64.encode(&pub_key)),
         },
         authorized_keys,
     )

@@ -58,7 +58,7 @@ impl CommanderService for TaskServer {
             Task::AuthorizeKey(key) => format!(
                 "AuthorizeKey: {} - {}",
                 key.key_id,
-                base64::encode(&key.key_bytes)
+                data_encoding::BASE64.encode(&key.key_bytes)
             ),
             Task::RevokeKey(key_id) => format!("RevokeKey: {}", key_id),
             Task::StreamingPayload(_) => {

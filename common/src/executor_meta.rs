@@ -139,7 +139,8 @@ impl TryFrom<&ExecutorConfig> for GetTasksRequest {
                 .try_fold::<_, _, Result<_, anyhow::Error>>(vec![], |mut keys, (id, key)| {
                     keys.push(PublicKey {
                         key_id: id.clone(),
-                        key_bytes: base64::decode(key)
+                        key_bytes: data_encoding::BASE64
+                            .decode(key.as_bytes())
                             .with_context(|| format!("Unable to decode key {}", id))?,
                     });
                     Ok(keys)

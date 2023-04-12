@@ -35,7 +35,7 @@ pub enum KeyStoreError {
     #[error("Cannot decode payload: {0}")]
     PayloadDecodeError(String),
     #[error("Wrong key encoding {0}")]
-    KeyEncodingError(#[from] base64::DecodeError),
+    KeyEncodingError(#[from] data_encoding::DecodeError),
     #[error("IOError {0}")]
     IOError(#[from] io::Error),
     #[error("Internal storage error {0}")]
@@ -199,7 +199,10 @@ impl<B: KeyStoreBackend> KeyStore<B> {
         map.into_iter().try_fold(
             self,
             |store, (key, base64_encoded_bytes): (&String, &String)| {
-                store.register_key(key, base64::decode(base64_encoded_bytes)?)?;
+                store.register_key(
+                    key,
+                    data_encoding::BASE64.decode(base64_encoded_bytes.as_bytes())?,
+                )?;
                 Ok(store)
             },
         )
@@ -249,7 +252,7 @@ impl<B: KeyStoreBackend> KeyStore<B> {
     pub fn list_all(&self) -> Result<BTreeMap<String, String>, KeyStoreError> {
         self.keys.list_all().map(|keys| {
             keys.into_iter()
-                .map(|(id, bytes)| (id, base64::encode(bytes)))
+                .map(|(id, bytes)| (id, data_encoding::BASE64.encode(&bytes)))
                 .collect()
         })
     }

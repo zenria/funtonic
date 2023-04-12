@@ -21,5 +21,4 @@ log4rs-gelf = "0.1.4"
 native-tls = { version = "0.2", features=["vendored"] }
 exec={path="../exec"}
 serde_yaml="0.9"
-base64="0.13"
 tokio-stream="0.1"

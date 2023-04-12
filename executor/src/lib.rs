@@ -8,9 +8,9 @@ use funtonic::crypto::keystore::{memory_keystore, KeyStore, KeyStoreBackend};
 use funtonic::crypto::signed_payload::encode_and_sign;
 use funtonic::error::format_error;
 use funtonic::executor_meta::{ExecutorMeta, Tag};
-use funtonic::tokio;
 use funtonic::tonic;
 use funtonic::PROTOCOL_VERSION;
+use funtonic::{data_encoding, tokio};
 use futures::StreamExt;
 use grpc_service::grpc_protocol::executor_service_client::ExecutorServiceClient;
 use grpc_service::grpc_protocol::launch_task_request_payload::Task;
@@ -110,7 +110,7 @@ pub async fn executor_main(
                     ConfigurationModification::AddKey { key_id, key_bytes } => {
                         executor_config
                             .authorized_keys
-                            .insert(key_id, base64::encode(key_bytes));
+                            .insert(key_id, data_encoding::BASE64.encode(&key_bytes));
                     }
                     ConfigurationModification::RevokeKey(key_id) => {
                         executor_config.authorized_keys.remove(&key_id);
@@ -169,7 +169,8 @@ async fn do_executor_main<B: KeyStoreBackend>(
 
     let request = tonic::Request::new(
         RegisterExecutorRequest {
-            public_key: base64::decode(signing_key.public_key.as_ref().unwrap())?,
+            public_key: data_encoding::BASE64
+                .decode(signing_key.public_key.as_ref().unwrap().as_bytes())?,
             client_id: client_id.clone(),
             get_tasks_request: Some(encode_and_sign(
                 GetTasksRequest::try_from(executor_config)?,
