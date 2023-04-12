@@ -2,17 +2,17 @@
 name = "grpc-service"
 version = "0.19.0"
 authors = ["Philippe GASSMANN <philoops@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tonic={version="0.8", features=[ "tls"] }
+tonic={version="0.9", features=[ "tls"] }
 prost = "0.11"
 async-stream = "0.3.2"
 bytes = "1"
 thiserror="1"
 
 [build-dependencies]
-tonic-build="0.8"
+tonic-build="0.9"
 protobuf-src = "1.0.5+3.19.3"
