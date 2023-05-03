@@ -1,6 +1,7 @@
 use crate::{CommanderSyntheticOutput, ExecutorState};
 use anyhow::Context;
 use atty::Stream;
+use clap::{Args, Subcommand};
 use colored::{Color, Colorize};
 use directories::ProjectDirs;
 use funtonic::config::CommanderConfig;
@@ -23,61 +24,60 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::path::PathBuf;
 use std::time::Duration;
-use structopt::StructOpt;
 use tonic::transport::Channel;
 
-#[derive(StructOpt, Debug, Clone, Default)]
+#[derive(Args, Debug, Clone, Default)]
 pub struct CommandOptions {
     /// Raw output, remote stderr/out will be printed as soon at they arrive without any other information
-    #[structopt(short = "r", long = "raw")]
+    #[arg(short = 'r', long = "raw")]
     pub raw: bool,
     /// Group output by executor instead displaying a live stream of all executor outputs
-    #[structopt(short = "g", long = "group")]
+    #[arg(short = 'g', long = "group")]
     pub group: bool,
     /// Do not display the progress bar, note that is will be hidden if stderr is not a tty
-    #[structopt(short = "n", long = "no-progress")]
+    #[arg(short = 'n', long = "no-progress")]
     pub no_progress: bool,
     /// testing opt
-    #[structopt(long = "no_std_process_return")]
+    #[arg(long = "no_std_process_return")]
     pub no_std_process_return: bool,
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Subcommand, Debug)]
 pub enum Cmd {
     /// Run a command on targeted executors
-    #[structopt(name = "run")]
+    #[command(name = "run")]
     Run {
-        #[structopt(flatten)]
+        #[command(flatten)]
         options: CommandOptions,
         /// Target query
         query: String,
         command: Vec<String>,
     },
-    /// Interactive mode
-    #[structopt(name = "int")]
+    /// Run commands in interactive mode
+    #[command(name = "int")]
     Int {
-        #[structopt(flatten)]
+        #[command(flatten)]
         options: CommandOptions,
         /// Target query
         query: String,
     },
     /// Manage authorized keys on executors
-    #[structopt(name = "keys")]
+    #[command(name = "keys")]
     Keys {
-        #[structopt(flatten)]
+        #[command(flatten)]
         options: CommandOptions,
         /// Target query: All matching executor will install the specified key in their
         /// authorized key.
         query: String,
-        #[structopt(subcommand)]
+        #[command(subcommand)]
         key_cmd: KeyCmd,
     },
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Subcommand, Debug)]
 pub enum KeyCmd {
     /// Authorize a key on executors
-    #[structopt(name = "authorize")]
+    #[command(name = "authorize")]
     Authorize {
         /// Identifier of the key
         key_id: String,
@@ -85,7 +85,7 @@ pub enum KeyCmd {
         public_key: String,
     },
     /// Revoke a key on executors
-    #[structopt(name = "revoke")]
+    #[command(name = "revoke")]
     Revoke {
         // Identifier of the public key on executors
         key_id: String,

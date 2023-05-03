@@ -1,5 +1,6 @@
 use crate::admin::AdminCommandOuputMode::HumanReadableShort;
 use crate::CommanderSyntheticOutput;
+use clap::Subcommand;
 use colored::Colorize;
 use funtonic::config::CommanderConfig;
 use funtonic::crypto::signed_payload::encode_and_sign;
@@ -15,11 +16,10 @@ use prettytable::format::consts::*;
 use prettytable::*;
 use std::collections::BTreeMap;
 use std::str::FromStr;
-use structopt::StructOpt;
 use tokio::time::Duration;
 
-#[derive(StructOpt, Debug)]
-#[structopt(rename_all = "kebab")]
+#[derive(Subcommand, Debug)]
+#[command(rename_all = "kebab")]
 pub enum AdminCommand {
     /// Get connected executors and their meta as json
     ListConnectedExecutors {

@@ -3,6 +3,7 @@ extern crate log;
 
 pub use crate::admin::{AdminCommand, AdminCommandOuputMode};
 use anyhow::Context;
+use clap::{Parser, Subcommand};
 use colored::{Color, Colorize};
 use funtonic::config::{CommanderConfig, ED25519Key};
 use funtonic::crypto::keygen::generate_ed25519_key_pair;
@@ -15,7 +16,6 @@ use std::fmt::{Display, Error, Formatter};
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Duration;
-use structopt::StructOpt;
 use thiserror::Error;
 use tonic::transport::Channel;
 
@@ -56,36 +56,37 @@ impl ExecutorState {
     }
 }
 
-#[derive(StructOpt, Debug)]
-#[structopt(name = "Funtonic commander")]
+#[derive(Parser, Debug)]
+#[command(name = "Funtonic commander", version)]
+/// Funtonic commander: execute commands on remote machines
 pub struct Opt {
-    #[structopt(short, long, parse(from_os_str))]
+    #[arg(short, long)]
     pub config: Option<PathBuf>,
-    #[structopt(subcommand)]
+    #[command(subcommand)]
     pub command: Command,
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Subcommand, Debug)]
 pub enum Command {
     /// Admin commands
     Admin {
         /// json (js), pretty-json (pjs) or human-readable (hr) or human-readable-long (hrl)
-        #[structopt(short = "o", long = "output-mode", default_value = "human-readable")]
+        #[arg(short = 'o', long = "output-mode", default_value = "human-readable")]
         output_mode: AdminCommandOuputMode,
-        #[structopt(subcommand)]
+        #[command(subcommand)]
         command: AdminCommand,
     },
-    #[structopt(flatten)]
+    #[command(flatten)]
     Cmd(cmd::Cmd),
     /// Utilities
-    #[structopt(name = "utils")]
+    #[command(name = "utils", subcommand)]
     Utils(Utils),
 }
 
-#[derive(StructOpt, Debug)]
+#[derive(Subcommand, Debug)]
 pub enum Utils {
     /// Generate an ED25519 key pair to be used in various configuration places
-    #[structopt(name = "genkey")]
+    #[command(name = "genkey")]
     GenerateED25519KeyPair {
         /// name of the key.
         name: String,

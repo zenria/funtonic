@@ -1,7 +1,7 @@
+use clap::Parser;
 use commander::{commander_main, Opt};
 use funtonic::config;
 use funtonic::tokio;
-use structopt::StructOpt;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::FmtSubscriber;
 
@@ -15,7 +15,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     )
     .expect("setting tracing default failed");
     tracing_log::LogTracer::init().unwrap();
-    let opt: Opt = Opt::from_args();
+    let opt: Opt = Opt::parse();
     let (config, _) = config::parse(&opt.config, "commander.yml")?;
     commander_main(opt, config).await.map(|_| ())
 }
