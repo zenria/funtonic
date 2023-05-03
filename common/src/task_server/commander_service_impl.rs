@@ -2,6 +2,7 @@ use crate::executor_meta::ExecutorMeta;
 use crate::task_server::{random_task_id, Stream, TaskServer};
 use crate::tonic;
 use crate::PROTOCOL_VERSION;
+use anyhow::Context;
 use futures::channel::mpsc;
 use futures::{SinkExt, StreamExt};
 use grpc_service::grpc_protocol::admin_request::RequestType;
@@ -49,11 +50,31 @@ impl CommanderService for TaskServer {
         let payload: LaunchTaskRequestPayload =
             self.authorized_keys.decode_payload(signed_payload)?;
 
-        let command = match payload
+        let task = payload
             .task
             .as_ref()
-            .ok_or(Status::invalid_argument("Missing task"))?
-        {
+            .ok_or(Status::invalid_argument("Missing task"))?;
+
+        // do additional security check on keys commands: admin keys must be used to
+        // send keys to executors
+        match task {
+            Task::AuthorizeKey(_) | Task::RevokeKey(_) => {
+                self.authorized_admin_keys
+                    .decode_payload(signed_payload)
+                    .map_err(|e| {
+                        error!(
+                            "Tried to manipulate keys on executor with an non admin key: {}. {e}",
+                            signed_payload.key_id
+                        );
+                        Status::failed_precondition(format!(
+                            "Key manipulation must be done with an admin key. {e}"
+                        ))
+                    })?;
+            }
+            _ => (),
+        }
+
+        let command = match task {
             Task::ExecuteCommand(command) => format!("ExecuteCommand: {}", command.command),
             Task::AuthorizeKey(key) => format!(
                 "AuthorizeKey: {} - {}",

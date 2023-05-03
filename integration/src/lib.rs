@@ -20,11 +20,7 @@ mod tests {
     static INIT_LOGGER: Once = Once::new();
 
     fn init_logger() {
-        INIT_LOGGER.call_once(|| {
-            env_logger::builder()
-                .filter_level(LevelFilter::Info)
-                .init()
-        })
+        INIT_LOGGER.call_once(|| env_logger::builder().filter_level(LevelFilter::Info).init())
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -310,7 +306,20 @@ mod tests {
             commander_config(54012, false, regular_key.clone()),
         )
         .await
-        .expect("authorize new_key");
+        .expect_err(
+            "authorize new_key must failed (done with regular key that is not an admin key)",
+        );
+
+        commander_main(
+            authorize_key_cmd_opt(
+                "*",
+                "new_key",
+                new_key_authorized_key.get("new_key").unwrap(),
+            ),
+            commander_config(54012, false, ultimate_key.clone()),
+        )
+        .await
+        .expect("authorize new_key with ultimate admin key!");
 
         // let the executor reconnect with the new keyset
         std::thread::sleep(Duration::from_secs(1));
@@ -325,6 +334,12 @@ mod tests {
         commander_main(
             revoke_key_cmd_opt("*", "new_key"),
             commander_config(54012, false, regular_key.clone()),
+        )
+        .await
+        .expect_err("revoke new_key with non admin key");
+        commander_main(
+            revoke_key_cmd_opt("*", "new_key"),
+            commander_config(54012, false, ultimate_key.clone()),
         )
         .await
         .expect("revoke new_key");
