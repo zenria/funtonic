@@ -1,5 +1,5 @@
 use crate::{CommanderSyntheticOutput, ExecutorState};
-use anyhow::Context;
+use anyhow::{anyhow, Context};
 use atty::Stream;
 use clap::{Args, Subcommand};
 use colored::{Color, Colorize};
@@ -20,6 +20,7 @@ use indicatif::ProgressBar;
 use query_parser::parse;
 use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
+use shellish_parse::ParseOptions;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::error::Error;
 use std::path::PathBuf;
@@ -145,6 +146,12 @@ pub async fn handle_cmd(
             match readline {
                 Ok(line) => {
                     let _ = rl.add_history_entry(line.as_str()); // ignore result
+
+                    if let Err(e) = safeguard_command(&line) {
+                        eprintln!("{e}");
+                        continue;
+                    }
+
                     let request = tonic::Request::new(LaunchTaskRequest {
                         payload: Some(encode_and_sign(
                             LaunchTaskRequestPayload {
@@ -184,6 +191,8 @@ pub async fn handle_cmd(
                 //check the query is parsable
                 parse(&query)?;
                 let command = command.join(" ");
+
+                safeguard_command(&command)?;
 
                 let request = tonic::Request::new(LaunchTaskRequest {
                     payload: Some(encode_and_sign(
@@ -498,4 +507,38 @@ fn colorize<'a, T: Iterator<Item = &'a String>>(collection: T, color: Color) -> 
         ret.truncate(ret.len() - 2);
     }
     ret
+}
+
+/// This will prompt something if an unsafe command is run from a terminal with a tty input
+///
+/// Unsafe means commands like 'reboot', 'rm'.
+///
+/// It will return an error if the user do not agree to run the command
+fn safeguard_command(command: &str) -> anyhow::Result<()> {
+    let Ok(parsed_commands) = shellish_parse::multiparse(
+        command,
+        ParseOptions::default(),
+        &["&&", "||", "&", "|", ";"],
+    ) else {
+        return Ok(());
+    };
+    for command in parsed_commands {
+        let Some(command) = command.0.get(0) else {
+            return Ok(());
+        };
+        if command.ends_with("reboot") || command.ends_with("rm") {
+            // unsafe command
+            let mut rl = DefaultEditor::new()?;
+            let prompt = format!("Do you really want to run unsafe command `{command}` (y/N)? ");
+            loop {
+                let line = rl.readline(&prompt)?;
+                if line.eq_ignore_ascii_case("y") || line.eq_ignore_ascii_case("yes") {
+                    return Ok(());
+                } else {
+                    return Err(anyhow!("Cancelled!"));
+                }
+            }
+        }
+    }
+    Ok(())
 }

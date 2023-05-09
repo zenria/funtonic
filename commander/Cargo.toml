@@ -28,3 +28,4 @@ prettytable-rs = "^0.10"
 serde = { version = "1.0", features = ["derive"] }
 rustyline="11"
 directories = "^5.0.0"
+shellish_parse = "2.2.0"

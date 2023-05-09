@@ -394,6 +394,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml 0.9.21",
+ "shellish_parse",
  "thiserror",
  "tracing",
  "tracing-log",
@@ -2386,6 +2387,12 @@ checksum = "7ccc8076840c4da029af4f87e4e8daeb0fca6b87bbb02e10cb60b791450e11e4"
 dependencies = [
  "dirs",
 ]
+
+[[package]]
+name = "shellish_parse"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4c29b912ad681a28566f37b936bba1f3580a93b9391c4a0b12cb1c6b4ed79973"
 
 [[package]]
 name = "signal-hook-registry"
