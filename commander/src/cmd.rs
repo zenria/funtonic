@@ -526,7 +526,7 @@ fn safeguard_command(command: &str) -> anyhow::Result<()> {
         let Some(command) = command.0.get(0) else {
             return Ok(());
         };
-        if command.ends_with("reboot") || command.ends_with("rm") {
+        if command.ends_with("reboot") || command.ends_with("rm") || command.ends_with("halt") {
             // unsafe command
             let mut rl = DefaultEditor::new()?;
             let prompt = format!("Do you really want to run unsafe command `{command}` (y/N)? ");
