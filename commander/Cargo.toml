@@ -26,6 +26,6 @@ serde_json = "1.0"
 serde_yaml="0.9"
 prettytable-rs = "^0.10"
 serde = { version = "1.0", features = ["derive"] }
-rustyline="11"
+rustyline="12"
 directories = "^5.0.0"
 shellish_parse = "2.2.0"
