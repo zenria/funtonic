@@ -1,31 +1,31 @@
 [package]
 name = "commander"
-version = "0.22.4"
+version = "0.21.5"
 authors = ["Philippe GASSMANN <philoops@gmail.com>"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-query-parser = {path="../query-parser"}
-grpc-service = {path="../grpc-service"}
-funtonic = {path="../common"}
-clap={version="4", features=["derive"]}
-thiserror="1"
-tracing-subscriber={version="0.3", features=["env-filter"]}
-anyhow="1"
-tracing="0.1"
-tracing-log="0.1"
-log="0.4"
-http="0.2"
+query-parser = { path = "../query-parser" }
+grpc-service = { path = "../grpc-service" }
+funtonic = { path = "../common" }
+clap = { version = "4", features = ["derive"] }
+thiserror = "1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1"
+tracing = "0.1"
+tracing-log = "0.1"
+log = "0.4"
+http = "0.2"
 futures = "0.3"
 colored = "2"
 indicatif = "0.17"
 atty = "0.2"
 serde_json = "1.0"
-serde_yaml="0.9"
+serde_yaml = "0.9"
 prettytable-rs = "^0.10"
 serde = { version = "1.0", features = ["derive"] }
-rustyline="12"
+rustyline = "12"
 directories = "^5.0.0"
 shellish_parse = "2.2.0"

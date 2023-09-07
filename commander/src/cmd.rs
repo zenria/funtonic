@@ -527,6 +527,10 @@ fn safeguard_command(command: &str) -> anyhow::Result<()> {
             return Ok(());
         };
         if command.ends_with("reboot") || command.ends_with("rm") || command.ends_with("halt") {
+            if atty::isnt(Stream::Stdin) {
+                eprintln!("stdin not a tty, running unsafe command {command} anyway!");
+                return Ok(());
+            }
             // unsafe command
             let mut rl = DefaultEditor::new()?;
             let prompt = format!("Do you really want to run unsafe command `{command}` (y/N)? ");
