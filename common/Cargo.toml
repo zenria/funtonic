@@ -1,6 +1,6 @@
 [package]
 name = "funtonic"
-version = "0.21.3"
+version = "0.21.4"
 authors = ["Philippe GASSMANN <philoops@gmail.com>"]
 edition = "2018"
 
@@ -9,32 +9,35 @@ edition = "2018"
 [dependencies]
 rand = "0.8"
 
-tokio = {version="1", features=["full"]}
-futures="0.3"
-async-stream ="0.3"
-crossbeam="0.8"
-itertools = "0.11"
-log="0.4"
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+async-stream = "0.3"
+crossbeam = "0.8"
+itertools = "0.12"
+log = "0.4"
 serde = { version = "1.0", features = ["derive"] }
-serde_yaml="0.9"
-serde_json="1.0"
+serde_yaml = "0.9"
+serde_json = "1.0"
 structopt = "0.3"
 shellexpand = "3.1"
 thiserror = "1.0"
 anyhow = "1.0"
-http="0.2"
+http = "0.2"
 os_info = "3.2"
-rustbreak = {git="https://github.com/zenria/rustbreak.git", branch="remove_failure", features=["yaml_enc", "ron_enc"]}
-query-parser = {path="../query-parser"}
-grpc-service = {path="../grpc-service"}
-exec={path="../exec"}
-ring="0.16"
+rustbreak = { git = "https://github.com/zenria/rustbreak.git", branch = "remove_failure", features = [
+    "yaml_enc",
+    "ron_enc",
+] }
+query-parser = { path = "../query-parser" }
+grpc-service = { path = "../grpc-service" }
+exec = { path = "../exec" }
+ring = "0.17"
 chrono = "0.4"
-data-encoding="2.3"
+data-encoding = "2.3"
 bytes = "1"
 get_if_addrs = "0.5"
 
 [dev-dependencies]
 tempfile = "3"
 # required for testing ; importing grpc_service::prost won't work for an obscure proc macro related reason
-prost="0.11"
+prost = "0.12"
