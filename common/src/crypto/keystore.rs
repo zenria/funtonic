@@ -182,7 +182,7 @@ pub fn file_keystore<P: AsRef<Path>>(
 ) -> Result<KeyStore<FileKeyStoreBackend>, KeyStoreError> {
     let path: &Path = path.as_ref();
     let initialize_db = !path.exists();
-    let db = FileDatabase::<_, Yaml>::from_path(path, Default::default())?;
+    let db = FileDatabase::<_, Yaml>::load_from_path_or_default(path)?;
     if initialize_db {
         db.save()?;
     } else {

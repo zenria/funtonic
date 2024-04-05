@@ -93,7 +93,7 @@ impl TaskServer {
             empty.write("---\n{}".as_bytes())?;
         }
 
-        let db = FileDatabase::from_path(database_path, Default::default())?;
+        let db = FileDatabase::load_from_path_or_default(database_path)?;
         db.load()?;
         Ok(TaskServer {
             executors: Arc::new(Mutex::new(HashMap::new())),
