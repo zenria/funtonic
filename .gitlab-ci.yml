@@ -8,6 +8,8 @@ before_script:
   - pwd
   - export PATH=$(pwd)/cmake-3.23.2-linux-x86_64/bin:$PATH
   - cmake --version
+ # shame i need to do this 
+  - rustup update
 
 stages:
   - build
