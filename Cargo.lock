@@ -474,7 +474,7 @@ dependencies = [
 
 [[package]]
 name = "commander"
-version = "0.21.5"
+version = "0.21.6"
 dependencies = [
  "anyhow",
  "atty",
@@ -775,7 +775,7 @@ dependencies = [
 
 [[package]]
 name = "executor"
-version = "0.21.2"
+version = "0.21.6"
 dependencies = [
  "anyhow",
  "exec",
@@ -865,7 +865,7 @@ checksum = "42703706b716c37f96a77aea830392ad231f44c9e9a67872fa5548707e11b11c"
 
 [[package]]
 name = "funtonic"
-version = "0.21.4"
+version = "0.21.6"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -1055,7 +1055,7 @@ checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
 
 [[package]]
 name = "grpc-service"
-version = "0.19.1"
+version = "0.19.2"
 dependencies = [
  "async-stream",
  "bytes",
