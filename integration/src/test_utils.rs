@@ -113,7 +113,11 @@ pub fn executor_config(
         },
         client_id: "exec".to_string(),
         tags: Default::default(),
-        server_url: format!("http://127.0.0.1:{}", port),
+        server_url: format!(
+            "http{}://127.0.0.1:{}",
+            if with_tls { "s" } else { "" },
+            port
+        ),
         authorized_keys,
     }
 }
@@ -151,7 +155,11 @@ pub fn commander_config(port: u16, with_tls: bool, ed25519_key: ED25519Key) -> C
         } else {
             None
         },
-        server_url: format!("http://127.0.0.1:{}", port),
+        server_url: format!(
+            "http{}://127.0.0.1:{}",
+            if with_tls { "s" } else { "" },
+            port
+        ),
         ed25519_key,
     }
 }

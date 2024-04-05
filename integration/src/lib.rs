@@ -11,7 +11,7 @@ mod tests {
     use commander::commander_main;
     use funtonic::crypto::keygen::generate_base64_encoded_keys;
     use funtonic::tokio;
-    use log::LevelFilter;
+    use log::{info, LevelFilter};
     use std::sync::Once;
     use std::time::Duration;
     use taskserver::taskserver_main;
@@ -20,7 +20,11 @@ mod tests {
     static INIT_LOGGER: Once = Once::new();
 
     fn init_logger() {
-        INIT_LOGGER.call_once(|| env_logger::builder().filter_level(LevelFilter::Info).init())
+        INIT_LOGGER.call_once(|| {
+            env_logger::builder()
+                .filter_level(LevelFilter::Debug)
+                .init()
+        })
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -91,14 +95,14 @@ mod tests {
         .expect_err("Accessing tls server without tls must fail");
 
         // approve executor key
-        println!("List executor keys");
+        info!("List executor keys");
         commander_main(
             list_executors_keys_cmd(),
             commander_config(54011, true, priv_key.clone()),
         )
         .await
         .expect("Cannot list executor keys");
-        println!("Approve executor key");
+        info!("Approve executor key");
         commander_main(
             approve_key_executor_cmd(),
             commander_config(54011, true, priv_key.clone()),

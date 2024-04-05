@@ -15,4 +15,4 @@ thiserror = "1"
 
 [build-dependencies]
 tonic-build = "0.11"
-protobuf-src = "1.0.5+3.19.3"
+protobuf-src = "1.1.0"
