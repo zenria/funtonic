@@ -19,7 +19,8 @@ build:
     - rustup component add rustfmt
     - cargo build --all --all-targets --color=always --target=x86_64-unknown-linux-musl
     - RUST_BACKTRACE=1 cargo test --target=x86_64-unknown-linux-musl
-    - ldd target/x86_64-unknown-linux-musl/debug/binrep
+    - ldd target/x86_64-unknown-linux-musl/debug/executor
+    - ldd target/x86_64-unknown-linux-musl/debug/taskserver
 
 release:
   stage: build
