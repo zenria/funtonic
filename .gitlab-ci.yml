@@ -9,6 +9,9 @@ before_script:
   - export PATH=$(pwd)/cmake-3.23.2-linux-x86_64/bin:$PATH
   - cmake --version
 
+variables:
+  CARGO_BUILD_TARGET: x86_64-unknown-linux-musl
+
 stages:
   - build
   - deploy
@@ -17,8 +20,8 @@ build:
   stage: build
   script:
     - rustup component add rustfmt
-    - cargo build --all --all-targets --color=always --target=x86_64-unknown-linux-musl
-    - RUST_BACKTRACE=1 cargo test --target=x86_64-unknown-linux-musl
+    - cargo build --all --all-targets --color=always
+    - RUST_BACKTRACE=1 cargo test
     - ldd target/x86_64-unknown-linux-musl/debug/executor
     - ldd target/x86_64-unknown-linux-musl/debug/taskserver
 
@@ -28,5 +31,5 @@ release:
     - tags
   script:
     - rustup component add rustfmt
-    - cargo build --release --all --all-targets --color=always --target=x86_64-unknown-linux-musl
+    - cargo build --release --all --all-targets --color=always
     - binrep push funtonic $CI_COMMIT_TAG target/x86_64-unknown-linux-musl/release/executor target/x86_64-unknown-linux-musl/release/taskserver target/x86_64-unknown-linux-musl/release/commander
