@@ -777,7 +777,7 @@ dependencies = [
 
 [[package]]
 name = "executor"
-version = "0.21.6"
+version = "0.22.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -867,7 +867,7 @@ checksum = "42703706b716c37f96a77aea830392ad231f44c9e9a67872fa5548707e11b11c"
 
 [[package]]
 name = "funtonic"
-version = "0.21.6"
+version = "0.22.0"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -2144,7 +2144,7 @@ dependencies = [
 
 [[package]]
 name = "query-parser"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "nom 8.0.0",
  "nom-language",
@@ -2866,7 +2866,7 @@ dependencies = [
 
 [[package]]
 name = "taskserver"
-version = "0.21.2"
+version = "0.22.0"
 dependencies = [
  "anyhow",
  "clap",
