@@ -1,12 +1,12 @@
 #![allow(unused)]
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case, take_while, take_while1};
-use nom::character::is_alphanumeric;
 use nom::combinator::{complete, map, value};
-use nom::error::{ParseError, VerboseError};
+use nom::error::ParseError;
 use nom::multi::many1;
-use nom::sequence::{separated_pair, tuple};
+use nom::sequence::separated_pair;
 use nom::{Err, IResult};
+use nom_language::error::VerboseError;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -26,7 +26,7 @@ pub enum QueryParseError {
     UnrecognizedInput(String),
 }
 
-pub fn parse(i: &str) -> Result<Query, QueryParseError> {
+pub fn parse<'a>(i: &'a str) -> Result<Query<'a>, QueryParseError> {
     let ret = parse_raw::<VerboseError<&str>>(i);
     match ret {
         Err(e) => Err(QueryParseError::ParseError(format!("{:?}", e))),
@@ -239,7 +239,6 @@ impl<Q: QueryMatcher> QueryMatcher for Vec<Q> {
 mod tests {
     use crate::MatchResult::{Match, NoMatch, Rejected};
     use crate::{parse, QueryMatcher};
-    use nom::error::VerboseError;
     use std::collections::HashMap;
 
     #[test]

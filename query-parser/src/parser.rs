@@ -2,11 +2,10 @@ use super::Query as RawQuery;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, tag_no_case, take_while, take_while1};
 use nom::character::complete::{char, multispace1};
-use nom::character::is_alphanumeric;
 use nom::combinator::{complete, map, value};
 use nom::error::ParseError;
-use nom::sequence::{delimited, pair, preceded, separated_pair, terminated, tuple};
-use nom::{Err, IResult};
+use nom::sequence::{delimited, pair, preceded, separated_pair, terminated};
+use nom::{Err, IResult, Parser};
 
 impl<'a> RawQuery<'a> {
     /// RawQuery::Text variant builder
@@ -29,7 +28,7 @@ pub fn parse_raw<'a, E: ParseError<&'a str>>(
     i: &'a str,
 ) -> Result<(&'a str, RawQuery<'a>), Err<E>> {
     //parse_query(i)
-    complete(parser_ng::expression)(i)
+    complete(parser_ng::expression).parse(i)
 }
 
 const SPACES: &'static str = " \t\r\n";
@@ -40,15 +39,12 @@ mod parser_ng {
     use nom::{
         branch::alt,
         bytes::complete::{is_not, tag, tag_no_case, take_while1},
-        character::{
-            complete::{alphanumeric1, char, digit1, multispace0, multispace1},
-            is_alphanumeric,
-        },
+        character::complete::{alphanumeric1, char, digit1, multispace0, multispace1},
         combinator::map,
         error::ParseError,
         multi::{separated_list0, separated_list1},
-        sequence::{delimited, preceded, separated_pair, terminated, tuple},
-        IResult, Parser,
+        sequence::{delimited, preceded, separated_pair, terminated},
+        AsChar, IResult, Parser,
     };
 
     /// main entry point
@@ -61,7 +57,7 @@ mod parser_ng {
     }
 
     fn or_tag<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, &'a str, E> {
-        alt((tag_no_case("or"), tag("||"), tag(",")))(input)
+        alt((tag_no_case("or"), tag("||"), tag(","))).parse(input)
     }
 
     /// Term "OR" Term
@@ -81,16 +77,17 @@ mod parser_ng {
                     RawQuery::Or(clauses)
                 }
             },
-        )(input)
+        )
+        .parse(input)
     }
 
     /// And | NotFactor
     fn term<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, RawQuery<'a>, E> {
-        alt((and, not_factor))(input)
+        alt((and, not_factor)).parse(input)
     }
 
     fn and_tags<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, &'a str, E> {
-        alt((tag_no_case("and"), tag("&&")))(input)
+        alt((tag_no_case("and"), tag("&&"))).parse(input)
     }
 
     /// NotFactor "AND" NotFactor
@@ -110,11 +107,12 @@ mod parser_ng {
                     RawQuery::And(clauses)
                 }
             },
-        )(input)
+        )
+        .parse(input)
     }
 
     fn not_tags<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, &'a str, E> {
-        alt((tag_no_case("not"), tag("!")))(input)
+        alt((tag_no_case("not"), tag("!"))).parse(input)
     }
 
     // "NOT" Factor | Factor
@@ -124,12 +122,13 @@ mod parser_ng {
             preceded(terminated(tag("!"), multispace0), factor).map(RawQuery::not),
             preceded(not_tags, parens).map(RawQuery::not),
             factor,
-        ))(input)
+        ))
+        .parse(input)
     }
 
     /// Parens | Query
-    fn factor<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, RawQuery, E> {
-        alt((parens, query))(input)
+    fn factor<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, RawQuery<'a>, E> {
+        alt((parens, query)).parse(input)
     }
 
     /// "(" RawQueryession ")"
@@ -138,7 +137,8 @@ mod parser_ng {
             terminated(char('('), multispace0),
             expression,
             terminated(char(')'), multispace0),
-        )(input)
+        )
+        .parse(input)
     }
 
     /// FieldText | Quoted | Word | Wildcard
@@ -148,11 +148,12 @@ mod parser_ng {
             field_text,
             quoted.map(RawQuery::Pattern),
             word.map(RawQuery::Pattern),
-        ))(input)
+        ))
+        .parse(input)
     }
 
     fn field_name<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, &'a str, E> {
-        take_while1(|c| is_alphanumeric(c as u8) || SPECIAL_AUTHORIZED_CHARS.contains(c))(input)
+        take_while1(|c| AsChar::is_alphanum(c as u8) || SPECIAL_AUTHORIZED_CHARS.contains(c))(input)
     }
 
     /// alpha1 ":" (Expression)
@@ -160,28 +161,30 @@ mod parser_ng {
         map(
             separated_pair(field_name, char(':'), factor),
             |(field_name, expr)| RawQuery::field_pattern(field_name, expr),
-        )(input)
+        )
+        .parse(input)
     }
 
     /// Single word
     fn word<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, &'a str, E> {
-        terminated(is_not(" ():,&|"), multispace0)(input)
+        terminated(is_not(" ():,&|"), multispace0).parse(input)
     }
 
     fn quoted<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, &'a str, E> {
         // TODO proper escaping
-        terminated(delimited(char('"'), is_not("\""), char('"')), multispace0)(input)
+        terminated(delimited(char('"'), is_not("\""), char('"')), multispace0).parse(input)
     }
 
     fn wildcard<'a, E: ParseError<&'a str>>(input: &'a str) -> IResult<&'a str, RawQuery<'a>, E> {
-        map(terminated(char('*'), multispace0), |_| RawQuery::Wildcard)(input)
+        map(terminated(char('*'), multispace0), |_| RawQuery::Wildcard).parse(input)
     }
 }
 
 #[cfg(test)]
 mod test {
+    use nom_language::error::VerboseError;
+
     use crate::parser::{parse_raw, RawQuery};
-    use nom::error::VerboseError;
 
     #[test]
     fn test() {
