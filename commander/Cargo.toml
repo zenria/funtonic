@@ -23,10 +23,10 @@ serde_yaml = { workspace = true }
 futures = { workspace = true }
 http = { workspace = true }
 
-colored = "2"
-indicatif = "0.17"
-atty = "0.2"
-prettytable-rs = "^0.10"
-rustyline = "12"
-directories = "^5.0.0"
-shellish_parse = "2.2.0"
+colored = { workspace = true }
+indicatif = { workspace = true }
+atty = { workspace = true }
+prettytable-rs = { workspace = true }
+rustyline = { workspace = true }
+directories = { workspace = true }
+shellish_parse = { workspace = true }

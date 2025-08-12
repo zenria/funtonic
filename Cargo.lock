@@ -768,10 +768,9 @@ name = "exec"
 version = "0.4.0"
 dependencies = [
  "crossbeam",
- "env_logger",
  "futures",
  "log",
- "thiserror 1.0.69",
+ "thiserror 2.0.14",
  "tokio",
  "tokio-stream",
 ]

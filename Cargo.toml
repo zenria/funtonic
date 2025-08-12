@@ -57,3 +57,13 @@ tonic = { version = "0.11", features = ["tls"] }
 tonic-build = "0.11"
 prost = "0.12"
 protobuf-src = "1.1.0+21.5"
+
+
+# commander specific stuff
+colored = "2"
+indicatif = "0.17"
+atty = "0.2"
+prettytable-rs = "^0.10"
+rustyline = "12"
+directories = "^5.0.0"
+shellish_parse = "2.2.0"
