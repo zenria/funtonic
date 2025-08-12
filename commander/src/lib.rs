@@ -16,7 +16,6 @@ use std::fmt::{Display, Error, Formatter};
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Duration;
-use thiserror::Error;
 use tonic::transport::Channel;
 
 mod admin;

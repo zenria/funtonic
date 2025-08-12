@@ -10,7 +10,6 @@ use grpc_service::grpc_protocol::commander_service_server::CommanderServiceServe
 use grpc_service::grpc_protocol::executor_service_server::ExecutorServiceServer;
 use std::path::PathBuf;
 use std::time::Duration;
-use thiserror::Error;
 use tonic::transport::Server;
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
@@ -21,10 +20,6 @@ pub struct Opt {
     #[arg(short, long)]
     pub config: Option<PathBuf>,
 }
-
-#[derive(Error, Debug)]
-#[error("Missing field for server config!")]
-struct InvalidConfig;
 
 pub async fn taskserver_main(server_config: ServerConfig) -> anyhow::Result<()> {
     info!(

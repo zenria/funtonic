@@ -28,7 +28,6 @@ use std::error::Error;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Duration;
-use thiserror::Error;
 use tokio::sync::watch::Sender;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use tonic::metadata::AsciiMetadataValue;
