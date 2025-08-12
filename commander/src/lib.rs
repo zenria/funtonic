@@ -93,10 +93,6 @@ pub enum Utils {
     },
 }
 
-#[derive(Error, Debug)]
-#[error("Missing field for commander config!")]
-struct InvalidConfig;
-
 pub async fn commander_main(
     opt: Opt,
     commander_config: CommanderConfig,

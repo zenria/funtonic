@@ -44,10 +44,6 @@ pub struct Opt {
     pub config: Option<PathBuf>,
 }
 
-#[derive(Error, Debug)]
-#[error("Missing field for server config!")]
-struct InvalidConfig;
-
 #[derive(Debug, Clone, Copy)]
 enum LastConnectionStatus {
     Connecting,
