@@ -7,25 +7,26 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-query-parser = { path = "../query-parser" }
-grpc-service = { path = "../grpc-service" }
-funtonic = { path = "../common" }
-clap = { version = "4", features = ["derive"] }
-thiserror = "1"
+query-parser = { workspace = true }
+grpc-service = { workspace = true }
+funtonic = { workspace = true }
+clap = { workspace = true }
+thiserror = { workspace = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-anyhow = "1"
-tracing = "0.1"
-tracing-log = "0.1"
-log = "0.4"
+anyhow = { workspace = true }
+tracing = { workspace = true }
+tracing-log = { workspace = true }
+log = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+futures = { workspace = true }
+
 http = "0.2"
-futures = "0.3"
 colored = "2"
 indicatif = "0.17"
 atty = "0.2"
-serde_json = "1.0"
-serde_yaml = "0.9"
 prettytable-rs = "^0.10"
-serde = { version = "1.0", features = ["derive"] }
 rustyline = "12"
 directories = "^5.0.0"
 shellish_parse = "2.2.0"
