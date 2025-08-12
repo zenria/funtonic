@@ -33,13 +33,27 @@ serde_yaml = "0.9"
 futures = "0.3"
 native-tls = { version = "0.2", features = ["vendored"] }
 log4rs-gelf = "0.1.4"
-structopt = "0.3"
 http = "0.2"
 
 tokio = { version = "1", features = ["full"] }
 async-stream = "0.3"
 tokio-stream = "0.1"
-
 crossbeam = "0.8"
 itertools = "0.12"
 os_info = "3.2"
+rand = "0.8"
+shellexpand = "3"
+ring = "0.17"
+chrono = "0.4"
+data-encoding = "2.3"
+bytes = "1"
+get_if_addrs = "0.5"
+rustbreak = { version = "2", features = ["yaml_enc", "ron_enc"] }
+tempfile = "3"
+nom = "7"
+
+# tonic/grpc stuff
+tonic = { version = "0.11", features = ["tls"] }
+tonic-build = "0.11"
+prost = "0.12"
+protobuf-src = "1.1.0+21.5"

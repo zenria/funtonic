@@ -7,8 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-rand = "0.8"
-
+rand = { workspace = true }
 tokio = { workspace = true }
 futures = { workspace = true }
 async-stream = { workspace = true }
@@ -18,22 +17,22 @@ log = { workspace = true }
 serde = { workspace = true }
 serde_yaml = { workspace = true }
 serde_json = { workspace = true }
-shellexpand = "3.1"
+shellexpand = { workspace = true }
 thiserror = { workspace = true }
 anyhow = { workspace = true }
 http = { workspace = true }
 os_info = { workspace = true }
-rustbreak = { version = "2", features = ["yaml_enc", "ron_enc"] }
 query-parser = { workspace = true }
 grpc-service = { workspace = true }
 exec = { workspace = true }
-ring = "0.17"
-chrono = "0.4"
-data-encoding = "2.3"
-bytes = "1"
-get_if_addrs = "0.5"
+ring = { workspace = true }
+chrono = { workspace = true }
+data-encoding = { workspace = true }
+bytes = { workspace = true }
+get_if_addrs = { workspace = true }
+rustbreak = { workspace = true }
 
 [dev-dependencies]
-tempfile = "3"
+tempfile = { workspace = true }
 # required for testing ; importing grpc_service::prost won't work for an obscure proc macro related reason
-prost = "0.12"
+prost = { workspace = true }

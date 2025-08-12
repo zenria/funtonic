@@ -7,12 +7,12 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tonic = { version = "0.11", features = ["tls"] }
-prost = "0.12"
-async-stream = "0.3.2"
-bytes = "1"
+tonic = { workspace = true }
+prost = { workspace = true }
+async-stream = { workspace = true }
+bytes = { workspace = true }
 thiserror = { workspace = true }
 
 [build-dependencies]
-tonic-build = "0.11"
-protobuf-src = "1.1.0"
+tonic-build = { workspace = true }
+protobuf-src = { workspace = true }
