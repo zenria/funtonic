@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate log;
 
+use clap::Parser;
 use exec::a_sync;
 use exec::*;
 use funtonic::config::{ED25519Key, ExecutorConfig};
@@ -27,7 +28,6 @@ use std::error::Error;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Duration;
-use structopt::StructOpt;
 use thiserror::Error;
 use tokio::sync::watch::Sender;
 use tokio_stream::wrappers::UnboundedReceiverStream;
@@ -37,10 +37,10 @@ use tonic::Request;
 
 pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
-#[derive(StructOpt, Debug)]
-#[structopt(name = "Funtonic executor")]
+#[derive(Parser, Debug)]
+#[command(name = "Funtonic executor")]
 pub struct Opt {
-    #[structopt(short, long, parse(from_os_str))]
+    #[arg(short, long)]
     pub config: Option<PathBuf>,
 }
 

@@ -21,8 +21,8 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
 futures = { workspace = true }
+http = { workspace = true }
 
-http = "0.2"
 colored = "2"
 indicatif = "0.17"
 atty = "0.2"

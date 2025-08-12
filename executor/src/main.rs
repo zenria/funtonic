@@ -1,3 +1,4 @@
+use clap::Parser;
 use executor::{executor_main, Opt};
 use funtonic::config;
 use funtonic::config::ExecutorConfig;
@@ -6,7 +7,6 @@ use funtonic::tokio;
 use log::{error, info, warn};
 use std::fs::File;
 use std::path::{Path, PathBuf};
-use structopt::StructOpt;
 use tokio::time::Duration;
 
 const LOG4RS_CONFIG: &'static str = "/etc/funtonic/executor-log4rs.yaml";
@@ -19,7 +19,7 @@ async fn main() -> Result<(), anyhow::Error> {
         log4rs_gelf::init_file("executor/assets/log4rs.yaml", None)
             .expect("Cannot open executor/assets/log4rs.yaml");
     });
-    let opt = Opt::from_args();
+    let opt = Opt::parse();
     loop {
         let (config, config_path) =
             config::parse::<_, _, ExecutorConfig>(&opt.config, "executor.yml")?;

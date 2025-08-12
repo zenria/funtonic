@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate log;
 
+use clap::Parser;
 use funtonic::config::ServerConfig;
 use funtonic::file_utils::mkdirs;
 use funtonic::task_server::TaskServer;
@@ -9,16 +10,15 @@ use grpc_service::grpc_protocol::commander_service_server::CommanderServiceServe
 use grpc_service::grpc_protocol::executor_service_server::ExecutorServiceServer;
 use std::path::PathBuf;
 use std::time::Duration;
-use structopt::StructOpt;
 use thiserror::Error;
 use tonic::transport::Server;
 
 const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
-#[derive(StructOpt, Debug)]
-#[structopt(name = "Funtonic taskserver")]
+#[derive(Parser, Debug)]
+#[command(name = "Funtonic taskserver")]
 pub struct Opt {
-    #[structopt(short, long, parse(from_os_str))]
+    #[arg(short, long)]
     pub config: Option<PathBuf>,
 }
 

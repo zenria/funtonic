@@ -16,4 +16,4 @@ log = { workspace = true }
 futures = { workspace = true }
 native-tls = { workspace = true }
 log4rs-gelf = { workspace = true }
-structopt = { workspace = true }
+clap = { workspace = true }

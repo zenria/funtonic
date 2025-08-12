@@ -18,8 +18,8 @@ exec = { workspace = true }
 serde_yaml = { workspace = true }
 log4rs-gelf = { workspace = true }
 native-tls = { workspace = true }
-structopt = { workspace = true }
+clap = { workspace = true }
 
-tokio-stream = "0.1"
-http = "0.2"
-os_info = "3.2"
+tokio-stream = { workspace = true }
+http = { workspace = true }
+os_info = { workspace = true }

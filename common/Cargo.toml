@@ -9,25 +9,24 @@ edition = "2018"
 [dependencies]
 rand = "0.8"
 
-tokio = { version = "1", features = ["full"] }
-futures = "0.3"
-async-stream = "0.3"
-crossbeam = "0.8"
-itertools = "0.12"
-log = "0.4"
-serde = { version = "1.0", features = ["derive"] }
-serde_yaml = "0.9"
-serde_json = "1.0"
-structopt = "0.3"
+tokio = { workspace = true }
+futures = { workspace = true }
+async-stream = { workspace = true }
+crossbeam = { workspace = true }
+itertools = { workspace = true }
+log = { workspace = true }
+serde = { workspace = true }
+serde_yaml = { workspace = true }
+serde_json = { workspace = true }
 shellexpand = "3.1"
-thiserror = "1.0"
-anyhow = "1.0"
-http = "0.2"
-os_info = "3.2"
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+http = { workspace = true }
+os_info = { workspace = true }
 rustbreak = { version = "2", features = ["yaml_enc", "ron_enc"] }
-query-parser = { path = "../query-parser" }
-grpc-service = { path = "../grpc-service" }
-exec = { path = "../exec" }
+query-parser = { workspace = true }
+grpc-service = { workspace = true }
+exec = { workspace = true }
 ring = "0.17"
 chrono = "0.4"
 data-encoding = "2.3"
