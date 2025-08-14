@@ -60,7 +60,7 @@ impl CommanderService for TaskServer {
         match task {
             Task::AuthorizeKey(_) | Task::RevokeKey(_) => {
                 self.authorized_admin_keys
-                    .decode_payload(signed_payload)
+                    .decode_payload::<()>(signed_payload)
                     .map_err(|e| {
                         error!(
                             "Tried to manipulate keys on executor with an non admin key: {}. {e}",
