@@ -33,7 +33,7 @@ serde_yaml = "0.9"
 futures = "0.3"
 native-tls = { version = "0.2", features = ["vendored"] }
 log4rs-gelf = "0.1.4"
-http = "0.2"
+http = "1"
 
 tokio = { version = "1", features = ["full"] }
 async-stream = "0.3"
@@ -54,11 +54,12 @@ nom = "8"
 nom-language = "0.1"
 
 # tonic/grpc stuff
-tonic = { version = "0.11", features = ["tls"] }
-tonic-build = "0.11"
-prost = "0.12"
+tonic = { version = "0.14.1", features = ["tls-aws-lc"] }
+tonic-build = "0.14.1"
+prost = "0.14.1"
 protobuf-src = "1.1.0+21.5"
-
+tonic-prost-build = "0.14.1"
+tonic-prost = "0.14.1"
 
 # commander specific stuff
 colored = "2"

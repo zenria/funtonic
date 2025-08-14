@@ -9,10 +9,11 @@ edition = "2021"
 [dependencies]
 tonic = { workspace = true }
 prost = { workspace = true }
+tonic-prost = { workspace = true }
 async-stream = { workspace = true }
 bytes = { workspace = true }
 thiserror = { workspace = true }
 
 [build-dependencies]
-tonic-build = { workspace = true }
+tonic-prost-build = { workspace = true }
 protobuf-src = { workspace = true }
