@@ -14,6 +14,8 @@ pub fn run_cmd_opt(query: &str, command: &str) -> commander::Opt {
                 group: false,
                 no_progress: false,
                 no_std_process_return: true,
+                json: Default::default(),
+                json_mode: Default::default(),
             },
             query: query.to_string(),
             command: vec![command.into()],
@@ -30,6 +32,8 @@ pub fn authorize_key_cmd_opt(query: &str, key_id: &str, key: &str) -> commander:
                 group: false,
                 no_progress: false,
                 no_std_process_return: true,
+                json: Default::default(),
+                json_mode: Default::default(),
             },
             query: query.to_string(),
 
@@ -50,6 +54,8 @@ pub fn revoke_key_cmd_opt(query: &str, key_id: &str) -> commander::Opt {
                 group: false,
                 no_progress: false,
                 no_std_process_return: true,
+                json: Default::default(),
+                json_mode: Default::default(),
             },
             query: query.to_string(),
 

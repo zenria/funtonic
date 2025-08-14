@@ -20,6 +20,7 @@ use tonic::transport::Channel;
 
 mod admin;
 pub mod cmd;
+mod json;
 
 #[derive(Eq, Ord, PartialOrd, PartialEq, Hash, Debug)]
 pub enum ExecutorState {

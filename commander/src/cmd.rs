@@ -1,7 +1,8 @@
+use crate::json::JsonCollector;
 use crate::{CommanderSyntheticOutput, ExecutorState};
 use anyhow::{anyhow, Context};
 use atty::Stream;
-use clap::{Args, Subcommand};
+use clap::{Args, Subcommand, ValueEnum};
 use colored::{Color, Colorize};
 use directories::ProjectDirs;
 use funtonic::config::CommanderConfig;
@@ -32,6 +33,11 @@ pub struct CommandOptions {
     /// Raw output, remote stderr/out will be printed as soon at they arrive without any other information
     #[arg(short = 'r', long = "raw")]
     pub raw: bool,
+    /// Output exec result as json. Keys are hosts, value is stdout.
+    #[arg(short, long)]
+    pub json: bool,
+    #[arg(long, default_value = "escape-separate")]
+    pub json_mode: JsonMode,
     /// Group output by executor instead displaying a live stream of all executor outputs
     #[arg(short = 'g', long = "group")]
     pub group: bool,
@@ -41,6 +47,17 @@ pub struct CommandOptions {
     /// testing opt
     #[arg(long = "no_std_process_return")]
     pub no_std_process_return: bool,
+}
+
+#[derive(ValueEnum, Debug, Clone, Copy, Default)]
+pub enum JsonMode {
+    /// includes both stdout & stderr as string into a json object `{"stdout": "...", "stderr": "..."}`
+    #[default]
+    EscapeSeparate,
+    /// includes both stdout & stderr as string into a single string
+    EscapeMerge,
+    /// treat stdout as a valid json object, ignores stderr (stderr will be FW to stderr)
+    StdoutJson,
 }
 
 #[derive(Subcommand, Debug)]
@@ -269,6 +286,8 @@ pub async fn do_handle_cmd(
         group,
         no_progress,
         no_std_process_return,
+        json,
+        json_mode,
     } = options;
 
     let mut response = client.launch_task(request).await?.into_inner();
@@ -277,6 +296,8 @@ pub async fn do_handle_cmd(
 
     // output by executor
     let mut executors_output = HashMap::new();
+
+    let mut json_collector = JsonCollector::new(json_mode);
 
     let mut pb: Option<ProgressBar> = None;
 
@@ -290,7 +311,7 @@ pub async fn do_handle_cmd(
                 if !raw {
                     let executors_string = e.client_id.join(", ");
                     if no_progress || !atty::is(Stream::Stdout) {
-                        println!("Matching executors: {}", executors_string);
+                        eprintln!("Matching executors: {}", executors_string);
                     } else {
                         let progress = ProgressBar::new(e.client_id.len() as u64);
                         progress.println(format!("Matching executors: {}", executors_string));
@@ -416,7 +437,16 @@ pub async fn do_handle_cmd(
                     }
                     ExecutionResult::TaskOutput(output) => {
                         if let Some(output) = output.output.as_ref() {
-                            if raw {
+                            if json {
+                                match output {
+                                    Output::Stdout(d) => {
+                                        json_collector.collect_stdout(&client_id, d.clone())
+                                    }
+                                    Output::Stderr(d) => {
+                                        json_collector.collect_stderr(&client_id, d.clone())
+                                    }
+                                }
+                            } else if raw {
                                 match output {
                                     Output::Stdout(o) => println!("{}", o),
                                     Output::Stderr(e) => eprintln!("{}", e),
@@ -485,8 +515,11 @@ pub async fn do_handle_cmd(
     }
     if !raw {
         for (state, client_ids) in &states {
-            println!("{}: {}", state, colorize(client_ids.iter(), state.color()));
+            eprintln!("{}: {}", state, colorize(client_ids.iter(), state.color()));
         }
+    }
+    if json {
+        println!("{}", json_collector.into_json().to_string())
     }
     if no_std_process_return {
         Ok(CommanderSyntheticOutput::Executor {
