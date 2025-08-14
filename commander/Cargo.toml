@@ -1,6 +1,6 @@
 [package]
 name = "commander"
-version = "0.21.6"
+version = "0.22.0"
 authors = ["Philippe GASSMANN <philoops@gmail.com>"]
 edition = "2021"
 
