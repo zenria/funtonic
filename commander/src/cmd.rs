@@ -295,7 +295,7 @@ pub async fn do_handle_cmd(
     let mut executors = HashMap::new();
 
     // output by executor
-    let mut executors_output = HashMap::new();
+    let mut executors_output: HashMap<String, Vec<String>> = HashMap::new();
 
     let mut json_collector = JsonCollector::new(json_mode);
 

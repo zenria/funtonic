@@ -279,6 +279,6 @@ type Stream<T> =
     Pin<Box<dyn futures::Stream<Item = std::result::Result<T, Status>> + Send + Sync + 'static>>;
 
 fn random_task_id() -> String {
-    let id: u128 = rand::thread_rng().gen();
+    let id: u128 = rand::rng().random();
     format!("{:x}", id)
 }
