@@ -1,6 +1,6 @@
 [package]
 name = "taskserver"
-version = "0.22.1"
+version = "0.22.2"
 authors = ["Philippe GASSMANN <philoops@gmail.com>"]
 edition = "2021"
 
