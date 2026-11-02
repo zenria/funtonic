@@ -82,7 +82,10 @@ impl ExecutorService for TaskServer {
         let response_stream = receiver.map(move |(payload, sender_to_commander)| {
             // for each new task, register the task and forward it to the executor stream
             let task_id = register_new_task(&tasks_sinks, sender_to_commander);
-            info!("Sending task {} - {:?} to {}", task_id, payload, client_id);
+            info!(
+                "Sending task {} signed by {} to {}",
+                task_id, payload.key_id, client_id
+            );
             Ok(GetTaskStreamReply {
                 task_id,
                 payload: Some(payload),

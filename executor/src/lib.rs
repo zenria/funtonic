@@ -10,8 +10,8 @@ use funtonic::crypto::signed_payload::encode_and_sign;
 use funtonic::error::format_error;
 use funtonic::executor_meta::{ExecutorMeta, Tag};
 use funtonic::tonic;
-use funtonic::PROTOCOL_VERSION;
 use funtonic::{data_encoding, tokio};
+use funtonic::{MAX_MESSAGE_SIZE, PROTOCOL_VERSION};
 use futures::StreamExt;
 use grpc_service::grpc_protocol::executor_service_client::ExecutorServiceClient;
 use grpc_service::grpc_protocol::launch_task_request_payload::Task;
@@ -19,7 +19,7 @@ use grpc_service::grpc_protocol::task_execution_result::ExecutionResult;
 use grpc_service::grpc_protocol::task_output::Output;
 use grpc_service::grpc_protocol::{
     Empty, ExecuteCommand, GetTasksRequest, LaunchTaskRequestPayload, RegisterExecutorRequest,
-    TaskCompleted, TaskExecutionResult, TaskOutput,
+    TaskCompleted, TaskExecutionResult, TaskOutput, UploadFiles,
 };
 use http::Uri;
 use std::collections::HashMap;
@@ -33,6 +33,8 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 use tonic::metadata::AsciiMetadataValue;
 use tonic::transport::{Channel, Endpoint};
 use tonic::Request;
+
+mod upload;
 
 pub const VERSION: &'static str = env!("CARGO_PKG_VERSION");
 
@@ -156,7 +158,8 @@ async fn do_executor_main<B: KeyStoreBackend>(
     let channel = endpoint.connect().await?;
     last_connection_status_sender.send(LastConnectionStatus::Connected)?;
 
-    let mut client = ExecutorServiceClient::new(channel);
+    let mut client =
+        ExecutorServiceClient::new(channel).max_decoding_message_size(MAX_MESSAGE_SIZE);
 
     info!("Connected");
 
@@ -192,6 +195,21 @@ async fn do_executor_main<B: KeyStoreBackend>(
                                 info!("Received task {} - {}", task_id, cmd.command);
                                 tokio::spawn(execute_task(
                                     cmd,
+                                    task_id,
+                                    client_id.clone(),
+                                    client.clone(),
+                                    signing_key.clone(),
+                                ));
+                            }
+                            Task::UploadFiles(upload) => {
+                                info!(
+                                    "Received task {} - upload of {} file(s) to {}",
+                                    task_id,
+                                    upload.files.len(),
+                                    upload.destination
+                                );
+                                tokio::spawn(upload_task(
+                                    upload,
                                     task_id,
                                     client_id.clone(),
                                     client.clone(),
@@ -291,21 +309,67 @@ async fn single_execution_result(
     signing_key: &ED25519Key,
     client: &mut ExecutorServiceClient<Channel>,
 ) -> anyhow::Result<()> {
-    let stream = futures::stream::once(futures::future::ready(encode_and_sign(
-        TaskExecutionResult {
-            task_id: task_id.to_string(),
-            client_id: client_id.to_string(),
-            execution_result: Some(result),
-        },
-        &signing_key,
-        Duration::from_secs(60),
-    )?));
-    let mut request = Request::new(stream);
+    send_execution_results(vec![result], client_id, task_id, signing_key, client).await
+}
+
+/// Sign and send a finite list of execution results for a task
+async fn send_execution_results(
+    results: Vec<ExecutionResult>,
+    client_id: &str,
+    task_id: &str,
+    signing_key: &ED25519Key,
+    client: &mut ExecutorServiceClient<Channel>,
+) -> anyhow::Result<()> {
+    let payloads = results
+        .into_iter()
+        .map(|result| {
+            encode_and_sign(
+                TaskExecutionResult {
+                    task_id: task_id.to_string(),
+                    client_id: client_id.to_string(),
+                    execution_result: Some(result),
+                },
+                signing_key,
+                Duration::from_secs(60),
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut request = Request::new(futures::stream::iter(payloads));
     request
         .metadata_mut()
         .insert("task_id", AsciiMetadataValue::try_from(task_id.as_bytes())?);
     client.task_execution(request).await?;
     Ok(())
+}
+
+async fn upload_task(
+    upload: UploadFiles,
+    task_id: String,
+    client_id: String,
+    mut client: ExecutorServiceClient<Channel>,
+    signing_key: ED25519Key,
+) {
+    let result = async {
+        let report = tokio::task::spawn_blocking(move || upload::upload_files(&upload)).await?;
+        let return_code = if report.success { 0 } else { 1 };
+        let results = report
+            .lines
+            .into_iter()
+            .map(|output| {
+                ExecutionResult::TaskOutput(TaskOutput {
+                    output: Some(output),
+                })
+            })
+            .chain(std::iter::once(ExecutionResult::TaskCompleted(
+                TaskCompleted { return_code },
+            )))
+            .collect();
+        send_execution_results(results, &client_id, &task_id, &signing_key, &mut client).await
+    };
+    match result.await {
+        Ok(()) => info!("Finished upload task {}", task_id),
+        Err(e) => error!("Something wrong happened while uploading files {}", e),
+    }
 }
 
 async fn execute_task(

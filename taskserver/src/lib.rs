@@ -6,6 +6,7 @@ use funtonic::config::ServerConfig;
 use funtonic::file_utils::mkdirs;
 use funtonic::task_server::TaskServer;
 use funtonic::tonic;
+use funtonic::MAX_MESSAGE_SIZE;
 use grpc_service::grpc_protocol::commander_service_server::CommanderServiceServer;
 use grpc_service::grpc_protocol::executor_service_server::ExecutorServiceServer;
 use std::path::PathBuf;
@@ -47,8 +48,13 @@ pub async fn taskserver_main(server_config: ServerConfig) -> anyhow::Result<()> 
     task_server.start_heartbeat();
 
     server
-        .add_service(ExecutorServiceServer::new(task_server.clone()))
-        .add_service(CommanderServiceServer::new(task_server))
+        .add_service(
+            ExecutorServiceServer::new(task_server.clone())
+                .max_decoding_message_size(MAX_MESSAGE_SIZE),
+        )
+        .add_service(
+            CommanderServiceServer::new(task_server).max_decoding_message_size(MAX_MESSAGE_SIZE),
+        )
         .serve(addr)
         .await?;
 

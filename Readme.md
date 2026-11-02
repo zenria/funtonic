@@ -38,3 +38,23 @@ Commander           Taskserver              Executor
    <- LaunchTaskResponse +<-- TaskExecution ---|
 
 ```
+
+## File upload
+
+```sh
+commander upload [--no-diff] <query> <files>... <dest>
+```
+
+Like `scp`, the last argument is the remote destination. It must be an absolute path. If it is an existing directory,
+files are written inside it. Otherwise (a single file only), it is the path of the written file. Missing parent
+directories are not created.
+
+Files are written atomically (temporary file + rename). A replaced file keeps its mode and owner. A new file gets the
+mode of the local file.
+
+Each executor reports, for each file:
+- `new file: <path>` when the file did not exist
+- `unchanged: <path>` when the content is identical (the file is not rewritten)
+- a unified diff when both versions are text, or `updated: <path>` when `--no-diff` is used or the file is binary
+
+The output is always grouped by executor. The upload has to fit into a single gRPC message (64MiB).

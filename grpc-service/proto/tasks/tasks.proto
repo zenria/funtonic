@@ -105,7 +105,25 @@ message LaunchTaskRequestPayload {
     PublicKey authorizeKey=3;
     // Revoke a key
     string revokeKey=4;
+    // Upload files
+    UploadFiles uploadFiles=5;
   }
+}
+
+message UploadFiles {
+  // absolute remote path: an existing directory, or the target file path when a single file is uploaded
+  string destination = 1;
+  repeated UploadedFile files = 2;
+  // do not compute diffs of updated text files
+  bool noDiff = 3;
+}
+
+message UploadedFile {
+  // base file name (must not contain '/')
+  string name = 1;
+  bytes content = 2;
+  // unix permission bits of the local file, applied to newly created files
+  uint32 mode = 3;
 }
 
 message PublicKey {

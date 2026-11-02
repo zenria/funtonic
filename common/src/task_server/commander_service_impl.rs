@@ -82,6 +82,17 @@ impl CommanderService for TaskServer {
                 data_encoding::BASE64.encode(&key.key_bytes)
             ),
             Task::RevokeKey(key_id) => format!("RevokeKey: {}", key_id),
+            Task::UploadFiles(upload) => format!(
+                "UploadFiles: {} -> {} (no_diff: {})",
+                upload
+                    .files
+                    .iter()
+                    .map(|f| f.name.as_str())
+                    .collect::<Vec<_>>()
+                    .join(", "),
+                upload.destination,
+                upload.no_diff
+            ),
             Task::StreamingPayload(_) => {
                 return Err(Status::new(Code::Internal, "not implemented"))
             }

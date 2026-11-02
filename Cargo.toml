@@ -50,6 +50,7 @@ bytes = "1"
 get_if_addrs = "0.5"
 rustbreak = { version = "2", features = ["yaml_enc", "ron_enc"] }
 tempfile = "3"
+similar = "2"
 nom = "8"
 nom-language = "0.1"
 

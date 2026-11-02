@@ -6,12 +6,13 @@ mod tests {
     use crate::test_utils::{
         admin_cmd, approve_key_executor_cmd, assert_executor_error, assert_success_of_one_executor,
         authorize_key_cmd_opt, commander_config, executor_config, list_executors_keys_cmd,
-        loop_executor_main, revoke_key_cmd_opt, run_cmd_opt, taskserver_config,
+        loop_executor_main, revoke_key_cmd_opt, run_cmd_opt, taskserver_config, upload_cmd_opt,
     };
-    use commander::commander_main;
+    use commander::{commander_main, CommanderSyntheticOutput, ExecutorState};
     use funtonic::crypto::keygen::generate_base64_encoded_keys;
     use funtonic::tokio;
     use log::{info, LevelFilter};
+    use std::collections::{BTreeMap, BTreeSet};
     use std::sync::Once;
     use std::time::Duration;
     use taskserver::taskserver_main;
@@ -356,5 +357,144 @@ mod tests {
             .await
             .expect("Execution with new_key is accepted by the task server but rejected by the executor"),
         );
+    }
+
+    /// Unwrap the commander result of an executor command: states & buffered output of executor "exec"
+    fn upload_result(
+        res: CommanderSyntheticOutput,
+    ) -> (BTreeMap<ExecutorState, BTreeSet<String>>, Vec<String>) {
+        match res {
+            CommanderSyntheticOutput::Executor { states, mut output } => {
+                let lines = output.remove("exec").unwrap_or_default();
+                (states, lines)
+            }
+            other => panic!("Not an executor result: {other:?}"),
+        }
+    }
+
+    fn only_state(states: &BTreeMap<ExecutorState, BTreeSet<String>>) -> &ExecutorState {
+        assert_eq!(1, states.len(), "{states:?}");
+        states.keys().next().unwrap()
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn upload_test() {
+        init_logger();
+
+        let (priv_key, authorized_keys) = generate_base64_encoded_keys("tests");
+        let (executor_private_key, _) = generate_base64_encoded_keys("local_executor");
+
+        let taskserver_datadir = tempdir().unwrap();
+        tokio::spawn(taskserver_main(taskserver_config(
+            54013,
+            false,
+            authorized_keys.clone(),
+            authorized_keys.clone(),
+            &taskserver_datadir,
+        )));
+        tokio::spawn(loop_executor_main(
+            executor_config(54013, false, authorized_keys),
+            executor_private_key,
+        ));
+        std::thread::sleep(Duration::from_secs(2));
+        commander_main(
+            approve_key_executor_cmd(),
+            commander_config(54013, false, priv_key.clone()),
+        )
+        .await
+        .expect("Did not approve executor key");
+        std::thread::sleep(Duration::from_secs(2));
+
+        let local = tempdir().unwrap();
+        let remote = tempdir().unwrap();
+        let a = local.path().join("a.txt");
+        let b = local.path().join("b.bin");
+        let remote_a = remote.path().join("a.txt");
+
+        let upload = |files: &[&std::path::Path], dest: &std::path::Path, no_diff: bool| {
+            commander_main(
+                upload_cmd_opt("*", files, dest, no_diff),
+                commander_config(54013, false, priv_key.clone()),
+            )
+        };
+
+        // new file: no diff, just reported as new
+        std::fs::write(&a, "line1\nline2\n").unwrap();
+        let (states, lines) = upload_result(upload(&[&a], remote.path(), false).await.unwrap());
+        assert_eq!(&ExecutorState::Success, only_state(&states));
+        assert_eq!(
+            std::fs::read_to_string(&remote_a).unwrap(),
+            "line1\nline2\n"
+        );
+        assert!(
+            lines.iter().any(|l| l.starts_with("new file:")),
+            "{lines:?}"
+        );
+        assert!(!lines.iter().any(|l| l.starts_with("@@")), "{lines:?}");
+
+        // updated text file: a diff is reported
+        std::fs::write(&a, "line1\nCHANGED\n").unwrap();
+        let (states, lines) = upload_result(upload(&[&a], remote.path(), false).await.unwrap());
+        assert_eq!(&ExecutorState::Success, only_state(&states));
+        assert_eq!(
+            std::fs::read_to_string(&remote_a).unwrap(),
+            "line1\nCHANGED\n"
+        );
+        assert!(lines.iter().any(|l| l.starts_with("@@")), "{lines:?}");
+        assert!(lines.iter().any(|l| l == "-line2"), "{lines:?}");
+        assert!(lines.iter().any(|l| l == "+CHANGED"), "{lines:?}");
+
+        // same content again
+        let (states, lines) = upload_result(upload(&[&a], remote.path(), false).await.unwrap());
+        assert_eq!(&ExecutorState::Success, only_state(&states));
+        assert!(
+            lines.iter().any(|l| l.starts_with("unchanged:")),
+            "{lines:?}"
+        );
+
+        // diff disabled
+        std::fs::write(&a, "no diff\n").unwrap();
+        let (states, lines) = upload_result(upload(&[&a], remote.path(), true).await.unwrap());
+        assert_eq!(&ExecutorState::Success, only_state(&states));
+        assert_eq!(std::fs::read_to_string(&remote_a).unwrap(), "no diff\n");
+        assert!(lines.iter().any(|l| l.starts_with("updated:")), "{lines:?}");
+        assert!(
+            !lines
+                .iter()
+                .any(|l| l.starts_with("@@") || l.starts_with('+') || l.starts_with('-')),
+            "{lines:?}"
+        );
+
+        // several files, including a binary one
+        std::fs::write(&b, b"\0\x01\x02binary").unwrap();
+        let (states, _) = upload_result(upload(&[&a, &b], remote.path(), false).await.unwrap());
+        assert_eq!(&ExecutorState::Success, only_state(&states));
+        assert_eq!(
+            std::fs::read(remote.path().join("b.bin")).unwrap(),
+            b"\0\x01\x02binary"
+        );
+
+        // several files to a destination that is not a directory
+        let not_a_dir = remote.path().join("missing_dir").join("x");
+        let (states, _) = upload_result(upload(&[&a, &b], &not_a_dir, false).await.unwrap());
+        assert_eq!(&ExecutorState::Error, only_state(&states));
+        assert!(!remote.path().join("missing_dir").exists());
+
+        // no executor matches the query
+        let unmatched_dest = remote.path().join("unmatched.txt");
+        match commander_main(
+            upload_cmd_opt("does_not_exist", &[&a], &unmatched_dest, false),
+            commander_config(54013, false, priv_key.clone()),
+        )
+        .await
+        .expect("upload without matching executor must not fail")
+        {
+            CommanderSyntheticOutput::Executor { states, output } => {
+                assert!(states.is_empty(), "{states:?}");
+                assert!(output.is_empty(), "{output:?}");
+            }
+            other => panic!("Not an executor result: {other:?}"),
+        }
+        assert!(!unmatched_dest.exists());
     }
 }

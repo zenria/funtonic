@@ -19,6 +19,9 @@ pub const PROTOCOL_VERSION: &'static str = grpc_service::VERSION;
 
 pub const QUERY_PARSER_VERSION: &'static str = query_parser::VERSION;
 
+/// Maximum size of a decoded gRPC message (tonic defaults to 4MiB), large enough to upload files.
+pub const MAX_MESSAGE_SIZE: usize = 64 * 1024 * 1024;
+
 pub use grpc_service::prost;
 pub use grpc_service::tonic;
 pub use tokio;

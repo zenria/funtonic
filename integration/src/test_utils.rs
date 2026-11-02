@@ -1,4 +1,4 @@
-use commander::cmd::{CommandOptions, KeyCmd};
+use commander::cmd::{CommandOptions, KeyCmd, UploadOptions};
 use commander::{AdminCommandOuputMode, CommanderSyntheticOutput, ExecutorState};
 use executor::executor_main;
 use funtonic::config::{CommanderConfig, ED25519Key, ExecutorConfig, ServerConfig, TlsConfig};
@@ -10,15 +10,30 @@ pub fn run_cmd_opt(query: &str, command: &str) -> commander::Opt {
         config: None,
         command: commander::Command::Cmd(commander::cmd::Cmd::Run {
             options: CommandOptions {
-                raw: false,
-                group: false,
-                no_progress: false,
                 no_std_process_return: true,
-                json: Default::default(),
-                json_mode: Default::default(),
+                ..Default::default()
             },
             query: query.to_string(),
             command: vec![command.into()],
+        }),
+    }
+}
+
+pub fn upload_cmd_opt(query: &str, files: &[&Path], dest: &Path, no_diff: bool) -> commander::Opt {
+    commander::Opt {
+        config: None,
+        command: commander::Command::Cmd(commander::cmd::Cmd::Upload {
+            options: UploadOptions {
+                no_diff,
+                no_progress: true,
+                no_std_process_return: true,
+            },
+            query: query.to_string(),
+            files_and_dest: files
+                .iter()
+                .chain(std::iter::once(&dest))
+                .map(|path| path.to_string_lossy().into_owned())
+                .collect(),
         }),
     }
 }
@@ -28,12 +43,8 @@ pub fn authorize_key_cmd_opt(query: &str, key_id: &str, key: &str) -> commander:
         config: None,
         command: commander::Command::Cmd(commander::cmd::Cmd::Keys {
             options: CommandOptions {
-                raw: false,
-                group: false,
-                no_progress: false,
                 no_std_process_return: true,
-                json: Default::default(),
-                json_mode: Default::default(),
+                ..Default::default()
             },
             query: query.to_string(),
 
@@ -50,12 +61,8 @@ pub fn revoke_key_cmd_opt(query: &str, key_id: &str) -> commander::Opt {
         config: None,
         command: commander::Command::Cmd(commander::cmd::Cmd::Keys {
             options: CommandOptions {
-                raw: false,
-                group: false,
-                no_progress: false,
                 no_std_process_return: true,
-                json: Default::default(),
-                json_mode: Default::default(),
+                ..Default::default()
             },
             query: query.to_string(),
 

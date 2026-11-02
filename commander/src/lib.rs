@@ -7,7 +7,7 @@ use clap::{Parser, Subcommand};
 use colored::{Color, Colorize};
 use funtonic::config::{CommanderConfig, ED25519Key};
 use funtonic::crypto::keygen::generate_ed25519_key_pair;
-use funtonic::{data_encoding, tonic};
+use funtonic::{data_encoding, tonic, MAX_MESSAGE_SIZE};
 use grpc_service::grpc_protocol::commander_service_client::CommanderServiceClient;
 use http::Uri;
 use serde::{Deserialize, Serialize};
@@ -109,7 +109,7 @@ pub async fn commander_main(
         .await
         .context("Unable to connect to taskserver")?;
 
-    let client = CommanderServiceClient::new(channel);
+    let client = CommanderServiceClient::new(channel).max_decoding_message_size(MAX_MESSAGE_SIZE);
 
     info!("Connected");
 

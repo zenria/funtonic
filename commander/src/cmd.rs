@@ -1,6 +1,6 @@
 use crate::json::JsonCollector;
 use crate::{CommanderSyntheticOutput, ExecutorState};
-use anyhow::{anyhow, Context};
+use anyhow::{anyhow, bail, Context};
 use atty::Stream;
 use clap::{Args, Subcommand, ValueEnum};
 use colored::{Color, Colorize};
@@ -9,22 +9,25 @@ use funtonic::config::CommanderConfig;
 use funtonic::crypto::signed_payload::encode_and_sign;
 use funtonic::data_encoding;
 use funtonic::tonic::{self, Request};
+use funtonic::MAX_MESSAGE_SIZE;
 use grpc_service::grpc_protocol::commander_service_client::CommanderServiceClient;
 use grpc_service::grpc_protocol::launch_task_request_payload::Task;
 use grpc_service::grpc_protocol::launch_task_response::TaskResponse;
 use grpc_service::grpc_protocol::task_execution_result::ExecutionResult;
 use grpc_service::grpc_protocol::task_output::Output;
 use grpc_service::grpc_protocol::{
-    ExecuteCommand, LaunchTaskRequest, LaunchTaskRequestPayload, PublicKey,
+    ExecuteCommand, LaunchTaskRequest, LaunchTaskRequestPayload, PublicKey, UploadFiles,
+    UploadedFile,
 };
 use indicatif::ProgressBar;
 use query_parser::parse;
 use rustyline::error::ReadlineError;
 use rustyline::DefaultEditor;
 use shellish_parse::ParseOptions;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::error::Error;
-use std::path::PathBuf;
+use std::os::unix::fs::PermissionsExt;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tonic::transport::Channel;
 
@@ -47,7 +50,26 @@ pub struct CommandOptions {
     /// testing opt
     #[arg(long = "no_std_process_return")]
     pub no_std_process_return: bool,
+    /// Colorize diff lines in grouped output (set by the upload command)
+    #[arg(skip)]
+    pub colorize_diff: bool,
 }
+
+#[derive(Args, Debug, Clone, Default)]
+pub struct UploadOptions {
+    /// Do not compute nor display diffs of updated text files
+    #[arg(long = "no-diff")]
+    pub no_diff: bool,
+    /// Do not display the progress bar, note that is will be hidden if stderr is not a tty
+    #[arg(short = 'n', long = "no-progress")]
+    pub no_progress: bool,
+    /// testing opt
+    #[arg(long = "no_std_process_return")]
+    pub no_std_process_return: bool,
+}
+
+/// Upload size limit: the whole payload must fit into a single gRPC message
+const MAX_UPLOAD_SIZE: usize = MAX_MESSAGE_SIZE - 64 * 1024;
 
 #[derive(ValueEnum, Debug, Clone, Copy, Default)]
 pub enum JsonMode {
@@ -89,6 +111,24 @@ pub enum Cmd {
         query: String,
         #[command(subcommand)]
         key_cmd: KeyCmd,
+    },
+    /// Upload files to targeted executors (scp-like: the last argument is the remote destination).
+    ///
+    /// The destination must be an absolute path. If it is an existing directory, files are written
+    /// inside it, otherwise (single file only) it is the path of the written file. Each executor
+    /// reports a diff of the updated text files.
+    #[command(
+        name = "upload",
+        override_usage = "commander upload [OPTIONS] <QUERY> <FILES>... <DEST>"
+    )]
+    Upload {
+        #[command(flatten)]
+        options: UploadOptions,
+        /// Target query
+        query: String,
+        /// Local files followed by the remote destination
+        #[arg(num_args = 2.., required = true, value_name = "PATH")]
+        files_and_dest: Vec<String>,
     },
 }
 
@@ -267,6 +307,26 @@ pub async fn handle_cmd(
                     options,
                 )
             }
+            Cmd::Upload {
+                options,
+                query,
+                files_and_dest,
+            } => {
+                //check the query is parsable
+                parse(&query)?;
+                let request =
+                    upload_request(query, &files_and_dest, options.no_diff, commander_config)?;
+                (
+                    request,
+                    CommandOptions {
+                        group: true,
+                        colorize_diff: true,
+                        no_progress: options.no_progress,
+                        no_std_process_return: options.no_std_process_return,
+                        ..Default::default()
+                    },
+                )
+            }
             Cmd::Int {
                 options: _,
                 query: _,
@@ -274,6 +334,69 @@ pub async fn handle_cmd(
         };
         do_handle_cmd(client, request, options).await
     }
+}
+
+fn upload_request(
+    query: String,
+    files_and_dest: &[String],
+    no_diff: bool,
+    commander_config: &CommanderConfig,
+) -> anyhow::Result<Request<LaunchTaskRequest>> {
+    let (destination, files) = files_and_dest
+        .split_last()
+        .filter(|(_, files)| !files.is_empty())
+        .ok_or_else(|| anyhow!("At least one file and a destination are required"))?;
+    if !Path::new(destination).is_absolute() {
+        bail!("The remote destination must be an absolute path: {destination}");
+    }
+    let files = files
+        .iter()
+        .map(|path| read_uploaded_file(Path::new(path)))
+        .collect::<anyhow::Result<Vec<_>>>()?;
+
+    let mut names = HashSet::new();
+    if let Some(duplicate) = files.iter().find(|f| !names.insert(f.name.as_str())) {
+        bail!("Several files are named {}", duplicate.name);
+    }
+    let total_size: usize = files.iter().map(|f| f.content.len()).sum();
+    if total_size > MAX_UPLOAD_SIZE {
+        bail!("Files are too large ({total_size} bytes), the limit is {MAX_UPLOAD_SIZE} bytes");
+    }
+
+    Ok(Request::new(LaunchTaskRequest {
+        payload: Some(encode_and_sign(
+            LaunchTaskRequestPayload {
+                task: Some(Task::UploadFiles(UploadFiles {
+                    destination: destination.clone(),
+                    files,
+                    no_diff,
+                })),
+            },
+            &commander_config.ed25519_key,
+            // leave time for large payloads to be transferred
+            Duration::from_secs(300),
+        )?),
+        predicate: query,
+    }))
+}
+
+fn read_uploaded_file(path: &Path) -> anyhow::Result<UploadedFile> {
+    let metadata =
+        std::fs::metadata(path).with_context(|| format!("Unable to read {}", path.display()))?;
+    if !metadata.is_file() {
+        bail!("{} is not a regular file", path.display());
+    }
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| anyhow!("Invalid file name: {}", path.display()))?
+        .to_string();
+    Ok(UploadedFile {
+        name,
+        content: std::fs::read(path)
+            .with_context(|| format!("Unable to read {}", path.display()))?,
+        mode: metadata.permissions().mode() & 0o7777,
+    })
 }
 
 pub async fn do_handle_cmd(
@@ -288,6 +411,7 @@ pub async fn do_handle_cmd(
         no_std_process_return,
         json,
         json_mode,
+        colorize_diff,
     } = options;
 
     let mut response = client.launch_task(request).await?.into_inner();
@@ -334,16 +458,12 @@ pub async fn do_handle_cmd(
                             pb.inc(1);
                         }
                         if group && !raw {
-                            match &pb {
-                                None => {
-                                    println!("{} {}:", "########".green(), client_id);
-                                    println!("{}: {}", "Task rejected".red(), reason);
-                                }
-                                Some(pb) => {
-                                    pb.println(format!("{} {}:", "########".green(), client_id));
-                                    pb.println(format!("{}: {}", "Task rejected".red(), reason));
-                                }
-                            }
+                            print_group(
+                                &pb,
+                                client_id,
+                                &[format!("{}: {}", "Task rejected".red(), reason)],
+                                false,
+                            );
                         } else {
                             match &pb {
                                 None => eprintln!(
@@ -372,24 +492,7 @@ pub async fn do_handle_cmd(
                         }
                         if group && !raw {
                             if let Some(lines) = executors_output.remove(client_id) {
-                                match &pb {
-                                    None => {
-                                        println!("{} {}:", "########".green(), client_id);
-                                        for line in lines {
-                                            println!("{}", line);
-                                        }
-                                    }
-                                    Some(pb) => {
-                                        pb.println(format!(
-                                            "{} {}:",
-                                            "########".green(),
-                                            client_id
-                                        ));
-                                        for line in lines {
-                                            pb.println(line);
-                                        }
-                                    }
-                                }
+                                print_group(&pb, client_id, &lines, colorize_diff);
                             }
                         }
                     }
@@ -413,24 +516,7 @@ pub async fn do_handle_cmd(
                             }
                             if group {
                                 if let Some(lines) = executors_output.get(client_id) {
-                                    match &pb {
-                                        None => {
-                                            println!("{} {}:", "########".green(), client_id);
-                                            for line in lines {
-                                                println!("{}", line);
-                                            }
-                                        }
-                                        Some(pb) => {
-                                            pb.println(format!(
-                                                "{} {}:",
-                                                "########".green(),
-                                                client_id
-                                            ));
-                                            for line in lines {
-                                                pb.println(line);
-                                            }
-                                        }
-                                    }
+                                    print_group(&pb, client_id, lines, colorize_diff);
                                 }
                             }
                         }
@@ -528,6 +614,44 @@ pub async fn do_handle_cmd(
         })
     } else {
         std::process::exit(if success { 0 } else { 1 });
+    }
+}
+
+/// Print the buffered output of an executor as a single block
+fn print_group(pb: &Option<ProgressBar>, client_id: &str, lines: &[String], colorize_diff: bool) {
+    let print = |line: String| match pb {
+        None => println!("{line}"),
+        Some(pb) => pb.println(line),
+    };
+    print(format!("{} {}:", "########".green(), client_id));
+    lines
+        .iter()
+        .map(|line| {
+            if colorize_diff {
+                colorize_diff_line(line)
+            } else {
+                line.clone()
+            }
+        })
+        .for_each(print);
+}
+
+/// Colorize a line of an upload report (unified diff lines & file status lines)
+fn colorize_diff_line(line: &str) -> String {
+    if line.starts_with("+++") || line.starts_with("---") {
+        line.bold().to_string()
+    } else if line.starts_with('+') || line.starts_with("new file:") {
+        line.green().to_string()
+    } else if line.starts_with('-') {
+        line.red().to_string()
+    } else if line.starts_with("@@") {
+        line.cyan().to_string()
+    } else if line.starts_with("updated:") {
+        line.yellow().to_string()
+    } else if line.starts_with("unchanged:") {
+        line.dimmed().to_string()
+    } else {
+        line.to_string()
     }
 }
 
