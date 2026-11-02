@@ -55,12 +55,7 @@ nom = "8"
 nom-language = "0.1"
 
 # tonic/grpc stuff
-tonic = { version = "0.14.9", features = [
-    "tls-ring",
-    "codegen",
-    "transport",
-    "router",
-], default-features = false }
+tonic = { version = "0.14.9", features = ["tls-ring"] }
 tonic-build = "0.14.9"
 prost = "0.14.1"
 protobuf-src = "1.1.0+21.5"
