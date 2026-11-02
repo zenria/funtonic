@@ -55,7 +55,7 @@ nom = "8"
 nom-language = "0.1"
 
 # tonic/grpc stuff
-tonic = { version = "0.14.1", features = ["tls-aws-lc"] }
+tonic = { version = "0.14.1", features = ["tls-ring"] }
 tonic-build = "0.14.1"
 prost = "0.14.1"
 protobuf-src = "1.1.0+21.5"
@@ -70,3 +70,5 @@ prettytable-rs = "^0.10"
 rustyline = "17"
 directories = "^6.0.0"
 shellish_parse = "2.2.0"
+
+rustls = { version = "0.23.46", features = ["ring"] }
