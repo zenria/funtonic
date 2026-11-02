@@ -394,7 +394,7 @@ dependencies = [
 
 [[package]]
 name = "commander"
-version = "0.22.2"
+version = "0.23.0"
 dependencies = [
  "anyhow",
  "atty",
@@ -756,7 +756,7 @@ dependencies = [
 
 [[package]]
 name = "executor"
-version = "0.22.2"
+version = "0.23.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -861,7 +861,7 @@ checksum = "42703706b716c37f96a77aea830392ad231f44c9e9a67872fa5548707e11b11c"
 
 [[package]]
 name = "funtonic"
-version = "0.22.2"
+version = "0.23.0"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -3035,7 +3035,7 @@ dependencies = [
 
 [[package]]
 name = "taskserver"
-version = "0.22.2"
+version = "0.23.0"
 dependencies = [
  "anyhow",
  "clap",
