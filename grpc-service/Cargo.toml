@@ -7,7 +7,12 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-tonic = { workspace = true }
+tonic = { workspace = true, default-features = false, features = [
+    "tls-ring",
+    "codegen",
+    "transport",
+    "router",
+] }
 prost = { workspace = true }
 tonic-prost = { workspace = true }
 async-stream = { workspace = true }
