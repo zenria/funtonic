@@ -133,7 +133,7 @@ impl ExecutorService for TaskServer {
                     if let ExecutionResult::TaskCompleted(completed) = execution_result {
                         info!(
                             "Task {} completed with code {} on {}",
-                            task_id, task_execution_stream.client_id, completed.return_code
+                            task_id, completed.return_code, task_execution_stream.client_id
                         );
                     }
                 }
